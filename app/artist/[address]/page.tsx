@@ -7,29 +7,12 @@ import { isAddress } from 'viem';
 import Link from 'next/link';
 
 // ENV
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 // Types
 interface MusicMetadata {
   name?: string;
   image?: string;
   animation_url?: string;
-}
-
-interface MusicNFT {
-  id: string;
-  tokenId: string;
-  artist: string;
-  tokenURI: string;
-  mintedAt: string;
-  txHash: string;
-  price: string;
-  name: string;
-  imageUrl: string;
-  previewAudioUrl: string;
-  fullAudioUrl: string;
-  metadataFetched: boolean;
-  isArt: boolean; // ✅ ADD: Art vs Music flag
 }
 
 interface ArtistMusic {
@@ -48,11 +31,6 @@ interface ArtistInfo {
   displayName?: string;
   pfpUrl?: string;
   fid?: number;
-}
-
-interface GraphQLResponse {
-  data?: { MusicNFT: MusicNFT[] };
-  errors?: Array<{ message: string }>;
 }
 
 export default function ArtistProfilePage() {
@@ -76,20 +54,6 @@ export default function ArtistProfilePage() {
   const [audioErrors, setAudioErrors] = useState<Record<number, string>>({});
   const [audioLoading, setAudioLoading] = useState<Record<number, boolean>>({});
   const [collectorInfo, setCollectorInfo] = useState<Record<string, { isCollectorMaster: boolean; collectorImageUrl: string | null; maxEditions: number; collectorsMinted: number }>>({});
-
-  // IPFS URL Resolver Function
-  const resolveIPFS = (url: string): string => {
-    if (!url) return '';
-    if (url.startsWith('ipfs://')) {
-      return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
-    }
-    if (url.includes('/ipfs/')) {
-      const cid = url.split('/ipfs/')[1]?.split('?')[0];
-      return `https://harlequin-used-hare-224.mypinata.cloud/ipfs/${cid}`;
-    }
-    return url;
-  };
-
   useEffect(() => {
     // Use AbortController to cancel stale requests when dependencies change
     const abortController = new AbortController();
@@ -296,54 +260,30 @@ export default function ArtistProfilePage() {
   const loadArtistProfile = async () => {
     setLoading(true);
     try {
-      const query = `
-        query GetArtistMusic($address: String!) {
-          MusicNFT(
-            where: {
-              artist: {_eq: $address},
-              isBurned: {_eq: false}
-            },
-            order_by: {mintedAt: desc},
-            limit: 50
-          ) {
-            id
-            tokenId
-            tokenURI
-            mintedAt
-            txHash
-            price
-            name
-            imageUrl
-            previewAudioUrl
-            fullAudioUrl
-            metadataFetched
-            isArt
-          }
-        }
-      `;
-      const response = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, variables: { address: artistAddress.toLowerCase() } }),
-      });
-      if (!response.ok) throw new Error(`Envio API error: ${response.status}`);
-      const result: GraphQLResponse = await response.json();
-      if (result.errors) throw new Error(result.errors.map(e => e.message).join(', '));
-      const music = result.data?.MusicNFT || [];
+      // /api/catalogue reads the contracts, using the indexer only while it is fresh. This ran
+      // in the browser against the indexer directly and so had no fallback.
+      const response = await fetch('/api/catalogue');
+      if (!response.ok) throw new Error(`Catalogue read failed: ${response.status}`);
+      const result = await response.json();
 
-      const artistMusicMapped = music.map((nft: MusicNFT) => ({
-        tokenId: Number(nft.tokenId),
-        tokenURI: nft.tokenURI,
-        mintedAt: nft.mintedAt,
-        txHash: nft.txHash,
-        metadata: {
-          name: nft.name,
-          image: resolveIPFS(nft.imageUrl),
-          animation_url: resolveIPFS(nft.previewAudioUrl),
-        },
-        price: (Number(nft.price) / 1e18).toFixed(6),
-        isArt: nft.isArt || false, // ✅ ADD: Include isArt flag
-      }));
+      const artistMusicMapped = (result.tracks || [])
+        .filter(
+          (t: any) => t.artist?.toLowerCase() === artistAddress.toLowerCase(),
+        )
+        .map((t: any) => ({
+          tokenId: Number(t.tokenId),
+          tokenURI: t.tokenURI,
+          mintedAt: '',
+          txHash: '',
+          metadata: {
+            name: t.name,
+            // Already gateway-resolved server-side.
+            image: t.imageUrl,
+            animation_url: t.audioUrl,
+          },
+          price: (Number(t.price) / 1e18).toFixed(6),
+          isArt: t.isArt || false,
+        }));
 
       console.log('Loaded music with resolved URLs', artistMusicMapped);
       setArtistMusic(artistMusicMapped);

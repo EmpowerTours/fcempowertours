@@ -8,7 +8,6 @@ import { MusicEmptyState } from '@/app/components/animations/EmptyState';
 import { AnimatedStatCard, MusicNFTCard } from '@/app/components/animations/AnimatedCard';
 
 // Constants
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
 
 // Utility function to resolve IPFS URLs
@@ -77,95 +76,64 @@ export default function MusicDiscoveryPage() {
   const loadAllMusic = async () => {
     setLoading(true);
     try {
-      const query = `
-        query GetAllMusic {
-          MusicNFT(
-            where: {isBurned: {_eq: false}},
-            order_by: {mintedAt: desc},
-            limit: 100
-          ) {
-            id
-            tokenId
-            artist
-            owner
-            tokenURI
-            mintedAt
-            txHash
-            isArt
-          }
-        }
-      `;
-
-      const response = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-      });
-
+      // /api/catalogue reads the contracts, using the indexer only while it is demonstrably
+      // fresh. This page used to query the indexer straight from the browser, so when it went
+      // stale on 2026-08-01 the page served a three-week-old catalogue with nothing to say so.
+      const response = await fetch('/api/catalogue');
       if (!response.ok) throw new Error('Failed to load music');
 
       const result = await response.json();
-      const music: MusicNFT[] = result.data?.MusicNFT || [];
+      const tracks: Array<{
+        id: string;
+        tokenId: string;
+        artist: string;
+        tokenURI: string;
+        isArt: boolean;
+        name: string;
+        imageUrl: string;
+        audioUrl?: string;
+      }> = result.tracks || [];
 
-      console.log('✅ Loaded', music.length, 'music NFTs');
+      // Newest first, as `order_by: {mintedAt: desc}` did. The registry has no mint timestamp,
+      // and ids ascend, so id order is the same order.
+      const music: MusicNFT[] = tracks
+        .filter((t) => !t.isArt)
+        .sort((a, b) => Number(b.tokenId) - Number(a.tokenId))
+        .map((t) => ({
+          id: t.id,
+          tokenId: Number(t.tokenId),
+          artist: t.artist,
+          owner: t.artist,
+          tokenURI: t.tokenURI,
+          mintedAt: '',
+          txHash: '',
+          isArt: t.isArt,
+          // Already resolved server-side, so the per-track metadata fetch below has nothing
+          // left to do for the fields this page renders.
+          metadata: {
+            name: t.name,
+            image: t.imageUrl,
+            animation_url: t.audioUrl,
+          },
+          isLoadingMetadata: false,
+        }));
 
-      const musicWithLoading: MusicNFT[] = music.map((m) => ({
-        ...m,
-        isLoadingMetadata: true,
-      }));
+      console.log('✅ Loaded', music.length, 'music NFTs from', result.source);
 
-      setAllMusic(musicWithLoading);
-      setFilteredMusic(musicWithLoading);
+      setAllMusic(music);
+      setFilteredMusic(music);
 
-      // Load metadata for each track
-      music.forEach(async (nft: MusicNFT, index: number) => {
-        try {
-          const metadataUrl = resolveIPFS(nft.tokenURI);
-          const metadataRes = await fetch(metadataUrl);
-          if (metadataRes.ok) {
-            const metadata = await metadataRes.json();
-            setAllMusic((prev) => {
-              const updated = [...prev];
-              updated[index] = {
-                ...updated[index],
-                metadata,
-                isLoadingMetadata: false,
-              };
-              return updated;
-            });
-          } else {
-            setAllMusic((prev) => {
-              const updated = [...prev];
-              updated[index] = {
-                ...updated[index],
-                isLoadingMetadata: false,
-              };
-              return updated;
-            });
-          }
-        } catch (error) {
-          console.error('Error loading metadata:', error);
-          setAllMusic((prev) => {
-            const updated = [...prev];
-            updated[index] = {
-              ...updated[index],
-              isLoadingMetadata: false,
-            };
-            return updated;
-          });
-        }
-      });
-
-      // Load artist info for each unique artist
+      // Artist display names still come from Neynar — the contracts know an address, not a
+      // Farcaster profile. Kept separate from the catalogue read on purpose: an artist without a
+      // Farcaster account is normal since the v3 cutover, and must not blank the listing.
       const uniqueArtists = [...new Set(music.map((m) => m.artist.toLowerCase()))];
       uniqueArtists.forEach(async (artistAddress: string) => {
         try {
-          const response = await fetch(
+          const artistRes = await fetch(
             `/api/neynar/v2/farcaster/user/by_verification?address=${artistAddress}`
           );
-          if (response.ok) {
-            const data = await response.json();
-            // Neynar returns user data nested inside 'user' object
+          if (artistRes.ok) {
+            const data = await artistRes.json();
             const user = data?.user;
             if (user && user.fid) {
               setArtistInfoCache((prev) => ({
@@ -183,6 +151,7 @@ export default function MusicDiscoveryPage() {
           console.error('Error loading artist info:', error);
         }
       });
+
     } catch (error) {
       console.error('❌ Error loading music:', error);
     } finally {

@@ -133,88 +133,46 @@ export default function NFTPage() {
 
       console.log("🔍 Fetching music data for token:", tokenId);
 
-      // PRIORITY 1: Try Envio first
-      const query = `
-        query GetMusicNFT($tokenId: String!) {
-          MusicNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
-            tokenId
-            name
-            imageUrl
-            price
-            artist
-            fullAudioUrl
-            previewAudioUrl
-            mintedAt
-            isArt
-          }
-        }
-      `;
-
-      console.log("📤 Sending Envio query for tokenId:", tokenId);
-      const response = await fetch(process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, variables: { tokenId } }),
-      });
+      // PRIORITY 1: the resolved catalogue. This used to query the indexer straight from the
+      // browser; /api/catalogue reads the contracts and uses the indexer only while it is
+      // demonstrably fresh.
+      const response = await fetch("/api/catalogue");
 
       if (response.ok) {
         const data = await response.json();
-        console.log("📥 Envio response:", data);
-
-        const nft = data.data?.MusicNFT?.[0];
+        const nft = (data.tracks || []).find(
+          (t: any) => String(t.tokenId) === String(tokenId),
+        );
 
         if (nft && nft.name) {
-          console.log("✅ Found in Envio:", nft);
+          const priceInTours = nft.price
+            ? String(Number(BigInt(nft.price)) / 1e18)
+            : "0";
 
-          // ✅ Convert price from wei to readable TOURS
-          let priceInTours = "0";
-          if (nft.price) {
-            try {
-              const priceBI = BigInt(nft.price);
-              const priceNum = Number(priceBI) / 1e18;
-              priceInTours = priceNum.toString();
-            } catch {
-              console.warn("Failed to convert price:", nft.price);
-              priceInTours = String(nft.price);
-            }
-          }
-
-          // ✅ RESOLVE FID FROM WALLET ADDRESS
+          // Resolve the artist address to a Farcaster handle where there is one. Since the v3
+          // cutover an artist may have no Farcaster account at all, so the truncated address is
+          // a legitimate outcome rather than a failure.
           let displayArtist = nft.artist || "Unknown Artist";
           if (nft.artist && nft.artist.startsWith("0x")) {
-            console.log(
-              "🔍 Artist is wallet address, attempting FID resolution:",
-              nft.artist,
-            );
             const fid = await resolveFidFromWallet(nft.artist);
-            if (fid) {
-              displayArtist = `@${fid}`;
-              console.log("✅ Successfully resolved to FID:", displayArtist);
-            } else {
-              console.log("⚠️ FID resolution failed, showing truncated wallet");
-              displayArtist = `${nft.artist.substring(0, 6)}...${nft.artist.slice(-4)}`;
-            }
+            displayArtist = fid
+              ? `@${fid}`
+              : `${nft.artist.substring(0, 6)}...${nft.artist.slice(-4)}`;
           }
 
           setNftData({
-            tokenId: nft.tokenId,
+            tokenId: String(nft.tokenId),
             name: nft.name,
             artist: displayArtist,
             artistAddress: nft.artist || "Unknown Artist",
             price: priceInTours,
             imageUrl: nft.imageUrl || "",
-            audioUrl: nft.fullAudioUrl || nft.previewAudioUrl || "",
-            createdAt: nft.mintedAt,
+            audioUrl: nft.audioUrl || "",
+            createdAt: "",
             isArt: nft.isArt === true,
           });
           return;
-        } else {
-          console.log(
-            "⚠️ No data in Envio response, falling back to blockchain",
-          );
         }
-      } else {
-        console.log("⚠️ Envio query failed:", response.status);
       }
 
       // PRIORITY 2: If not in Envio, try blockchain directly

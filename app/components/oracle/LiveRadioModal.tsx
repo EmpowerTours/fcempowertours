@@ -312,47 +312,36 @@ export function LiveRadioModal({
   const fetchAvailableSongs = useCallback(async () => {
     setLoadingSongs(true);
     try {
-      const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
-      // Only fetch NFTs that have fullAudioUrl (music NFTs, not art NFTs)
-      const query = `
-        query GetMusicNFTs {
-          MusicNFT(where: {isBurned: {_eq: false}, fullAudioUrl: {_is_null: false}}, limit: 50) {
-            tokenId
-            name
-            artist
-            artistFid
-            fullAudioUrl
-            imageUrl
-          }
-        }
-      `;
-
-      const response = await fetch(ENVIO_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({ query }),
+      // /api/catalogue reads the contracts, falling back from the indexer when it is stale —
+      // which it has been since 2026-08-01. This ran in the browser against the indexer directly,
+      // so it had no fallback at all.
+      const response = await fetch("/api/catalogue", {
+        headers: { ...(await authHeaders()) },
       });
 
       const data = await response.json();
-      if (data.data?.MusicNFT) {
-        // Map fullAudioUrl to audioUrl and filter out any without valid audio
-        const songs = data.data.MusicNFT.filter(
-          (song: any) => song.fullAudioUrl && song.fullAudioUrl.length > 0,
-        ).map((song: any) => ({
-          ...song,
-          audioUrl: song.fullAudioUrl,
-        }));
+      if (data.tracks) {
+        const songs = data.tracks
+          .filter((t: any) => !t.isArt && t.audioUrl)
+          .map((t: any) => ({
+            tokenId: String(t.tokenId),
+            name: t.name,
+            artist: t.artist,
+            // The contracts do not carry a Farcaster id. The name resolution below is keyed on
+            // it, so leaving it undefined means those songs simply show the address — which is
+            // correct for a wallet-only artist rather than a missing lookup.
+            artistFid: undefined,
+            audioUrl: t.audioUrl,
+            imageUrl: t.imageUrl,
+          }));
         setAvailableSongs(songs);
         console.log(
           "[LiveRadio] Fetched",
           songs.length,
-          "music NFTs (filtered out art NFTs)",
+          "music NFTs from",
+          data.source,
         );
 
-        // Resolve artist FIDs to @usernames
         const fids = songs.map((s: any) => s.artistFid).filter(Boolean);
         if (fids.length > 0) resolveArtistNames(fids);
       }
