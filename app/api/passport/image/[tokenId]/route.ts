@@ -189,55 +189,6 @@ export async function GET(
       }
     }
 
-    // Also fetch climbing access badges for the passport owner
-    if (passportOwner && stamps.length < 6) {
-      try {
-        const climbingQuery = `
-          query GetClimbingBadges($holder: String!) {
-            ClimbAccessBadge(where: { holder: { _eq: $holder } }, order_by: { purchasedAt: desc }, limit: 6) {
-              tokenId
-              purchasedAt
-              location {
-                name
-                difficulty
-                latitude
-                longitude
-              }
-            }
-          }
-        `;
-
-        const climbRes = await fetch(ENVIO_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: climbingQuery,
-            variables: { holder: passportOwner.toLowerCase() }
-          }),
-        });
-
-        if (climbRes.ok) {
-          const climbData = await climbRes.json();
-          const badges = climbData.data?.ClimbAccessBadge || [];
-
-          // Convert badges to stamps format
-          const climbStamps: PassportStamp[] = badges.map((badge: any) => ({
-            locationName: badge.location?.name || 'Climb',
-            city: badge.location?.difficulty || 'Unknown',
-            country: 'Climbing',
-            stampedAt: parseInt(badge.purchasedAt) || Math.floor(Date.now() / 1000),
-            experienceType: 'climbing',
-          }));
-
-          // Add climbing stamps to the stamps array
-          stamps = [...stamps, ...climbStamps].slice(0, 6);
-          console.log('[PassportImage] Added', climbStamps.length, 'climbing badges as stamps');
-        }
-      } catch {
-        console.log('[PassportImage] Could not fetch climbing badges');
-      }
-    }
-
     // Generate the SVG
     const svg = generatePassportSVG(countryCode, countryName, tokenIdNum, stamps);
 

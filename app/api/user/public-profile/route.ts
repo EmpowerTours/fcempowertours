@@ -45,8 +45,6 @@ interface PublicProfile {
     purchasedMusic?: number;
     purchasedArt?: number;
     passports?: number;
-    itineraries?: number;
-    experiences?: number;
   };
   createdNFTs?: Array<{
     id: string;
@@ -177,12 +175,6 @@ async function getBlockchainStats(walletAddress: string): Promise<any> {
         MusicLicense(where: {licensee: {_in: $addresses}}) {
           id
         }
-        ItineraryPurchase(where: {buyer: {_in: $addresses}}) {
-          id
-        }
-        Experience(where: {creator: {_in: $addresses}}) {
-          id
-        }
       }
     `;
 
@@ -292,8 +284,6 @@ export async function GET(req: NextRequest) {
     const purchasedNFTs = blockchainData?.PurchasedNFT || [];
     const passports = blockchainData?.PassportNFT || [];
     const licenses = blockchainData?.MusicLicense || [];
-    const itineraries = blockchainData?.ItineraryPurchase || [];
-    const experiences = blockchainData?.Experience || [];
 
     const isArtist = createdMusic.length > 0 || createdArt.length > 0;
     const isCollector = purchasedNFTs.length > 0 || licenses.length > 0 || passports.length > 0;
@@ -320,13 +310,11 @@ export async function GET(req: NextRequest) {
         createdMusic: createdMusic.length,
         createdArt: createdArt.length,
         passports: passports.length,
-        experiences: experiences.length,
       };
 
       if (privacy.showPurchasedNFTs) {
         profile.stats.purchasedMusic = purchasedNFTs.filter((n: any) => !n.isArt).length + licenses.length;
         profile.stats.purchasedArt = purchasedNFTs.filter((n: any) => n.isArt).length;
-        profile.stats.itineraries = itineraries.length;
       }
     }
 

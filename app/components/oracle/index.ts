@@ -8,7 +8,6 @@ export { DashboardModal } from "./DashboardModal";
 export { MusicSubscriptionModal } from "./MusicSubscriptionModal";
 export { MusicPlaylist } from "./MusicPlaylist";
 export { LiveRadioModal } from "./LiveRadioModal";
-export { MirrorMate } from "./MirrorMate";
 export { EventOracle } from "./EventOracle";
 export { CrystalBall } from "./CrystalBall";
 export { EPKModal } from "./EPKModal";

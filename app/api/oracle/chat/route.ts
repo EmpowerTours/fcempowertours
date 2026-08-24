@@ -14,7 +14,6 @@ interface OracleAction {
   type:
     | "navigate"
     | "execute"
-    | "game"
     | "chat"
     | "create_nft"
     | "mint_passport"
@@ -25,7 +24,6 @@ interface OracleAction {
     | "manage_epk"
     | "unknown";
   destination?: string; // Page to navigate to
-  game?: "TETRIS" | "TICTACTOE" | "MIRROR";
   transaction?: {
     contract: string;
     function: string;
@@ -141,7 +139,6 @@ Actions:
 - type:"create_nft" - Open NFT creation modal
 - type:"mint_passport" - Mint passport NFT. Include passport:{countryCode, countryName} if user specifies a country, otherwise the system will use their detected location
 - type:"navigate" + destination:"/path" - Navigate to page
-- type:"game" + game:"MIRROR" - Launch game
 - type:"sponsorship" + sponsorship.action:"list_open" - Show open sponsorship offers/requests
 - type:"sponsorship" + sponsorship.action:"check_status" + sponsorship.id:<id> - Check sponsorship status
 - type:"sponsorship" + sponsorship.action:"checkin" + sponsorship.id:<id> - Check-in to sponsored event
@@ -173,7 +170,6 @@ Return valid JSON only.`;
             enum: [
               "navigate",
               "execute",
-              "game",
               "chat",
               "create_nft",
               "mint_passport",
@@ -188,11 +184,6 @@ Return valid JSON only.`;
           destination: {
             type: Type.STRING,
             description: "Page path if type is navigate",
-          },
-          game: {
-            type: Type.STRING,
-            enum: ["TETRIS", "TICTACTOE", "MIRROR"],
-            description: "Game type if type is game",
           },
           transaction: {
             type: Type.OBJECT,
@@ -298,7 +289,6 @@ Return valid JSON only.`;
           "type",
           "message",
           "destination",
-          "game",
           "transaction",
           "passport",
           "sponsorship",
@@ -610,7 +600,6 @@ function getAbiName(contractAddress: string): string {
     [process.env.NEXT_PUBLIC_TOKEN_SWAP || ""]: "TokenSwap",
     [process.env.NEXT_PUBLIC_NFT_CONTRACT || ""]: "MusicNFT",
     [process.env.NEXT_PUBLIC_PASSPORT_NFT || ""]: "PassportNFT",
-    [process.env.NEXT_PUBLIC_MIRRORMATE_ADDRESS || ""]: "MirrorMate",
   };
 
   return contracts[contractAddress] || "ERC20";

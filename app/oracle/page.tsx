@@ -11,7 +11,6 @@ import { createPortal } from "react-dom";
 import { Send, Sparkles, X, Globe, Loader2, User, BarChart3, Radio, Wallet, Copy, ExternalLink, Plus, Sun, Moon } from "lucide-react";
 import { CrystalBall, OracleState } from "@/app/components/oracle/CrystalBall";
 import { MusicSubscriptionModal } from "@/app/components/oracle/MusicSubscriptionModal";
-import { MirrorMate } from "@/app/components/oracle/MirrorMate";
 import { CreateNFTModal } from "@/app/components/oracle/CreateNFTModal";
 import { PassportMintModal } from "@/app/components/oracle/PassportMintModal";
 import { ProfileModal } from "@/app/components/oracle/ProfileModal";
@@ -70,7 +69,6 @@ export default function OraclePage() {
   const [loadingNFTs, setLoadingNFTs] = useState(true);
   const [_playingNFTId, setPlayingNFTId] = useState<string | null>(null);
   const [playingTokenId, setPlayingTokenId] = useState<string | null>(null);
-  const [activeGame, setActiveGame] = useState<"MIRROR" | null>(null);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showCreateNFTModal, setShowCreateNFTModal] = useState(false);
   const [showPassportMintModal, setShowPassportMintModal] = useState(false);
@@ -217,11 +215,6 @@ export default function OraclePage() {
     console.log("[OraclePage] walletAddress changed:", walletAddress);
     console.log("[OraclePage] user:", user);
   }, [walletAddress, user]);
-
-  // Debug: Log activeGame state changes
-  useEffect(() => {
-    console.log("[OraclePage] activeGame state changed to:", activeGame);
-  }, [activeGame]);
 
   // Debug: Log showCreateNFTModal state changes
   useEffect(() => {
@@ -437,34 +430,6 @@ export default function OraclePage() {
               setTimeout(() => {
                 setShowPassportMintModal(true);
               }, 500);
-            }
-            break;
-
-          case "game":
-            console.log("[Oracle] GAME case triggered");
-            console.log("[Oracle] Game action received:", action);
-            // Only support MirrorMate now
-            if (action.game === "MIRROR") {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "oracle",
-                  content: `${action.message}\n\nLaunching MirrorMate...`,
-                  action,
-                },
-              ]);
-              setTimeout(() => {
-                setActiveGame("MIRROR");
-              }, 1000);
-            } else {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "oracle",
-                  content: `Sorry, that game is not available right now. Try asking for MirrorMate!`,
-                  action,
-                },
-              ]);
             }
             break;
 
@@ -687,7 +652,6 @@ export default function OraclePage() {
   // When any modal/overlay is active, Earth shrinks and blurs to background
   const getCrystalBallClasses = () => {
     const hasActiveOverlay =
-      activeGame !== null ||
       messages.length > 0 ||
       showProfileModal ||
       showDashboardModal ||
@@ -1320,14 +1284,6 @@ export default function OraclePage() {
             document.body,
           )}
       </div>
-
-      {/* MirrorMate Game */}
-      {activeGame === "MIRROR" && (
-        <MirrorMate
-          onClose={() => setActiveGame(null)}
-          isDarkMode={isDarkMode}
-        />
-      )}
 
       {/* Music Subscription Modal - Centered Overlay */}
       {showSubscriptionModal && (
