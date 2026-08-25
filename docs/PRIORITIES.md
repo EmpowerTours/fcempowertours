@@ -156,6 +156,66 @@ The reward is **1 TOURS/month**, meaningless against 100B. Half-built reward pat
 
 ---
 
+## Found 2026-08-24/25, not previously listed
+
+### A. The five masters are attributed to the deployer, not the artist
+
+`LicenseRegistry.getMaster(1..5).artist` returns `0x8dF64bAC…` (deployer), while the legacy
+contract records `0x33fFCcb1…` (unify34). So `artistMasterCount(unify34) = 0` and
+`artistLifetimePlays(unify34) = 0`, while the deployer shows 5 and 5.
+
+Money follows the chain, not the display: `SalesController._settle` pays `m.artist` directly per
+sale, ERC-2981 resale royalties use the same field, and `claimArtistPayout` is `msg.sender`-keyed.
+
+**Both wallets belong to the same person, so nothing is mis-paid.** The cost is that the public
+record attributes the catalogue to the platform, artist-facing surfaces read zero, and the Neynar
+lookup 404s on the platform wallet.
+
+This was deliberate, not a slip. `tools/build-migration-manifest.ts:130` says so:
+
+> Minted BY the deployer, so the deployer is the artist of record and receives every payout.
+> That was the deliberate choice: the Farcaster wallet is Warpcast-managed with no key export.
+
+The failure was recording that consequence **only there** — not in `DEPLOYMENT_PLAN.md`, not in
+`V3_DESIGN.md`'s identity section. A deliberate trade nobody writes down is indistinguishable
+from a bug three days later, which is how it was found: by accident, checking an endpoint.
+
+**The constraint no longer holds.** `SalesController.mintMaster` sets `artist = msg.sender` and a
+Warpcast wallet can send from the browser — simulated live from `0x33fFCcb1…`, returns master id
+6. But a naive re-mint doubles the catalogue: there is no on-chain URI index, and
+`findDuplicateMaster` is artist-scoped so it cannot see the deployer's copies. Any fix needs
+sequencing against licence ids, which reference masters 1–5 — including the outstanding
+`migrateLegacy` for licence 1000004, which targets master 3.
+
+New artists are unaffected: the app mints via `mintMasterFor` with the artist's EIP-712
+signature, so the signer is the artist of record. Only a manifest that calls `mintMaster` has
+this problem.
+
+### B. Two surfaces still resolve artist names themselves
+
+`artist/[address]` and `LiveRadioModal` do their own lookup and will show addresses rather than
+registry names. `discover` and `nft/[tokenId]` are wired.
+
+Also worth a check rather than a comment: every `@${…}` in the app currently prefixes a Farcaster
+username or FID, which is correct. Nothing stops a future edit wiring a ProfileRegistry name into
+one of those — `og/music`, `og/art`, `execute-delegated`, `cast-nft` all have the pattern sitting
+there — which would present a self-registered name as a verified handle.
+
+### C. `/api/catalogue` is on the hot path and is slow
+
+2.7–3.4s in dev after batching. Multicall3 is declared and used, and per-stage timings show the
+batching works (5 calls in 107–538ms); what remains is ~4 dependent round trips on the free
+public RPC at 100–550ms each. **A paid RPC endpoint is the next lever, not more batching.**
+
+Everything now reads through this: radio, discover, buy path, NFT page, artist page, frames,
+venue, EPK.
+
+### D. `mint-music` builds a bare OG image URL
+
+`frames/music` passes `imageUrl`, `title` and `price` directly so the card renders without a
+lookup. `mint-music:316` builds `?tokenId=` alone, so casting right after a mint pays a full
+catalogue read while a Farcaster client waits. The fast path exists and is unused.
+
 ## Tier 4 — hygiene, real but not urgent
 
 ### 13. Disable the leaked Google Maps keys in the Console
