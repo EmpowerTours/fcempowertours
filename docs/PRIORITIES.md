@@ -63,17 +63,31 @@ unnoticed for three weeks. What it is breaking meanwhile:
 It is **not** why #4 is blocked. Enumerating V5 subscribers needs `eth_getLogs` and the Alchemy
 key regardless of the indexer, because the public RPC caps at a 100-block range.
 
-### 4. V5 subscribers — unverified, and someone may be paying for nothing
+### 4. ~~V5 subscribers~~ — **RESOLVED 2026-08-25: nobody is stranded**
 
-The app reads `MusicSubscriptionV6`. Anyone holding an unexpired **V5** subscription is invisible
-to it. The set was never enumerated: the public Monad RPC caps `eth_getLogs` at a **100-block
-range**, so it needs the **Alchemy key**.
+Checked with `tools/list-v5-subscribers.ts`. Every address this project has a record of reads
+inactive on V5:
 
-Corrected 2026-08-24: this was previously written as blocked on #3. It is not — a healthy indexer
-would help, but the Alchemy key alone is sufficient and is the shorter path. Do not wait on the
-Envio decision for this one.
+```
+0x33ffccb1…  V5 expiry 2026-08-24T13:39   V5 active false   V6 active false
+0x868469e5…  never                        false             false
+0xd6b624f5…  never                        false             false
+0xce1e82bb…  never                        false             false
+```
 
-This is the only item where a paying user may already be losing something.
+The artist's V5 subscription lapsed on its own the day before the check; nobody else ever
+subscribed on V5. Nothing to migrate, nobody paying for something invisible.
+
+**The stated blocker was wrong, and that is worth recording.** This item said it "needs the
+Alchemy key". The key is on Alchemy's **Free** plan, which caps `eth_getLogs` at a **10**-block
+range — *worse* than the public Monad RPC's 100. Covering the ~48.7M blocks since the
+subscription contract went live would need roughly 4.9 million requests. Event enumeration is
+unavailable at any tier this project currently has, so anything else that assumed the key unlocks
+log queries should be re-planned. See also item C: a paid RPC is the lever for latency too.
+
+The check therefore reads contract state per address rather than discovering addresses from
+events. That answers the question at this scale but **cannot find a subscriber nobody recorded**
+— a real limit, printed in the tool's own output rather than left implied.
 
 ### 5. `/api/register-user-safe` is unauthenticated and spends platform gas
 
