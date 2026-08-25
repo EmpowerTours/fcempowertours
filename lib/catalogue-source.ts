@@ -128,67 +128,110 @@ export async function readCatalogueFromChain(opts: {
     return [];
   }
 
-  const rows: CatalogueRow[] = [];
-  for (let id = total; id >= 1n && rows.length < limit; id--) {
-    try {
-      if (v3) {
-        const master = (await client.readContract({
+  // Newest first, capped at `limit`. Ids are dense enough that taking the top `limit` and
+  // dropping the gaps costs less than probing further down.
+  const ids: bigint[] = [];
+  for (let id = total; id >= 1n && ids.length < limit; id--) ids.push(id);
+  if (ids.length === 0) return [];
+
+  // One request instead of one per read.
+  //
+  // This loop used to await each call in turn: getMaster, tokenURI, price — three round trips
+  // per master, ~150ms each, serialised. Five masters cost ~2-6 seconds, and the cause was
+  // queueing rather than anything slow on-chain. `multicall` batches them into a single
+  // eth_call, which needs `contracts.multicall3` declared on the chain (see app/chains.ts) or
+  // viem silently degrades back to one request per call.
+  //
+  // `allowFailure` is on: a burned or purged id reverts, and one bad id must not take the
+  // catalogue with it — the same reason the old loop caught per iteration.
+  if (v3) {
+    // All three start together. Prices depend only on the ids, not on anything getMaster
+    // returns, so awaiting them afterwards added a whole round trip for no reason — measured at
+    // ~500ms, which was a quarter of the endpoint's total time.
+    //
+    // Prices still go through `readMasterPrice`, which knows that v3 moved pricing to
+    // SalesController and that `masterTokens` survives only as a view with hardcoded zeros.
+    // Inlining that decision here to save one more round trip is how a price ends up right in
+    // one place and wrong in another.
+    const [masters, uris, prices] = await Promise.all([
+      client.multicall({
+        contracts: ids.map((id) => ({
           address: nft,
           abi: REGISTRY_ABI,
-          functionName: "getMaster",
-          args: [id],
-        })) as readonly unknown[];
-        // Named return values decode as a tuple, not an object: artist is [0], nftType is [5].
-        const artist = master[0] as string;
-        if (!artist || artist === "0x0000000000000000000000000000000000000000")
-          continue;
-
-        const tokenURI = (await client.readContract({
+          functionName: "getMaster" as const,
+          args: [id] as const,
+        })),
+        allowFailure: true,
+      }),
+      client.multicall({
+        contracts: ids.map((id) => ({
           address: nft,
           abi: REGISTRY_ABI,
-          functionName: "tokenURI",
-          args: [id],
-        })) as string;
+          functionName: "tokenURI" as const,
+          args: [id] as const,
+        })),
+        allowFailure: true,
+      }),
+      Promise.all(
+        ids.map((id) =>
+          readMasterPrice(client, {
+            nftAddress: nft,
+            salesController,
+            tokenId: id,
+          }).catch(() => null),
+        ),
+      ),
+    ]);
 
-        const price = await readMasterPrice(client, {
-          nftAddress: nft,
-          salesController,
-          tokenId: id,
-        });
+    const rows: CatalogueRow[] = [];
+    ids.forEach((id, i) => {
+      const m = masters[i];
+      const u = uris[i];
+      if (m?.status !== "success" || u?.status !== "success") return;
 
-        rows.push({
-          id: `music-${activeChain.id}-${id}`,
-          tokenId: id.toString(),
-          tokenURI,
-          isArt: Number(master[5]) === 1,
-          artist: artist.toLowerCase(),
-          price: (price ?? 0n).toString(),
-        });
-      } else {
-        const m = (await client.readContract({
-          address: nft,
-          abi: LEGACY_ABI,
-          functionName: "masterTokens",
-          args: [id],
-        })) as readonly unknown[];
-        const artist = m[1] as string;
-        if (!artist || artist === "0x0000000000000000000000000000000000000000")
-          continue;
-        rows.push({
-          id: `music-${activeChain.id}-${id}`,
-          tokenId: id.toString(),
-          tokenURI: m[2] as string,
-          isArt: Number(m[11]) === 1,
-          artist: artist.toLowerCase(),
-          price: (m[4] as bigint).toString(),
-        });
-      }
-    } catch {
-      // A burned or purged id. Skip it rather than truncating the catalogue at the gap.
-      continue;
-    }
+      const master = m.result as readonly unknown[];
+      const artist = master[0] as string;
+      if (!artist || artist === "0x0000000000000000000000000000000000000000")
+        return;
+
+      rows.push({
+        id: `music-${activeChain.id}-${id}`,
+        tokenId: id.toString(),
+        tokenURI: u.result as string,
+        isArt: Number(master[5]) === 1,
+        artist: artist.toLowerCase(),
+        price: (prices[i] ?? 0n).toString(),
+      });
+    });
+    return rows;
   }
 
+  const legacy = await client.multicall({
+    contracts: ids.map((id) => ({
+      address: nft,
+      abi: LEGACY_ABI,
+      functionName: "masterTokens" as const,
+      args: [id] as const,
+    })),
+    allowFailure: true,
+  });
+
+  const rows: CatalogueRow[] = [];
+  ids.forEach((id, i) => {
+    const entry = legacy[i];
+    if (entry?.status !== "success") return;
+    const m = entry.result as readonly unknown[];
+    const artist = m[1] as string;
+    if (!artist || artist === "0x0000000000000000000000000000000000000000") return;
+    rows.push({
+      id: `music-${activeChain.id}-${id}`,
+      tokenId: id.toString(),
+      tokenURI: m[2] as string,
+      isArt: Number(m[11]) === 1,
+      artist: artist.toLowerCase(),
+      price: (m[4] as bigint).toString(),
+    });
+  });
   return rows;
 }
 
@@ -223,26 +266,40 @@ async function filterModerated(
   if (!nft) return rows;
 
   try {
-    const flags = await Promise.all(
-      rows.map(async (row) => {
-        const id = BigInt(row.tokenId);
-        const [suspended, purged] = (await Promise.all([
-          client.readContract({
-            address: nft,
-            abi: REGISTRY_ABI,
-            functionName: "masterSuspended",
-            args: [id],
-          }),
-          client.readContract({
-            address: nft,
-            abi: REGISTRY_ABI,
-            functionName: "masterPurged",
-            args: [id],
-          }),
-        ])) as [boolean, boolean];
-        return suspended || purged;
+    // Batched for the same reason as the catalogue read above: this runs on every request, on
+    // both source paths, so two sequential round trips per track would have handed back the
+    // latency multicall was introduced to remove.
+    const ids = rows.map((row) => BigInt(row.tokenId));
+    const [suspended, purged] = await Promise.all([
+      client.multicall({
+        contracts: ids.map((id) => ({
+          address: nft,
+          abi: REGISTRY_ABI,
+          functionName: "masterSuspended" as const,
+          args: [id] as const,
+        })),
+        allowFailure: true,
       }),
-    );
+      client.multicall({
+        contracts: ids.map((id) => ({
+          address: nft,
+          abi: REGISTRY_ABI,
+          functionName: "masterPurged" as const,
+          args: [id] as const,
+        })),
+        allowFailure: true,
+      }),
+    ]);
+
+    // Fail closed per row as well as overall: a read that did not come back is treated as
+    // "cannot confirm this is allowed", which for a takedown means hide it.
+    const flags = rows.map((_, i) => {
+      const s = suspended[i];
+      const p = purged[i];
+      if (s?.status !== "success" || p?.status !== "success") return true;
+      return Boolean(s.result) || Boolean(p.result);
+    });
+
     return rows.filter((_, i) => !flags[i]);
   } catch {
     return [];

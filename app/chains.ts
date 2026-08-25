@@ -20,6 +20,18 @@ export const monadMainnet = defineChain({
   blockExplorers: {
     default: { name: 'MonadScan', url: 'https://monadscan.com' },
   },
+  contracts: {
+    // Multicall3, at the canonical cross-chain address. Verified live on Monad mainnet
+    // 2026-08-25: 7,619 bytes of code, and a 195-call batch returns in ~1.2s on the free
+    // public RPC.
+    //
+    // viem only batches when the chain declares this. Without it, `client.multicall(...)`
+    // silently degrades to one request per call — which is why reading five masters cost
+    // ~30 sequential round trips and 2-6 seconds. The chain was never slow; we were queueing.
+    multicall3: {
+      address: '0xcA11bde05977b3631167028862bE2a173976CA11',
+    },
+  },
   testnet: false,
 });
 
