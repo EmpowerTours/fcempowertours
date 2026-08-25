@@ -53,6 +53,11 @@ export interface TrackMetadata {
 }
 
 export interface ResolvedTrack extends CatalogueRow {
+  /** What to call the artist. See `lib/artist-name.ts` for the resolution order. */
+  artistName: string;
+  /** Where that name came from. `profile` names must be rendered with the address visible. */
+  artistNameSource: "farcaster" | "profile" | "address";
+  artistNeedsAddressShown: boolean;
   /** Metadata name, or a `Track #N` / `Art #N` placeholder when unresolved. */
   name: string;
   imageUrl: string;
@@ -137,11 +142,33 @@ export async function getResolvedCatalogue(opts?: {
   const { getCatalogue } = await import("@/lib/catalogue-source");
   const { rows, source, reason } = await getCatalogue(opts);
 
+  // Names resolved for the whole page at once: one Neynar request, then a registry read only for
+  // the artists Farcaster did not answer for. Done here rather than per call site because the
+  // per-route copies were the reason the same failed lookup repeated through the logs.
+  const { resolveArtistNames, profileLookup } = await import("@/lib/artist-name");
+  const { createPublicClient, http } = await import("viem");
+  const { activeChain } = await import("@/app/chains");
+
+  const client =
+    opts?.client ??
+    createPublicClient({ chain: activeChain, transport: http() });
+  const names = await resolveArtistNames(
+    rows.map((r) => r.artist),
+    profileLookup(
+      client as Parameters<typeof profileLookup>[0],
+      process.env.NEXT_PUBLIC_PROFILE_REGISTRY as `0x${string}` | undefined,
+    ),
+  );
+
   const tracks = await Promise.all(
     rows.map(async (row): Promise<ResolvedTrack> => {
       const meta = await fetchTrackMetadata(row.tokenURI);
+      const artistName = names.get(row.artist?.toLowerCase() ?? "");
       return {
         ...row,
+        artistName: artistName?.display ?? row.artist ?? "",
+        artistNameSource: artistName?.source ?? "address",
+        artistNeedsAddressShown: artistName?.needsAddressShown ?? false,
         name:
           meta.name ??
           (row.isArt ? `Art #${row.tokenId}` : `Track #${row.tokenId}`),

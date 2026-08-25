@@ -154,3 +154,63 @@ export function profileLookup(
     return name && name.length > 0 ? name : null;
   };
 }
+
+const NEYNAR_BULK =
+  "https://api.neynar.com/v2/farcaster/user/bulk-by-address";
+
+/**
+ * Batch Farcaster lookup, bound to Neynar.
+ *
+ * One request for every address on a page rather than one per artist. A 404 is the ordinary
+ * answer for a wallet-only artist and resolves to `null`, not an error — the platform wallet
+ * 404ing on every catalogue read is what made the old per-route handling obviously wrong.
+ */
+export async function farcasterNames(
+  addresses: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const key = process.env.NEYNAR_API_KEY;
+  const unique = [...new Set(addresses.filter(Boolean).map((a) => a.toLowerCase()))];
+  if (!key || unique.length === 0) return out;
+
+  try {
+    const res = await fetch(
+      `${NEYNAR_BULK}?addresses=${unique.join(",")}&address_types=custody_address,verified_address`,
+      { headers: { api_key: key } },
+    );
+    if (!res.ok) return out; // 404 = nobody here is on Farcaster. Normal.
+
+    const data = (await res.json()) as Record<string, Array<{ username?: string }>>;
+    for (const address of unique) {
+      const username = data[address]?.[0]?.username;
+      if (username) out.set(address, username);
+    }
+  } catch {
+    // A Neynar outage costs display names, never the page.
+  }
+  return out;
+}
+
+/**
+ * Resolve many addresses at once: one Neynar request, then one registry read per address that
+ * Farcaster did not answer for.
+ */
+export async function resolveArtistNames(
+  addresses: string[],
+  lookupProfile?: (address: string) => Promise<string | null>,
+): Promise<Map<string, ArtistName>> {
+  const unique = [...new Set(addresses.filter(Boolean).map((a) => a.toLowerCase()))];
+  const farcaster = await farcasterNames(unique);
+
+  const out = new Map<string, ArtistName>();
+  await Promise.all(
+    unique.map(async (address) => {
+      const name = await resolveArtistName(address, {
+        lookupFarcaster: async () => farcaster.get(address) ?? null,
+        lookupProfile,
+      });
+      out.set(address, name);
+    }),
+  );
+  return out;
+}

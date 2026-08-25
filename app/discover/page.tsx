@@ -36,6 +36,10 @@ interface MusicNFT {
   mintedAt: string;
   txHash: string;
   isArt?: boolean;
+  /** Resolved server-side: Farcaster username -> ProfileRegistry name -> shortened address. */
+  artistName?: string;
+  artistNameSource?: "farcaster" | "profile" | "address";
+  artistNeedsAddressShown?: boolean;
   metadata?: {
     name?: string;
     image?: string;
@@ -92,6 +96,9 @@ export default function MusicDiscoveryPage() {
         name: string;
         imageUrl: string;
         audioUrl?: string;
+        artistName?: string;
+        artistNameSource?: "farcaster" | "profile" | "address";
+        artistNeedsAddressShown?: boolean;
       }> = result.tracks || [];
 
       // Newest first, as `order_by: {mintedAt: desc}` did. The registry has no mint timestamp,
@@ -108,6 +115,9 @@ export default function MusicDiscoveryPage() {
           mintedAt: '',
           txHash: '',
           isArt: t.isArt,
+          artistName: t.artistName,
+          artistNameSource: t.artistNameSource,
+          artistNeedsAddressShown: t.artistNeedsAddressShown,
           // Already resolved server-side, so the per-track metadata fetch below has nothing
           // left to do for the fields this page renders.
           metadata: {
@@ -340,11 +350,27 @@ export default function MusicDiscoveryPage() {
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-purple-900 truncate">
-                              {artistInfo?.displayName || `Artist ${music.artist.slice(0, 6)}...`}
+                              {artistInfo?.displayName ||
+                                music.artistName ||
+                                `${music.artist.slice(0, 6)}...${music.artist.slice(-4)}`}
                             </p>
-                            <p className="text-xs text-purple-600">
-                              @{artistInfo?.username || `${music.artist.slice(0, 6)}...${music.artist.slice(-4)}`}
-                            </p>
+                            {/*
+                              The `@` is Farcaster's alone. This used to render
+                              `@0x8df6...8ec1` for a wallet-only artist, presenting an address as
+                              a handle — and a ProfileRegistry name shown that way would be worse,
+                              since anyone can register one and homoglyphs are allowed. So the
+                              handle line appears only for a verified Farcaster username, and a
+                              self-registered name is always shown with its address.
+                            */}
+                            {artistInfo?.username ? (
+                              <p className="text-xs text-purple-600">
+                                @{artistInfo.username}
+                              </p>
+                            ) : music.artistNeedsAddressShown ? (
+                              <p className="text-xs text-purple-600 font-mono">
+                                {`${music.artist.slice(0, 6)}...${music.artist.slice(-4)}`}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </Link>

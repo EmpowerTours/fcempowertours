@@ -149,16 +149,10 @@ export default function NFTPage() {
             ? String(Number(BigInt(nft.price)) / 1e18)
             : "0";
 
-          // Resolve the artist address to a Farcaster handle where there is one. Since the v3
-          // cutover an artist may have no Farcaster account at all, so the truncated address is
-          // a legitimate outcome rather than a failure.
-          let displayArtist = nft.artist || "Unknown Artist";
-          if (nft.artist && nft.artist.startsWith("0x")) {
-            const fid = await resolveFidFromWallet(nft.artist);
-            displayArtist = fid
-              ? `@${fid}`
-              : `${nft.artist.substring(0, 6)}...${nft.artist.slice(-4)}`;
-          }
+          // The name is resolved server-side by /api/catalogue, which runs the full order:
+          // Farcaster username -> ProfileRegistry name -> shortened address. Resolving it here
+          // would have skipped the registry step, which is the only one a wallet-only artist has.
+          const displayArtist = nft.artistName || nft.artist || "Unknown Artist";
 
           setNftData({
             tokenId: String(nft.tokenId),
