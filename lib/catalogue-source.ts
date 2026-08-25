@@ -143,33 +143,6 @@ export async function readCatalogueFromChain(opts: {
         if (!artist || artist === "0x0000000000000000000000000000000000000000")
           continue;
 
-        // Moderation state, which this reader ignored until 2026-08-24.
-        //
-        // `setMasterSuspended` and `purgeMaster` exist so a track can be taken down, and the
-        // registry records a stated reason for each. None of that reached a listener: the only
-        // condition here was `artist != 0`, so a suspended master stayed in the catalogue and
-        // kept playing. A takedown that does not take anything down is worse than no takedown,
-        // because someone believes it worked.
-        //
-        // Read together, and both excluded. A purge is irreversible by construction; a
-        // suspension is not, so an unsuspended master returns on the next read with no cache to
-        // clear.
-        const [suspended, purged] = (await Promise.all([
-          client.readContract({
-            address: nft,
-            abi: REGISTRY_ABI,
-            functionName: "masterSuspended",
-            args: [id],
-          }),
-          client.readContract({
-            address: nft,
-            abi: REGISTRY_ABI,
-            functionName: "masterPurged",
-            args: [id],
-          }),
-        ])) as [boolean, boolean];
-        if (suspended || purged) continue;
-
         const tokenURI = (await client.readContract({
           address: nft,
           abi: REGISTRY_ABI,
@@ -220,6 +193,63 @@ export async function readCatalogueFromChain(opts: {
 }
 
 /**
+ * Drop masters that have been taken down.
+ *
+ * ## Why this is here and not in the chain reader
+ *
+ * It was in the chain reader first, which looked right and was not: `getCatalogue` returns
+ * indexer rows untouched when the indexer is fresh, so the filter simply would not run. Envio
+ * does not track v3 suspension, so a suspended track would have reappeared the day the indexer
+ * recovered — and that would have been invisible in testing, because the indexer has been dead
+ * since 2026-08-01 and every test would have exercised the chain path.
+ *
+ * Applied to whichever rows come back, it cannot be bypassed by a source.
+ *
+ * ## Fail closed
+ *
+ * If the moderation read fails, the rows are dropped rather than served. Everywhere else in this
+ * module a degraded RPC falls back to something usable, because showing a stale catalogue beats
+ * showing none. Not here: the cost of wrongly hiding a track is that it is missing for a few
+ * minutes, and the cost of wrongly showing one is serving material somebody demanded be pulled.
+ */
+async function filterModerated(
+  rows: CatalogueRow[],
+  client: PublicClient,
+): Promise<CatalogueRow[]> {
+  if (rows.length === 0) return rows;
+  if (!isV3Contracts()) return rows; // V2 has no suspension concept
+
+  const nft = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address | undefined;
+  if (!nft) return rows;
+
+  try {
+    const flags = await Promise.all(
+      rows.map(async (row) => {
+        const id = BigInt(row.tokenId);
+        const [suspended, purged] = (await Promise.all([
+          client.readContract({
+            address: nft,
+            abi: REGISTRY_ABI,
+            functionName: "masterSuspended",
+            args: [id],
+          }),
+          client.readContract({
+            address: nft,
+            abi: REGISTRY_ABI,
+            functionName: "masterPurged",
+            args: [id],
+          }),
+        ])) as [boolean, boolean];
+        return suspended || purged;
+      }),
+    );
+    return rows.filter((_, i) => !flags[i]);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * The catalogue, from whichever source is currently trustworthy.
  *
  * `source` is returned rather than logged only, so the caller can surface it: an operator
@@ -237,13 +267,27 @@ export async function getCatalogue(opts?: {
 }> {
   const health = await envioHealth(opts?.client);
 
+  // The moderation filter needs a client whichever path is taken, so build one once here rather
+  // than twice below.
+  const resolved =
+    opts?.client ??
+    (createPublicClient({
+      chain: activeChain,
+      transport: http(),
+    }) as PublicClient);
+
   if (health.healthy && opts?.fetchFromEnvio) {
     try {
       const rows = await opts.fetchFromEnvio();
       // A fresh indexer returning nothing is not proof the catalogue is empty — it is far more
       // likely a schema or query problem. Fall through to the chain and let it disagree.
-      if (rows.length > 0)
-        return { rows, source: "envio", reason: health.reason };
+      if (rows.length > 0) {
+        return {
+          rows: await filterModerated(rows, resolved),
+          source: "envio",
+          reason: health.reason,
+        };
+      }
     } catch {
       // fall through
     }
@@ -254,7 +298,7 @@ export async function getCatalogue(opts?: {
     client: opts?.client,
   });
   return {
-    rows,
+    rows: await filterModerated(rows, resolved),
     source: "chain",
     reason: health.healthy ? "indexer returned nothing usable" : health.reason,
   };

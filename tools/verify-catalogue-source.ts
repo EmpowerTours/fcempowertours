@@ -193,6 +193,61 @@ const noEndpoint = await checkEnvioHealth({
 });
 check("no endpoint configured is unhealthy", noEndpoint.healthy, false);
 
+// --- takedowns are honoured ----------------------------------------------
+//
+// `setMasterSuspended` and `purgeMaster` exist so a track can be pulled, and the registry records
+// a stated reason for each. The catalogue reader filtered on `artist != address(0)` and nothing
+// else, so a suspended master stayed in the catalogue and kept playing. A takedown that does not
+// take anything down is worse than none, because someone believes it worked.
+//
+// The first fix put the check inside the chain reader, which looked right and was not:
+// `getCatalogue` returns indexer rows untouched when the indexer is fresh, so on that path the
+// filter would not have run at all. It was invisible to testing — the indexer has been dead since
+// 2026-08-01, so every test exercised the chain path. This scan is aimed at that mistake: the
+// filter must sit where BOTH sources pass through it.
+//
+// A source scan rather than a call, because `catalogue-source.ts` imports `@/app/chains` and `@/`
+// does not resolve under `node --experimental-strip-types` — the constraint that shaped
+// `envio-health.ts`.
+
+{
+  const { readFileSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const { dirname, join } = await import("node:path");
+
+  const here = dirname(fileURLToPath(import.meta.url));
+  const code = readFileSync(join(here, "..", "lib", "catalogue-source.ts"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ");
+
+  check("a moderation filter exists", /function filterModerated/.test(code), true);
+  check("it reads masterSuspended", /masterSuspended/.test(code), true);
+  check("it reads masterPurged", /masterPurged/.test(code), true);
+
+  // The point of the whole check: getCatalogue has two returns, and BOTH must filter.
+  const gcStart = code.indexOf("export async function getCatalogue");
+  const gc = gcStart >= 0 ? code.slice(gcStart) : "";
+  const returns = [
+    ...gc.matchAll(/return\s*\{[\s\S]{0,220}?source:\s*"(envio|chain)"/g),
+  ];
+
+  check("getCatalogue still has both source paths", returns.length, 2);
+  check(
+    "the indexer path is filtered too, not just the chain",
+    returns.every((m) => /filterModerated/.test(m[0])),
+    true,
+  );
+
+  // Fail closed: a failed moderation read must hide the rows, not serve them.
+  const fmStart = code.indexOf("async function filterModerated");
+  const fm = fmStart >= 0 ? code.slice(fmStart, fmStart + 1800) : "";
+  check(
+    "a failed moderation read serves nothing rather than everything",
+    /catch\s*\{[\s\S]{0,60}return\s*\[\s*\]/.test(fm),
+    true,
+  );
+}
+
 console.log(`\n${checks} checks run`);
 if (failures.length) {
   console.error(`\n✗ ${failures.length} FAILED:\n`);
