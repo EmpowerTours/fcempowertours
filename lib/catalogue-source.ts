@@ -77,6 +77,8 @@ export interface CatalogueRow {
 const REGISTRY_ABI = parseAbi([
   "function totalMasters() view returns (uint256)",
   "function tokenURI(uint256) view returns (string)",
+  "function masterSuspended(uint256) view returns (bool)",
+  "function masterPurged(uint256) view returns (bool)",
   "function getMaster(uint256) view returns (address artist, uint256 artistFid, uint64 createdAt, uint32 maxCollectorEditions, uint32 collectorsMinted, uint8 nftType, address referrer, uint96 royaltyShareBps, address royaltyShareSink)",
 ]);
 
@@ -140,6 +142,33 @@ export async function readCatalogueFromChain(opts: {
         const artist = master[0] as string;
         if (!artist || artist === "0x0000000000000000000000000000000000000000")
           continue;
+
+        // Moderation state, which this reader ignored until 2026-08-24.
+        //
+        // `setMasterSuspended` and `purgeMaster` exist so a track can be taken down, and the
+        // registry records a stated reason for each. None of that reached a listener: the only
+        // condition here was `artist != 0`, so a suspended master stayed in the catalogue and
+        // kept playing. A takedown that does not take anything down is worse than no takedown,
+        // because someone believes it worked.
+        //
+        // Read together, and both excluded. A purge is irreversible by construction; a
+        // suspension is not, so an unsuspended master returns on the next read with no cache to
+        // clear.
+        const [suspended, purged] = (await Promise.all([
+          client.readContract({
+            address: nft,
+            abi: REGISTRY_ABI,
+            functionName: "masterSuspended",
+            args: [id],
+          }),
+          client.readContract({
+            address: nft,
+            abi: REGISTRY_ABI,
+            functionName: "masterPurged",
+            args: [id],
+          }),
+        ])) as [boolean, boolean];
+        if (suspended || purged) continue;
 
         const tokenURI = (await client.readContract({
           address: nft,

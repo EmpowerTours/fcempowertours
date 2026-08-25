@@ -10,6 +10,7 @@ import { EPKModal } from "./EPKModal";
 import type { EPKMetadata, ArtistStreamingStats } from "@/lib/epk/types";
 import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";
 import { CatalogueMigration } from "@/app/components/oracle/CatalogueMigration";
+import { DisplayNameSetting } from "@/app/components/oracle/DisplayNameSetting";
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -688,6 +689,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               {/* Catalogue migration — self-hides unless the v3 contracts are live and this
                   wallet still has tracks on the old one. Placed above earnings because an
                   unmigrated catalogue is why earnings would read as zero. */}
+              <DisplayNameSetting
+                walletAddress={walletAddress}
+                isDarkMode={isDarkMode}
+              />
+
               <CatalogueMigration
                 walletAddress={walletAddress}
                 isDarkMode={isDarkMode}
