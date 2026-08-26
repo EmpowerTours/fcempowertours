@@ -313,7 +313,30 @@ View: https://monadscan.com/tx/${tx.hash}
 
 @empowertours`;
 
-        const ogImageUrl = `${APP_URL}/api/og/music?tokenId=${tokenId}`;
+        // Pass the values directly rather than letting the OG route look them up.
+        //
+        // A Farcaster client fetches this image while rendering the card, so the lookup happens
+        // with a user waiting. /api/og/music already supports imageUrl/title/price for exactly
+        // this reason — frames/music uses it — and this route had the values in hand and built a
+        // bare ?tokenId= URL anyway, paying a full catalogue read on every render.
+        //
+        // The cover comes from the metadata we just pinned. fetchTrackMetadata caches on the CID,
+        // which is immutable, so this costs one fetch per track ever rather than one per cast.
+        let ogCoverUrl = "";
+        try {
+          const { fetchTrackMetadata } = await import("@/lib/catalogue-resolved");
+          const meta = await fetchTrackMetadata(`ipfs://${cid}`);
+          ogCoverUrl = meta.imageUrl ?? "";
+        } catch {
+          // No cover just means the OG route falls back to looking it up, as before.
+        }
+
+        const ogParams = new URLSearchParams({ tokenId: String(tokenId) });
+        if (ogCoverUrl) ogParams.set("imageUrl", ogCoverUrl);
+        if (sanitizedTitle) ogParams.set("title", sanitizedTitle);
+        if (finalPrice) ogParams.set("price", String(finalPrice));
+
+        const ogImageUrl = `${APP_URL}/api/og/music?${ogParams.toString()}`;
 
         const client = new NeynarAPIClient({
           apiKey: NEYNAR_API_KEY,

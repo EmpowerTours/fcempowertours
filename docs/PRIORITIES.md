@@ -159,12 +159,32 @@ roughly 65 more claims before it empties. A dry Safe produces a failed claim, no
 Current shape is the worst of both: real tokens leaving, no schedule, no audit trail, and a hard
 stop at ~900. **Product call needed:** route through the manager, or retire listen-to-earn.
 
-### 8. Verify the play-history reset did not touch WMON accounting
+### 8. ~~Verify the play-history reset did not touch WMON accounting~~ — **VERIFIED 2026-08-25, intact**
 
-The cutover left `artistLifetimePlays` reading **19 on V5 and 0 on V6**. The artist TOURS bonus
-this feeds never worked anyway, but the **WMON** payout path counts plays *per month*, not
-lifetime. Confirm month accounting is intact before assuming this is cosmetic. The WMON economy
-is the part that actually works; it is worth ten minutes.
+The `19 → 0` reset is a **lifetime** counter, read only by the artist TOURS bonus eligibility.
+The WMON path keys on `artistMonthlyPlays[monthId][artist]` and `monthlyStats[monthId]`, which
+start fresh each month by design. Read off mainnet:
+
+```
+V5 month 688   300 WMON revenue, 19 plays, 210 distributed, finalized: true
+V5 month 689   all zero            <- nothing landed after the cutover
+V5 WMON balance             0      <- nothing stranded on the abandoned contract
+V6 month 689   15 WMON revenue, 5 plays, unfinalized (month has not ended)
+V6 monthSplit[689]  10/20/70, set: true
+V6 unclaimedArtistPool      0
+```
+
+The cutover did not catch a month mid-flight: V5's last revenue month settled and was claimed,
+and nothing arrived on V5 afterwards.
+
+`monthSplit[689].set` is `true`, which matters more than it looks —
+`finalizeMonthlyDistribution` has `require(sp.set)`, so a month that took revenue without a
+recorded split could never be finalized and its WMON would be unreachable. It is recorded.
+
+One thing this confirms rather than fixes: month 689's 5 plays are credited to the **deployer**,
+per item A. When it finalizes, the artist pool follows the registry's artist field. Both wallets
+belong to the same person, so nothing is lost — but the accounting is correct about an
+attribution that is not.
 
 ### 9. Production page error, unexplained
 
@@ -262,11 +282,21 @@ public RPC at 100–550ms each. **A paid RPC endpoint is the next lever, not mor
 Everything now reads through this: radio, discover, buy path, NFT page, artist page, frames,
 venue, EPK.
 
-### D. `mint-music` builds a bare OG image URL
+### D. ~~`mint-music` builds a bare OG image URL~~ — **FIXED 2026-08-25**
 
-`frames/music` passes `imageUrl`, `title` and `price` directly so the card renders without a
-lookup. `mint-music:316` builds `?tokenId=` alone, so casting right after a mint pays a full
-catalogue read while a Farcaster client waits. The fast path exists and is unused.
+`frames/music` passes `imageUrl`, `title` and `price` in the OG URL so the card renders without
+a lookup; `mint-music` built a bare `?tokenId=` and paid a full read on every render, with a
+Farcaster client waiting. It now passes all three. The cover comes from the metadata just pinned,
+via `fetchTrackMetadata`, which caches on the CID — immutable, so one fetch per track ever rather
+than one per cast.
+
+**The latency win is modest and I over-sold it.** Measured on cold cache entries: ~0.66-0.81s
+bare versus ~0.49-0.66s direct, roughly 25%. The `og/music` route already had a blockchain
+fallback, so the bare path was never catastrophic.
+
+The better argument is correctness, not speed: passing the values means the card shows the right
+title, price and cover even when the catalogue read is stale or fails — and a track minted
+seconds ago is precisely the case a stale indexer does not have yet.
 
 ## Tier 4 — hygiene, real but not urgent
 
