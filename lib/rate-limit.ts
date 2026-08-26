@@ -19,6 +19,16 @@ export interface RateLimitConfig {
   windowSeconds: number;
   /** Maximum requests per window */
   maxRequests: number;
+
+  /**
+   * Refuse the request when the counter cannot be read, instead of allowing it.
+   *
+   * The substring check below infers this from the prefix, which is guesswork: `execute` does not
+   * contain any of those words and guards `/api/register-user-safe`, a route that spends PLATFORM
+   * gas. A Redis outage therefore removed the only per-caller bound on platform funds. Set this
+   * explicitly wherever being wrong costs money rather than a page view.
+   */
+  failClosed?: boolean;
 }
 
 export interface RateLimitResult {
@@ -80,7 +90,10 @@ export async function checkRateLimit(
     // SECURITY: Fail closed for sensitive operations
     // List of prefixes that should fail closed
     const sensitiveOperations = ['delegation', 'admin', 'upload', 'mint', 'burn', 'transfer'];
-    const shouldFailClosed = sensitiveOperations.some(op => config.prefix.includes(op));
+    // Explicit opt-in wins; the substring match stays as a floor for the limiters that rely on it.
+    const shouldFailClosed =
+      config.failClosed === true ||
+      sensitiveOperations.some(op => config.prefix.includes(op));
 
     if (shouldFailClosed) {
       console.warn('[RateLimit] Failing closed for sensitive operation:', config.prefix);
@@ -193,5 +206,9 @@ export const RateLimiters = {
     prefix: 'execute',
     windowSeconds: 3600,
     maxRequests: 50,
+    // Guards /api/register-user-safe, which spends platform gas. 'execute' matches none of the
+    // sensitive substrings above, so this failed OPEN on a Redis error and left that route with
+    // no per-caller bound at all.
+    failClosed: true,
   },
 } as const;

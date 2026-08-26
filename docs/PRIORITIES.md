@@ -89,10 +89,30 @@ The check therefore reads contract state per address rather than discovering add
 events. That answers the question at this scale but **cannot find a subscriber nobody recorded**
 — a real limit, printed in the tool's own output rather than left implied.
 
-### 5. `/api/register-user-safe` is unauthenticated and spends platform gas
+### 5. ~~`/api/register-user-safe`~~ — **CLOSED 2026-08-25**
 
-One caller (`PassportMintModal`). Needs an auth gate plus a global gas cap, or a script can drain
-the platform wallet by requesting Safes in a loop.
+The item said "unauthenticated". It was not — `authorizeUserAddress` gates it and returns
+`ownsAddress: false` on failure **regardless of `ENFORCE_QUICK_AUTH`**, and the route checks
+`ownsAddress` rather than `allowed`. That half was already fail-closed and independent of #2.
+
+Two things were genuinely missing, and one was not on the list:
+
+**No global ceiling.** The rate limit is keyed on IP plus address, so it bounds one caller.
+Producing a fresh address and signing with it is free and unlimited, so N wallets each pass
+authentication, each pass their own limit, and the platform pays for all of them.
+`lib/platform-gas-budget.ts` adds a single platform-wide counter per rolling window, defaulting
+to 100 registrations/day, overridable via `PLATFORM_GAS_MAX_SAFE_REGISTRATIONS_PER_DAY`.
+
+**The rate limit failed OPEN.** `checkRateLimit` infers fail-closed from a substring of the
+prefix — `['delegation','admin','upload','mint','burn','transfer']`. This route uses the
+`execute` limiter, which matches none of them, so a Redis outage removed the only per-caller
+bound on a route that spends platform funds. `RateLimitConfig` now takes an explicit
+`failClosed`, and `execute` sets it.
+
+**Worth naming: this became urgent because of another fix.** Until `9d2e660` set
+`PassportNFTV4.platformOperator`, the registration batch reverted during gas estimation and no
+transaction was ever sent — the route spent nothing. Fixing the feature turned it into one that
+spends. The cap is the missing half of that change.
 
 ---
 
