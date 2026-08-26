@@ -21,22 +21,40 @@ one.** Nothing else on this list involves a credential a third party can already
 
 Effort: minutes, in the Pimlico dashboard. Then update `PIMLICO_BUNDLER_URL` on Railway.
 
-### 2. `ENFORCE_QUICK_AUTH` is off — the Safe drain is open
+### 2. `ENFORCE_QUICK_AUTH` — **the drain was already closed; the real gap was next to it**
 
-`lib/quick-auth.ts:39` gates enforcement on the flag. Until it is set, `send_mon`, `send_tours`
-and `withdraw_to_user` on `/api/execute-delegated` accept an attacker-chosen recipient.
+This item, and `SECURITY_ACTIONS.md` #2, both said `send_mon` / `send_tours` /
+`withdraw_to_user` "take an attacker-chosen recipient" until the flag is set. **They do not.**
+`execute-delegated:155` has a `fundMovingActions` set that fails closed on `authz.ownsAddress`
+and deliberately ignores `authz.allowed`, which is the field the flag governs. Its own comment
+says why: *"their safety must NOT depend on an env flag being set."*
 
-**It cannot simply be switched on.** `bot-command → execute-delegated` is an unauthenticated
-internal hop that would start 401-ing, taking `mint_music`, `mint_collector` and `buy music` with
-it. Forwarding the user's wallet signature is *not* the fix — that signature is action-bound and
-verifying it downstream would let one captured for `bot-command` be replayed as `send_mon`.
+`platform_send_mon` is likewise gated, by `authenticateAdminAction` over the exact recipient and
+amount.
 
-Order: mint a service credential for the internal hop → watch logs for
-`[QuickAuth] … unauthenticated` until only known callers appear (the radio scheduler calling
-`radio_mark_played` is the expected one) → give those callers the credential → set the flag →
-make the gate fail-closed so an unset variable can never mean "allow".
+**What was actually open**, fixed 2026-08-25: nine other actions sat in `publicActions` — which
+skips the delegation check — while spending the user's Safe, and were not in the fail-closed set.
+`buy_music`, `music-subscribe`, `mint_music`, `mint_collector`, the four radio payments,
+`studio_pay`, the vault actions, and — found by the new check rather than by reading —
+`mint_passport` (**150 WMON**) and `dao_create_deployment_proposal` (**100 MON**).
 
-Effort: high. Biggest security item open.
+A stranger could POST a victim's address and make them buy a track, take out a subscription, mint
+a passport, or burn 100 MON on a DAO proposal, repeatedly. The money went to an artist or the
+platform rather than the attacker, so it is griefing rather than theft — and it is still the
+victim's funds leaving on somebody else's instruction. All are now fail-closed.
+
+`tools/verify-value-actions-gated.ts` parses both lists out of the route and every `case` body,
+decides which handlers move value by what they do, and requires each public one to be gated. A
+future action that spends a Safe fails it the day it is written. Handlers that touch value
+harmlessly — `wrap_mon`, claims, burns — are listed with reasons rather than skipped.
+
+**What remains of this item is smaller than it was.** `ENFORCE_QUICK_AUTH` is still off, so
+non-value actions still allow unauthenticated callers, and the gate that matters no longer
+depends on it. Turning it on is now cleanup, not a security fix: mint a service credential for
+token-less internal callers, watch for `[QuickAuth] … unauthenticated` in the logs, then flip it.
+
+Note `radio_mark_played` is documented as the expected token-less server caller and **has no
+caller anywhere in the repo** — worth resolving before anyone plans around it.
 
 ### 3. The Envio indexer has been dead since 2026-08-01 — but consider leaving instead
 

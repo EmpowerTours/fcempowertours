@@ -146,19 +146,60 @@ export async function POST(req: NextRequest) {
     // them here would lock out the admin without adding any protection.
     const adminAuthActions = ["platform_send_mon"];
 
-    // 💸 Fund-moving actions ALWAYS require a verified Quick Auth token whose
-    // FID owns userAddress — regardless of ENFORCE_QUICK_AUTH. These move value
-    // out of a user's Safe or the treasury, so their safety must NOT depend on
-    // an env flag being set. Legitimate callers attach the token (client via
-    // authHeaders; bot-command forwards it). There is no token-less internal
-    // caller of these actions.
+    // 💸 Value actions ALWAYS require a verified Quick Auth token whose FID owns
+    // userAddress — regardless of ENFORCE_QUICK_AUTH. Their safety must NOT
+    // depend on an env flag being set, which is why this ignores `allowed` and
+    // checks `ownsAddress` below.
+    //
+    // Two categories, both fail closed. One moves value OUT to a destination the
+    // caller picks; the other SPENDS the user's Safe on their behalf. The second
+    // does not enrich an attacker, and is included anyway: money leaving on
+    // somebody else's instruction is the harm, not where it lands.
+    //
+    // Legitimate callers attach the token (client via authHeaders; bot-command
+    // forwards it). There is no token-less internal caller of these actions.
     const fundMovingActions = new Set([
+      // --- moves value OUT to a caller-chosen destination -------------------
       "send_mon",
       "send_tours",
       "withdraw_to_user",
       "swap_mon_for_tours",
       "dao_fund_safe",
       "buy_resale",
+
+      // --- SPENDS the user's Safe, added 2026-08-25 -------------------------
+      //
+      // These do not pay an attacker, so they are not theft — the money goes to
+      // an artist, the platform or a vault. They are still the victim's money
+      // leaving on somebody else's instruction, which is enough. Anyone could
+      // POST a victim's address and make them buy a track, take out a
+      // subscription, or pay to skip a song, repeatedly.
+      //
+      // Safe to fail closed: every browser caller of this route already attaches
+      // authHeaders(), and bot-command forwards the caller's token. A path with
+      // no token is a path with no proof the user asked for this, and spending
+      // their funds on that basis is the thing being prevented.
+      "buy_music",
+      "music-subscribe",
+      "mint_music",
+      "mint_collector",
+      "radio_queue_song",
+      "radio_skip_random",
+      "radio_voice_note",
+      "studio_pay",
+      "studio_mint_remix",
+      "vault_deposit",
+      "vault_withdraw",
+      "vault_emergency_withdraw",
+      "purchase_climb",
+      "create_climb",
+      "stake_music",
+      "unstake_music",
+
+      // Found by tools/verify-value-actions-gated.ts rather than by reading, which is the
+      // point of that check — both were missed when this list was extended by hand.
+      "mint_passport", // 150 WMON from the user's Safe
+      "dao_create_deployment_proposal", // 100 MON proposal fee, paid as msg.value
     ]);
 
     if (!adminAuthActions.includes(action)) {
