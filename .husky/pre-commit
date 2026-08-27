@@ -58,6 +58,33 @@ if [ -n "$STAGED_TS" ]; then
   echo "✅ TypeScript check passed"
 fi
 
+# 2b. The envio indexer is a separate TS project with its own tsconfig, so the ROOT tsc above
+# never sees it. That blind spot already let a break through once (d50e015): a rename pass turned
+# eight destructured event args into `const { _timestamp } = event.params`, renaming the property
+# rather than the local, and nothing caught it until the subproject was compiled by hand.
+#
+# Only runs when something under empowertours-envio/ is staged, so the usual commit pays nothing.
+STAGED_ENVIO=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^empowertours-envio/.*\.ts$' || true)
+if [ -n "$STAGED_ENVIO" ]; then
+  echo "📝 Type checking the envio indexer..."
+  ENVIO_OUT=$(npx tsc --noEmit -p empowertours-envio/tsconfig.json 2>&1) || ENVIO_FAILED=1
+  if [ -n "$ENVIO_FAILED" ]; then
+    # One pre-existing error lives here: `event.transaction.from` on
+    # DailyLottery_TicketPurchased. Failing the commit on that would block every envio change
+    # until it is fixed, so it is filtered by name rather than by count — a new error of any
+    # other shape still stops the commit.
+    ENVIO_REAL=$(echo "$ENVIO_OUT" | grep -v "DailyLottery_TicketPurchased" || true)
+    if [ -n "$ENVIO_REAL" ]; then
+      echo "$ENVIO_REAL" | head -30
+      echo "❌ TypeScript errors in empowertours-envio. Fix them before committing."
+      exit 1
+    fi
+    echo "✅ Envio check passed (only the known DailyLottery error)"
+  else
+    echo "✅ Envio check passed"
+  fi
+fi
+
 # 3. Lint staged files (warning only)
 STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx)$' || true)
 if [ -n "$STAGED_JS" ]; then

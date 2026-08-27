@@ -197,6 +197,35 @@ export default function ArtistProfilePage() {
       // Check abort before continuing to fallbacks
       if (signal?.aborted) return;
 
+      // No Farcaster account. Before falling through to a bare address, ask the resolver — an
+      // artist with no Farcaster may still have claimed a ProfileRegistry name, which is the
+      // whole reason that registry was deployed. Everything above this point only ever had an
+      // answer for Farcaster users.
+      try {
+        const nameRes = await fetch(
+          `/api/artist-name?address=${artistAddress}`,
+          { signal },
+        );
+        if (nameRes.ok && !signal?.aborted) {
+          const nameData = await nameRes.json();
+          const resolved = nameData?.names?.[artistAddress.toLowerCase()];
+          if (resolved && resolved.source === 'profile') {
+            setArtistInfo({
+              address: artistAddress,
+              // Deliberately no username: `@` belongs to a Farcaster handle, and a
+              // self-registered name shown that way would read as verified when it is not.
+              displayName: resolved.display,
+              fid: undefined,
+            });
+            console.log('✅ Artist name from ProfileRegistry:', resolved.display);
+            return;
+          }
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.warn('[Artist] name resolver failed:', err);
+      }
+
       // Fallback 2: Try custody-address endpoint
       try {
         const custodyUrl = `/api/neynar/v2/farcaster/user/custody-address/?custody_address=${artistAddress}`;

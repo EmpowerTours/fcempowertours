@@ -147,10 +147,22 @@ export function LiveRadioModal({
   const [availableSongs, setAvailableSongs] = useState<any[]>([]);
   const [loadingSongs, setLoadingSongs] = useState(false);
   const [artistNames, setArtistNames] = useState<Record<string, string>>({}); // FID -> @username
+  /** address -> display name, resolved server-side by /api/catalogue. */
+  const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({});
 
-  // Helper: get display name for artist (prefers @username, falls back to truncated address)
+  /**
+   * What to call an artist.
+   *
+   * `/api/catalogue` resolves this server-side through the full order — Farcaster username,
+   * then ProfileRegistry name, then shortened address — so `resolvedNames` is preferred over the
+   * FID map below. The FID map only ever had an answer for artists with a Farcaster account,
+   * which since the v3 cutover is not all of them; a wallet-only artist fell straight through to
+   * the address even after registering a name.
+   */
   const getArtistDisplayName = useCallback(
     (artist: string, artistFid?: number) => {
+      const resolved = artist ? resolvedNames[artist.toLowerCase()] : undefined;
+      if (resolved) return resolved;
       if (artistFid && artistNames[String(artistFid)]) {
         return artistNames[String(artistFid)];
       }
@@ -159,7 +171,7 @@ export function LiveRadioModal({
       }
       return artist || "Unknown Artist";
     },
-    [artistNames],
+    [artistNames, resolvedNames],
   );
   const [selectedSong, setSelectedSong] = useState<any>(null);
   const [tipAmount, setTipAmount] = useState("");
@@ -335,6 +347,16 @@ export function LiveRadioModal({
             imageUrl: t.imageUrl,
           }));
         setAvailableSongs(songs);
+
+        // Names come resolved with the catalogue; no second lookup.
+        const names: Record<string, string> = {};
+        for (const t of data.tracks) {
+          if (t.artist && t.artistName) {
+            names[String(t.artist).toLowerCase()] = t.artistName;
+          }
+        }
+        setResolvedNames((prev) => ({ ...prev, ...names }));
+
         console.log(
           "[LiveRadio] Fetched",
           songs.length,

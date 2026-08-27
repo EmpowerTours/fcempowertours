@@ -8,9 +8,8 @@ import React, {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
-import { Send, Sparkles, X, Globe, Loader2, User, BarChart3, Radio, Wallet, Copy, ExternalLink, Plus, Sun, Moon } from "lucide-react";
+import { Send, Sparkles, X, Globe, Loader2, User, BarChart3, Radio, ExternalLink, Plus, Sun, Moon } from "lucide-react";
 import { CrystalBall, OracleState } from "@/app/components/oracle/CrystalBall";
-import { MusicSubscriptionModal } from "@/app/components/oracle/MusicSubscriptionModal";
 import { CreateNFTModal } from "@/app/components/oracle/CreateNFTModal";
 import { PassportMintModal } from "@/app/components/oracle/PassportMintModal";
 import { ProfileModal } from "@/app/components/oracle/ProfileModal";
@@ -18,7 +17,6 @@ import { DashboardModal } from "@/app/components/oracle/DashboardModal";
 import { UserProfileModal } from "@/app/components/oracle/UserProfileModal";
 import { MusicPlaylist } from "@/app/components/oracle/MusicPlaylist";
 import { LiveRadioModal } from "@/app/components/oracle/LiveRadioModal";
-import { EventOracle } from "@/app/components/oracle/EventOracle";
 import { EPKModal } from "@/app/components/oracle/EPKModal";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { useGeolocation } from "@/lib/useGeolocation";
@@ -49,14 +47,8 @@ interface Message {
 export default function OraclePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const {
-    user,
-    walletAddress,
-    sendTransaction,
-    isFarcaster,
-    isConnected,
-    fid,
-  } = useWalletContext();
+  const { user, walletAddress, isFarcaster, isConnected, fid } =
+    useWalletContext();
   const { location: geoLocation, loading: geoLoading } = useGeolocation();
 
   const [input, setInput] = useState("");
@@ -69,7 +61,6 @@ export default function OraclePage() {
   const [loadingNFTs, setLoadingNFTs] = useState(true);
   const [_playingNFTId, setPlayingNFTId] = useState<string | null>(null);
   const [playingTokenId, setPlayingTokenId] = useState<string | null>(null);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showCreateNFTModal, setShowCreateNFTModal] = useState(false);
   const [showPassportMintModal, setShowPassportMintModal] = useState(false);
   const [radioMinimized, setRadioMinimized] = useState(false);
@@ -82,7 +73,6 @@ export default function OraclePage() {
   const [_ownedMusicNFTs, setOwnedMusicNFTs] = useState<NFTObject[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showRadioModal, setShowRadioModal] = useState(false);
-  const [showEventOracleModal, setShowEventOracleModal] = useState(false);
   const [showEPKModal, setShowEPKModal] = useState(false);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
@@ -93,16 +83,6 @@ export default function OraclePage() {
     "dashboard" | "profile" | null
   >(null);
   // User Safe balance and deposit modal
-  const [userSafeBalance, setUserSafeBalance] = useState<{
-    wmonBalance: string;
-    monBalance: string;
-  } | null>(null);
-  const [userSafeAddress, setUserSafeAddress] = useState<string | null>(null);
-  const [showDepositModal, setShowDepositModal] = useState(false);
-  const [depositAmount, setDepositAmount] = useState("");
-  const [depositLoading, setDepositLoading] = useState(false);
-  const [depositError, setDepositError] = useState("");
-  const [depositSuccess, setDepositSuccess] = useState("");
 
   // Dark mode state
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -135,12 +115,9 @@ export default function OraclePage() {
   // Close all non-minimizable modals (leaves Radio and Maps open but minimized)
   const closeNonMinimizableModals = useCallback(() => {
     setShowProfileModal(false);
-    setShowEventOracleModal(false);
     setShowEPKModal(false);
     setShowDashboardModal(false);
     setShowUserProfileModal(false);
-    setShowDepositModal(false);
-    setShowSubscriptionModal(false);
     setShowCreateNFTModal(false);
     setShowPassportMintModal(false);
     setSelectedNFT(null);
@@ -244,29 +221,6 @@ export default function OraclePage() {
     }
   }, [geoLocation, geoLoading]);
 
-  // Fetch user safe balance and address
-  useEffect(() => {
-    const fetchUserSafeBalance = async () => {
-      if (!walletAddress) return;
-      try {
-        const response = await fetch(`/api/user-safe?address=${walletAddress}`);
-        const data = await response.json();
-        if (data.success) {
-          setUserSafeBalance({
-            wmonBalance: data.wmonBalance || "0",
-            monBalance: data.balance || "0",
-          });
-          setUserSafeAddress(data.safeAddress || null);
-        }
-      } catch (error) {
-        console.error("[Oracle] Failed to fetch user safe balance:", error);
-      }
-    };
-    fetchUserSafeBalance();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchUserSafeBalance, 30000);
-    return () => clearInterval(interval);
-  }, [walletAddress]);
 
   // Check subscription status and owned music
   useEffect(() => {
@@ -582,71 +536,8 @@ export default function OraclePage() {
   const closeNFTModal = () => {
     setSelectedNFT(null);
   }; // Handle deposit to user safe
-  const handleDeposit = async () => {
-    if (!userSafeAddress || !depositAmount || !sendTransaction) {
-      setDepositError("Missing required information");
-      return;
-    }
-
-    const amount = parseFloat(depositAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setDepositError("Please enter a valid amount");
-      return;
-    }
-
-    setDepositLoading(true);
-    setDepositError("");
-    setDepositSuccess("");
-
-    try {
-      // Convert amount to wei (hex)
-      const amountInWei = BigInt(Math.floor(amount * 1e18));
-      console.log(
-        "[Oracle] Depositing",
-        amount,
-        "MON to Safe:",
-        userSafeAddress,
-      );
-
-      // Send transaction using Farcaster wallet
-      const result = await sendTransaction({
-        to: userSafeAddress,
-        value: "0x" + amountInWei.toString(16),
-        chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || "143"),
-      });
-
-      const txHash = result?.transactionHash || result;
-      console.log("[Oracle] Deposit transaction sent:", txHash);
-      setDepositSuccess(
-        `Deposited ${amount} MON! TX: ${typeof txHash === "string" ? txHash.slice(0, 10) : ""}...`,
-      );
-      setDepositAmount("");
-
-      // Refresh balance after a delay
-      setTimeout(async () => {
-        const response = await fetch(`/api/user-safe?address=${walletAddress}`);
-        const data = await response.json();
-        if (data.success) {
-          setUserSafeBalance({
-            wmonBalance: data.wmonBalance || "0",
-            monBalance: data.balance || "0",
-          });
-        }
-      }, 3000);
-    } catch (error: any) {
-      console.error("[Oracle] Deposit failed:", error);
-      setDepositError(error.message || "Deposit failed");
-    } finally {
-      setDepositLoading(false);
-    }
-  };
 
   // Copy safe address to clipboard
-  const handleCopyAddress = () => {
-    if (userSafeAddress) {
-      navigator.clipboard.writeText(userSafeAddress);
-    }
-  };
 
   // Dynamic Crystal Ball classes based on state
   // When any modal/overlay is active, Earth shrinks and blurs to background
@@ -656,9 +547,6 @@ export default function OraclePage() {
       showProfileModal ||
       showDashboardModal ||
       (showRadioModal && !radioMinimized) ||
-      showEventOracleModal ||
-      showDepositModal ||
-      showSubscriptionModal ||
       showCreateNFTModal ||
       showPassportMintModal ||
       showUserProfileModal ||
@@ -1285,17 +1173,6 @@ export default function OraclePage() {
           )}
       </div>
 
-      {/* Music Subscription Modal - Centered Overlay */}
-      {showSubscriptionModal && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-[94%] max-w-lg pointer-events-auto animate-fadeIn">
-          <MusicSubscriptionModal
-            userAddress={walletAddress ?? undefined}
-            userFid={fid}
-            onClose={() => setShowSubscriptionModal(false)}
-          />
-        </div>
-      )}
-
       {/* Create NFT Modal */}
       {showCreateNFTModal && (
         <CreateNFTModal
@@ -1355,15 +1232,6 @@ export default function OraclePage() {
         />
       )}
 
-      {/* Event Oracle Modal */}
-      {showEventOracleModal && (
-        <EventOracle
-          isOpen={showEventOracleModal}
-          onClose={() => setShowEventOracleModal(false)}
-          isDarkMode={isDarkMode}
-        />
-      )}
-
       {/* EPK Modal */}
       {showEPKModal && (
         <EPKModal
@@ -1374,130 +1242,6 @@ export default function OraclePage() {
         />
       )}
 
-      {/* Deposit Modal */}
-      {showDepositModal && (
-        <div
-          className={`fixed inset-0 flex items-center justify-center p-4 z-[100] ${isDarkMode ? "bg-black" : "bg-white"}`}
-          onClick={() => setShowDepositModal(false)}
-        >
-          <div
-            className={`rounded-2xl max-w-sm w-full p-6 ${isDarkMode ? "bg-gray-900 border border-gray-700" : "bg-white border border-gray-200 shadow-lg"}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center">
-                  <Wallet className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">
-                    Deposit to Safe
-                  </h3>
-                  <p className="text-xs text-gray-400">Fund your User Safe</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowDepositModal(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Safe Address */}
-            {userSafeAddress && (
-              <div className="mb-4 p-3 bg-gray-800 rounded-xl border border-gray-700">
-                <p className="text-xs text-gray-400 mb-1">Safe Address</p>
-                <div className="flex items-center gap-2">
-                  <code className="text-xs text-cyan-400 font-mono break-all">
-                    {userSafeAddress}
-                  </code>
-                  <button
-                    onClick={handleCopyAddress}
-                    className="shrink-0 p-1 hover:bg-gray-700 rounded transition-all"
-                    title="Copy address"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Current Balance */}
-            <div className="mb-4 p-3 bg-gray-800 rounded-xl border border-gray-700">
-              <p className="text-xs text-gray-400 mb-1">Current Balance</p>
-              <p className="text-lg font-bold text-white">
-                {userSafeBalance
-                  ? parseFloat(userSafeBalance.monBalance).toFixed(4)
-                  : "0"}{" "}
-                MON
-              </p>
-            </div>
-
-            {/* Deposit Amount Input */}
-            <div className="mb-4">
-              <label className="text-xs text-gray-400 mb-1 block">
-                Deposit Amount (MON)
-              </label>
-              <input
-                type="number"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="0.0"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50"
-              />
-            </div>
-
-            {/* Quick Amounts */}
-            <div className="flex gap-2 mb-4">
-              {[1, 5, 10, 25].map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => setDepositAmount(amt.toString())}
-                  className="flex-1 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-xs text-cyan-400 font-medium transition-all"
-                >
-                  {amt} MON
-                </button>
-              ))}
-            </div>
-
-            {/* Error/Success Messages */}
-            {depositError && (
-              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                <p className="text-xs text-red-400">{depositError}</p>
-              </div>
-            )}
-            {depositSuccess && (
-              <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
-                <p className="text-xs text-green-400">{depositSuccess}</p>
-              </div>
-            )}
-
-            {/* Deposit Button */}
-            <button
-              onClick={handleDeposit}
-              disabled={depositLoading || !depositAmount}
-              className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-            >
-              {depositLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Depositing...
-                </>
-              ) : (
-                <>
-                  <Wallet className="w-4 h-4" />
-                  Deposit via Farcaster Wallet
-                </>
-              )}
-            </button>
-
-            <p className="mt-3 text-[10px] text-gray-500 text-center">
-              Deposits go directly to your User Safe for gasless transactions
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Dashboard Modal */}
       {showDashboardModal && (
