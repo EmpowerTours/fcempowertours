@@ -333,9 +333,36 @@ already let a break through once (`d50e015`). It also carries one pre-existing e
 
 `DEPLOYMENT_PLAN.md` task #10, marked ready, awaiting a Discord token.
 
-### 18. Envio lottery cleanup
+### 18. Envio config cleanup — **scoped 2026-08-27; blocked on the Envio decision**
 
-`DEPLOYMENT_PLAN.md` task #9 — deliberately scheduled after the cutover, which has now happened.
+Bigger than "lottery", and possibly throwaway. Measured:
+
+**10 of 18 indexed contracts feed nothing.** `ItineraryNFTV2`, `ClimbingLocationsV2`,
+`DailyLottery`, `EmpowerToursDevStudio`, `DeploymentNFT`, `VotingTOURS`,
+`EmpowerToursGovernor`, `EmpowerToursTimelock`, `DAOContractFactory`, `ToursRewardManager` —
+every remaining mention of these in the app is in `app/investor-deck/page.tsx`, a static pitch
+page listing contract names, not a consumer of indexed data.
+
+They carry **53 handlers** between them, plus config blocks and schema entities. Config entries
+cannot be removed alone: envio codegen derives the handler types from them, so the config,
+handlers and schema have to move together. Call it one to two hours.
+
+**A separate finding, and the one that matters:** the entry named `PassportNFTV2` points at
+`0x93126e59…`, which its own comment calls **PassportNFTV3**, while the live contract is
+**PassportNFTV4** at `0x4D5533e2…`. The indexer is two generations behind on passports. Even
+fully caught up it would miss every passport minted since the cutover, including the three
+migrated ones. This is why Group B of the exit is necessary rather than optional — the indexer
+cannot serve passports correctly at all today.
+
+**The fork.** If Envio is kept, this cleanup is required and the passport address must be fixed.
+If Envio goes, `ENVIO_EXIT.md` step 6 deletes `empowertours-envio/` outright and this item
+dissolves — doing it first is wasted.
+
+Evidence for going: the indexer has been dead since 2026-08-01 and nobody has restarted it in
+26 days; the app has run on the chain fallback throughout; Group A is 13/14 done. Nothing has
+needed it.
+
+**Recommendation: do not do this item. Finish the exit instead.**
 
 ### 19. Rate limits and CSP
 
