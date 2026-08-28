@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCountryByCode } from '@/lib/passport/countries';
+import { resolveTerritory } from '@/lib/geo-territory';
 
 const IPINFO_TOKEN = process.env.IPINFO_TOKEN;
 
@@ -66,14 +67,25 @@ export async function GET(request: NextRequest) {
       city: data.city,
       region: data.region,
       country: data.country,
+      timezone: data.timezone,
     });
 
-    // Special case: IPInfo returns "CN" for Hong Kong IPs (administrative classification)
-    // but we want to use "HK" for Hong Kong SAR
-    let countryCode = data.country || 'US';
-    if (countryCode === 'CN' && data.city && data.city.toLowerCase().includes('hong kong')) {
-      countryCode = 'HK';
-      console.log('✅ Hong Kong detected - overriding CN → HK');
+    // IPInfo reports Hong Kong and Macau as "CN" — an administrative classification, not an ISO
+    // one. Both have their own ISO 3166-1 code and their own passport entry, so without this a
+    // holder there mints a China passport. That happened: passport #3, 2026-02-10, one day
+    // before the original fix landed. PassportNFTV4 has no burn and no country setter, so the
+    // token is wrong permanently — which is why this is worth more than a substring.
+    const territory = resolveTerritory({
+      country: data.country,
+      region: data.region,
+      city: data.city,
+      timezone: data.timezone,
+    });
+    const countryCode = territory.countryCode || 'US';
+    if (territory.corrected) {
+      console.log(
+        `✅ Territory corrected: ${data.country} → ${countryCode} (by ${territory.source})`,
+      );
     }
 
     // Get full country info from our 195 countries database

@@ -77,6 +77,7 @@ export const ALL_COUNTRIES: Country[] = [
   { code: 'KH', name: 'Cambodia', flag: '🇰🇭', region: 'South-Eastern Asia', continent: 'Asia' },
   { code: 'CN', name: 'China', flag: '🇨🇳', region: 'Eastern Asia', continent: 'Asia' },
   { code: 'HK', name: 'Hong Kong SAR', flag: '🇭🇰', region: 'Eastern Asia', continent: 'Asia' },
+  { code: 'MO', name: 'Macau SAR', flag: '🇲🇴', region: 'Eastern Asia', continent: 'Asia' },
   { code: 'CY', name: 'Cyprus', flag: '🇨🇾', region: 'Western Asia', continent: 'Asia' },
   { code: 'GE', name: 'Georgia', flag: '🇬🇪', region: 'Western Asia', continent: 'Asia' },
   { code: 'IN', name: 'India', flag: '🇮🇳', region: 'Southern Asia', continent: 'Asia' },
