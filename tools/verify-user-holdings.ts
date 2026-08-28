@@ -26,6 +26,7 @@
  */
 
 import {
+  getRecentLicenses,
   getLicenceHoldings,
   getCatalogueTotals,
 } from "../lib/user-holdings.ts";
@@ -56,11 +57,18 @@ function stubClient(opts: {
   legacyLicenceIds?: number[];
   failV3?: boolean;
   failTotals?: boolean;
+  /** Keyed by LITERAL licence id (1000001, …), never by an offset-normalised index. */
+  licenses?: Record<
+    number,
+    { masterTokenId: number; mintedAt: number; isCollector: boolean }
+  >;
+  licenceOwners?: Record<number, string>;
 }) {
   return {
     readContract: async ({ functionName }: { functionName: string }) => {
       if (opts.failTotals) throw new Error("rpc down");
       if (functionName === "totalMasters") return opts.totalMasters ?? 5n;
+      if (functionName === "totalLicenses") return opts.totalLicenses ?? 1n;
       throw new Error(`unexpected readContract: ${functionName}`);
     },
     multicall: async ({
@@ -84,10 +92,31 @@ function stubClient(opts: {
             result: opts.legacy?.[id] ?? false,
           };
         }
+        if (fn === "getLicense") {
+          // The contract reads a mapping here, so an id that was never minted comes back as a
+          // ZEROED STRUCT with a 200 — verified on mainnet, getLicense(1) answers (0, 0, false).
+          // A stub that returned a failure instead would make the offset mutation undetectable:
+          // wrong ids would look like empty results rather than fabricated licences.
+          const id = Number(args[0]);
+          const l = opts.licenses?.[id];
+          return {
+            status: "success" as const,
+            result: l
+              ? {
+                  masterTokenId: BigInt(l.masterTokenId),
+                  mintedAt: BigInt(l.mintedAt),
+                  isCollector: l.isCollector,
+                }
+              : { masterTokenId: 0n, mintedAt: 0n, isCollector: false },
+          };
+        }
         if (fn === "ownerOf") {
           // Literal token ids, not offsets. Normalising by the same base the code adds would
           // cancel out an off-by-one and make the check below unable to fail.
           const id = Number(args[0]);
+          if (opts.licenceOwners && id in opts.licenceOwners) {
+            return { status: "success" as const, result: opts.licenceOwners[id] };
+          }
           return (opts.legacyLicenceIds ?? []).includes(id)
             ? { status: "success" as const, result: "0xowner" }
             : { status: "failure" as const, error: new Error("nonexistent") };
@@ -231,6 +260,109 @@ const opts = { registry: REGISTRY, legacy: LEGACY };
     t.totalLicenses,
     1,
   );
+}
+
+// ---------------------------------------------------------------- the recent licence feed
+
+/**
+ * `MusicLicense(limit: N, order_by: {createdAt: desc})` — a global feed, replaced the same way as
+ * the passport one: ids come from a monotonic counter, so id order is mint order.
+ *
+ * The trap is the range. Licence ids start at LICENSE_ID_OFFSET (1,000,000), and
+ * `totalLicenses()` returns a COUNT rather than the highest id — it is `_licenseCounter - OFFSET`.
+ * So the newest licence sits at `OFFSET + total`, not at `total`.
+ *
+ * Getting that wrong does not error. `getLicense` reads a mapping, so unminted ids return a
+ * zeroed struct with a 200 — confirmed on mainnet, `getLicense(1)` answers `(0, 0, false)`. A
+ * naive 1-based range would therefore render a feed of licences for master 0, minted at the
+ * epoch: uniform, plausible, entirely invented. The stub models that, and the mutation below
+ * exists to prove these checks would catch it.
+ */
+const LICENCES = {
+  1000001: { masterTokenId: 3, mintedAt: 1785604159, isCollector: false },
+  1000002: { masterTokenId: 5, mintedAt: 1785704159, isCollector: true },
+  1000003: { masterTokenId: 2, mintedAt: 1785804159, isCollector: false },
+};
+const LICENCE_OWNERS = { 1000001: "0xd6B6", 1000002: "0xaaaa", 1000003: "0xbbbb" };
+
+{
+  const c = stubClient({
+    totalLicenses: 3n,
+    licenses: LICENCES,
+    licenceOwners: LICENCE_OWNERS,
+  });
+  const recent = await getRecentLicenses(c, "0xregistry", 10);
+  check(
+    "licence ids carry the 1,000,000 offset — a count is not an id",
+    recent.map((l) => l.licenseId),
+    ["1000003", "1000002", "1000001"],
+  );
+  check(
+    "each licence keeps its own master, so the stride is right",
+    recent.map((l) => l.masterTokenId),
+    ["2", "5", "3"],
+  );
+  check(
+    "...and its own buyer",
+    recent.map((l) => l.licensee),
+    ["0xbbbb", "0xaaaa", "0xd6B6"],
+  );
+  check("newest first", recent.map((l) => l.mintedAt), [
+    1785804159, 1785704159, 1785604159,
+  ]);
+  check(
+    "the collector flag survives per licence",
+    recent.map((l) => l.isCollector),
+    [false, true, false],
+  );
+}
+
+{
+  const c = stubClient({
+    totalLicenses: 3n,
+    licenses: LICENCES,
+    licenceOwners: LICENCE_OWNERS,
+  });
+  check(
+    "a limit below the total takes the NEWEST",
+    (await getRecentLicenses(c, "0xregistry", 1)).map((l) => l.licenseId),
+    ["1000003"],
+  );
+}
+
+{
+  // The live case today: exactly one licence, id 1000001, master 3.
+  const c = stubClient({
+    totalLicenses: 1n,
+    licenses: { 1000001: LICENCES[1000001] },
+    licenceOwners: { 1000001: "0xd6B6" },
+  });
+  const recent = await getRecentLicenses(c, "0xregistry", 10);
+  check("the live single licence resolves", recent.length, 1);
+  check("...to master 3", recent[0]?.masterTokenId, "3");
+}
+
+{
+  const c = stubClient({ totalLicenses: 0n });
+  check("no licences is empty, not a phantom row", await getRecentLicenses(c, "0xregistry", 10), []);
+}
+
+{
+  // A zeroed struct is the mapping's "never minted", not a licence for master 0. This is the
+  // last line of defence if the range is ever wrong again.
+  const c = stubClient({ totalLicenses: 3n, licenses: {} });
+  check(
+    "unminted ids are dropped rather than rendered as master 0",
+    await getRecentLicenses(c, "0xregistry", 10),
+    [],
+  );
+}
+
+{
+  const c = stubClient({ totalLicenses: 3n, licenses: LICENCES });
+  const recent = await getRecentLicenses(c, "0xregistry", 10);
+  check("a failed ownerOf keeps the licence", recent.length, 3);
+  check("...with the buyer absent", recent[0]?.licensee ?? null, null);
 }
 
 // ------------------------------------------------------------------------------------ report

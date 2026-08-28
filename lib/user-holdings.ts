@@ -31,6 +31,8 @@ const V3_ABI = parseAbi([
   "function totalMasters() view returns (uint256)",
   "function licensesHeld(address owner, uint256 masterTokenId) view returns (uint32)",
   "function totalLicenses() view returns (uint256)",
+  "function getLicense(uint256 licenseId) view returns ((uint256 masterTokenId, uint64 mintedAt, bool isCollector))",
+  "function ownerOf(uint256 tokenId) view returns (address)",
 ]);
 
 const LEGACY_ABI = parseAbi([
@@ -243,4 +245,113 @@ export async function getCatalogueTotals(
       masters?.status === "success" ? Number(masters.result as bigint) : 0,
     totalLicenses: v3Count + legacyCount,
   };
+}
+
+/**
+ * Licence ids do not start at 1. Masters count up from 1 and licences from this offset, so a
+ * token's kind is derivable from its id alone — the contract's own comment calls the disjoint
+ * ranges deliberate.
+ *
+ * This matters more than a constant usually would, because `getLicense` reads a mapping: an id
+ * that was never minted returns a ZEROED struct rather than reverting. Verified on mainnet —
+ * `getLicense(1)` answers `(0, 0, false)` with a 200. So getting this offset wrong does not
+ * produce an error, it produces a feed of licences for master 0 minted at the epoch. Plausible,
+ * uniform, and completely fabricated.
+ */
+export const LICENSE_ID_OFFSET = 1_000_000n;
+
+export interface RecentLicense {
+  licenseId: string;
+  masterTokenId: string;
+  licensee?: string;
+  mintedAt: number;
+  isCollector: boolean;
+}
+
+/**
+ * The most recently minted licences across every buyer — the indexer's
+ * `MusicLicense(limit: N, order_by: {createdAt: desc})`.
+ *
+ * Same shape as the passport feed: ids come from a monotonic counter, so id order is mint order
+ * and "recent" is the top of the range. The difference is where the range starts.
+ *
+ * `totalLicenses()` returns a COUNT, not the highest id — it is `_licenseCounter - OFFSET`. The
+ * newest licence is therefore at `OFFSET + total`, not at `total`.
+ *
+ * No txHash: the indexer knew the minting transaction and a contract read cannot. Callers guard
+ * that link, so it degrades to no link.
+ */
+export async function getRecentLicenses(
+  client: PublicClient,
+  registryAddress?: Address,
+  limit = 10,
+): Promise<RecentLicense[]> {
+  const registry =
+    registryAddress ??
+    (process.env.NEXT_PUBLIC_NFT_CONTRACT as Address | undefined);
+  if (!registry || limit <= 0) return [];
+
+  let total: number;
+  try {
+    total = Number(
+      await client.readContract({
+        address: registry,
+        abi: V3_ABI,
+        functionName: "totalLicenses",
+      }),
+    );
+  } catch {
+    return [];
+  }
+  if (total <= 0) return [];
+
+  const ids: bigint[] = [];
+  for (let n = total; n >= Math.max(1, total - limit + 1); n--) {
+    ids.push(LICENSE_ID_OFFSET + BigInt(n));
+  }
+
+  const results = await client.multicall({
+    contracts: ids.flatMap((id) => [
+      {
+        address: registry,
+        abi: V3_ABI,
+        functionName: "getLicense" as const,
+        args: [id] as const,
+      },
+      {
+        address: registry,
+        abi: V3_ABI,
+        functionName: "ownerOf" as const,
+        args: [id] as const,
+      },
+    ]),
+    allowFailure: true,
+  });
+
+  const out: RecentLicense[] = [];
+  ids.forEach((id, i) => {
+    // Two calls per id, so the stride is 2.
+    const data = results[i * 2];
+    const owner = results[i * 2 + 1];
+    if (data?.status !== "success") return;
+
+    const d = data.result as {
+      masterTokenId?: bigint;
+      mintedAt?: bigint;
+      isCollector?: boolean;
+    };
+    // A zeroed struct is the mapping's answer for an id that was never minted, not a licence.
+    // Dropping it here is what stops an off-by-offset from becoming a feed of fake rows.
+    if (!d.masterTokenId || d.masterTokenId === 0n) return;
+
+    out.push({
+      licenseId: id.toString(),
+      masterTokenId: d.masterTokenId.toString(),
+      mintedAt: Number(d.mintedAt ?? 0),
+      isCollector: Boolean(d.isCollector),
+      licensee: owner?.status === "success" ? (owner.result as string) : undefined,
+    });
+  });
+
+  return out;
 }

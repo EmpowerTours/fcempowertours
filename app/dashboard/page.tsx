@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
-
 interface Stats {
   totalNFTs: number;
   totalMusicNFTs: number;
@@ -27,7 +25,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadDashboardData();
-    const interval = setInterval(loadDashboardData, 3000); // Update every 3s
+    // Was 3s, which suited a GraphQL cache and does not suit contract reads — 20 RPC bursts a
+    // minute per open tab. The route caches for 30s, so anything faster than this mostly
+    // re-read the same cached answer anyway.
+    const interval = setInterval(loadDashboardData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -35,127 +36,45 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const query = `
-        query GetDashboardData {
-          GlobalStats(limit: 1) {
-            totalMusicNFTs
-            totalPassports
-            totalUsers
-            totalMusicLicensesPurchased
-            lastUpdated
-          }
-          AllNFTs: MusicNFT(limit: 1000, where: {isBurned: {_eq: false}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}) {
-            id
-            isArt
-          }
-          MusicNFT(limit: 10, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: false}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}) {
-            id
-            tokenId
-            owner
-            artist
-            tokenURI
-            royaltyPercentage
-            price
-            totalSold
-            active
-            isArt
-            isBurned
-            mintedAt
-            txHash
-          }
-          ArtNFT: MusicNFT(limit: 10, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: true}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}) {
-            id
-            tokenId
-            owner
-            artist
-            tokenURI
-            royaltyPercentage
-            price
-            totalSold
-            active
-            isArt
-            isBurned
-            mintedAt
-            txHash
-          }
-          PassportNFT(limit: 10, order_by: {mintedAt: desc}) {
-            id
-            tokenId
-            owner
-            countryCode
-            mintedAt
-            txHash
-          }
-          MusicLicense(limit: 10, order_by: {createdAt: desc}) {
-            id
-            licenseId
-            masterTokenId
-            licensee
-            active
-            createdAt
-            txHash
-            masterToken {
-              tokenId
-              artist
-              price
-            }
-          }
-        }
-      `;
-
-      const response = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-      });
-
+      // One server route instead of a six-table GraphQL document. Every figure here is a
+      // contract read: masters, licences and passports all get their ids from monotonic
+      // counters, so "the 10 most recent" is the top of a range rather than a query.
+      const response = await fetch('/api/dashboard');
       if (!response.ok) {
-        throw new Error(`Envio API returned ${response.status}`);
+        throw new Error(`Dashboard API returned ${response.status}`);
       }
 
       const result = await response.json();
-
-      if (result.errors) {
-        console.error('GraphQL errors:', result.errors);
-        throw new Error(result.errors[0]?.message || 'GraphQL query failed');
+      if (!result.success) {
+        throw new Error(result.error || 'Dashboard read failed');
       }
 
-      const globalStats = result.data?.GlobalStats?.[0];
-      const allNFTs = result.data?.AllNFTs || [];
-      const music = result.data?.MusicNFT || [];
-      const art = result.data?.ArtNFT || [];
-      const passports = result.data?.PassportNFT || [];
-      const purchases = result.data?.MusicLicense || [];
-
-      // Count from fetched data (non-burned only)
-      const totalNFTCount = allNFTs.length;
-      const totalMusicCount = allNFTs.filter((n: any) => !n.isArt).length;
-      const totalArtCount = allNFTs.filter((n: any) => n.isArt).length;
-
-      if (globalStats) {
-        setStats({
-          ...globalStats,
-          totalNFTs: totalNFTCount,
-          totalMusicNFTs: totalMusicCount,
-          totalArtNFTs: totalArtCount,
-        });
-        setPulse(true);
-        setTimeout(() => setPulse(false), 500);
-        setUpdateCount(prev => prev + 1);
+      // A read that failed leaves its panel empty. Saying so beats rendering a zero that looks
+      // like a fact.
+      if (result.partial) {
+        setError(`Some data unavailable: ${(result.unavailable || []).join(', ')}`);
       }
 
-      setRecentMusic(music);
-      setRecentArt(art);
-      setRecentPassports(passports);
-      setRecentMusicPurchases(purchases);
-
-      console.log('✅ Dashboard data loaded:', {
-        music: music.length,
-        passports: passports.length,
-        purchases: purchases.length,
-        totalUsers: globalStats?.totalUsers,
-        totalPurchased: globalStats?.totalMusicLicensesPurchased
+      setStats({
+        totalNFTs: result.stats.totalNFTs,
+        totalMusicNFTs: result.stats.totalMusic,
+        totalArtNFTs: result.stats.totalArt,
+        totalPassports: result.stats.totalPassports,
+        // Distinct addresses holding or creating something. The indexer's "Active Users" counted
+        // every address it had ever seen in an event, which no contract read reproduces — the
+        // tile is relabelled rather than filled with a different number under the old name.
+        totalUsers: result.stats.totalParticipants,
+        totalMusicLicensesPurchased: result.stats.totalLicenses,
+        lastUpdated: new Date().toISOString(),
       });
+      setPulse(true);
+      setTimeout(() => setPulse(false), 500);
+      setUpdateCount(prev => prev + 1);
+
+      setRecentMusic(result.music || []);
+      setRecentArt(result.art || []);
+      setRecentPassports(result.passports || []);
+      setRecentMusicPurchases(result.licenses || []);
     } catch (error: any) {
       console.error('❌ Error loading dashboard data:', error);
       setError(error.message || 'Failed to load dashboard data');
@@ -168,7 +87,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Envio Header Banner */}
+        {/* Header Banner */}
         <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-6 text-white relative overflow-hidden shadow-xl">
           <div className="absolute inset-0 opacity-20">
             <div className="absolute top-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl animate-pulse"></div>
@@ -178,9 +97,9 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <div className={`w-3 h-3 rounded-full bg-green-400 animate-pulse ${pulse ? 'scale-125' : ''} transition-transform`}></div>
-                <h2 className="text-3xl font-bold">📊 Live Indexing Dashboard</h2>
+                <h2 className="text-3xl font-bold">📊 Live Chain Dashboard</h2>
               </div>
-              <p className="text-white/90 text-sm">Powered by <span className="font-bold">Envio HyperIndex</span> on Monad Mainnet</p>
+              <p className="text-white/90 text-sm">Read directly from <span className="font-bold">Monad Mainnet</span></p>
             </div>
             <div className="flex items-center gap-6">
               <div className="text-right">
@@ -250,7 +169,7 @@ export default function DashboardPage() {
             />
             <StatCard
               icon="👥"
-              label="Active Users"
+              label="Participants"
               value={stats.totalUsers}
               gradient="from-indigo-500 to-violet-600"
               pulse={pulse}
@@ -266,7 +185,7 @@ export default function DashboardPage() {
               Live Activity Stream
             </h3>
             <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-              Envio GraphQL • Auto-refresh: 3s
+              Monad Mainnet • Auto-refresh: 30s
             </span>
           </div>
 
@@ -532,10 +451,10 @@ export default function DashboardPage() {
         {/* Footer */}
         <div className="text-center">
           <p className="text-sm text-gray-600 mb-2">
-            Real-time blockchain indexing powered by <span className="font-bold text-purple-600">Envio</span>
+            Read live from <span className="font-bold text-purple-600">Monad Mainnet</span>
           </p>
           <p className="text-xs text-gray-500">
-            GraphQL Endpoint: <code className="bg-gray-100 px-2 py-1 rounded">{ENVIO_ENDPOINT}</code>
+            Contract reads via <code className="bg-gray-100 px-2 py-1 rounded">/api/dashboard</code>
           </p>
         </div>
       </div>

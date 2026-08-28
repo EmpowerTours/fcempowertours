@@ -12,8 +12,6 @@ interface DashboardModalProps {
   isDarkMode?: boolean;
 }
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
-
 interface Stats {
   totalNFTs: number;
   totalMusicNFTs: number;
@@ -91,92 +89,38 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
     setLoading(true);
     setError(null);
     try {
-      const query = `
-        query GetDashboardData {
-          GlobalStats(limit: 1) {
-            totalMusicNFTs
-            totalPassports
-            totalExperiences
-            totalUsers
-            totalMusicLicensesPurchased
-            lastUpdated
-          }
-          AllNFTs: MusicNFT(limit: 1000, where: {isBurned: {_eq: false}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}) {
-            id
-            isArt
-          }
-          MusicNFT(limit: 8, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: false}}) {
-            id
-            tokenId
-            owner
-            artist
-            name
-            imageUrl
-            price
-            mintedAt
-            txHash
-          }
-          ArtNFT: MusicNFT(limit: 8, order_by: {mintedAt: desc}, where: {isBurned: {_eq: false}, isArt: {_eq: true}}) {
-            id
-            tokenId
-            owner
-            artist
-            name
-            imageUrl
-            price
-            mintedAt
-            txHash
-          }
-          PassportNFT(limit: 8, order_by: {mintedAt: desc}) {
-            id
-            tokenId
-            owner
-            countryCode
-            mintedAt
-            txHash
-          }
-          MusicLicense(limit: 8, order_by: {createdAt: desc}) {
-            id
-            licenseId
-            masterTokenId
-            licensee
-            active
-            createdAt
-            txHash
-          }
-        }
-      `;
-
-      const response = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-      });
-
+      // Shares /api/dashboard with app/dashboard/page.tsx. Both used to carry their own copy of
+      // the same six-table GraphQL document, which is two places for the same query to drift.
+      const response = await fetch('/api/dashboard');
       if (!response.ok) throw new Error(`API returned ${response.status}`);
 
       const result = await response.json();
-      if (result.errors) throw new Error(result.errors[0]?.message || 'Query failed');
+      if (!result.success) throw new Error(result.error || 'Dashboard read failed');
 
-      const globalStats = result.data?.GlobalStats?.[0];
-      const allNFTs = result.data?.AllNFTs || [];
-
-      if (globalStats) {
-        setStats({
-          totalNFTs: allNFTs.length,
-          totalMusicNFTs: allNFTs.filter((n: any) => !n.isArt).length,
-          totalArtNFTs: allNFTs.filter((n: any) => n.isArt).length,
-          totalPassports: globalStats.totalPassports || 0,
-          totalExperiences: globalStats.totalExperiences || 0,
-          totalUsers: globalStats.totalUsers || 0,
-          totalMusicLicensesPurchased: globalStats.totalMusicLicensesPurchased || 0,
-        });
+      // An empty panel because a read failed is not the same as an empty panel because nothing
+      // is there, and the difference should reach the user rather than stopping at the log.
+      if (result.partial) {
+        setError(`Some data unavailable: ${(result.unavailable || []).join(', ')}`);
       }
 
-      setRecentMusic(result.data?.MusicNFT || []);
-      setRecentArt(result.data?.ArtNFT || []);
-      setRecentPassports(result.data?.PassportNFT || []);
-      setRecentPurchases(result.data?.MusicLicense || []);
+      setStats({
+        totalNFTs: result.stats.totalNFTs,
+        totalMusicNFTs: result.stats.totalMusic,
+        totalArtNFTs: result.stats.totalArt,
+        totalPassports: result.stats.totalPassports,
+        // No contract tracks experiences, and the indexer's count came from events that are no
+        // longer readable. 0 is honest here; the tile shows nothing rather than a stale number.
+        totalExperiences: 0,
+        // Distinct addresses that hold or created something — see the route for why this is not
+        // the indexer's "Active Users" figure.
+        totalUsers: result.stats.totalParticipants,
+        totalMusicLicensesPurchased: result.stats.totalLicenses,
+      });
+
+      setRecentMusic(result.music || []);
+      setRecentArt(result.art || []);
+      setRecentPassports(result.passports || []);
+      setRecentPurchases(result.licenses || []);
     } catch (err: any) {
       console.error('[DashboardModal] Error:', err);
       setError(err.message);
@@ -248,7 +192,7 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({ onClose, onViewP
               <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
               <h2 className="text-xl font-bold text-white">Live Dashboard</h2>
               <span className="text-xs text-gray-400 bg-gray-800/50 px-2 py-1 rounded-full">
-                Powered by Envio
+                Live from Monad
               </span>
             </div>
             <div className="flex items-center gap-2">

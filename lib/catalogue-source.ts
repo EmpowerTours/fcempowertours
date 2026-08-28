@@ -72,6 +72,11 @@ export interface CatalogueRow {
   isArt: boolean;
   artist: string;
   price: string;
+  /**
+   * Unix seconds from the registry's `createdAt`. Zero on the legacy contract, which stores no
+   * mint time at all — a feed sorting on this must treat 0 as unknown rather than as 1970.
+   */
+  createdAt: number;
 }
 
 const REGISTRY_ABI = parseAbi([
@@ -201,6 +206,9 @@ export async function readCatalogueFromChain(opts: {
         isArt: Number(master[5]) === 1,
         artist: artist.toLowerCase(),
         price: (prices[i] ?? 0n).toString(),
+        // getMaster returns MULTIPLE NAMED VALUES, which viem decodes as a positional tuple —
+        // unlike a named struct, which decodes as an object. Index 2 is `createdAt`.
+        createdAt: Number(master[2] ?? 0),
       });
     });
     return rows;
@@ -230,6 +238,9 @@ export async function readCatalogueFromChain(opts: {
       isArt: Number(m[11]) === 1,
       artist: artist.toLowerCase(),
       price: (m[4] as bigint).toString(),
+      // `masterTokens` has no timestamp field, so the legacy contract genuinely cannot say when
+      // a master was minted. 0 means unknown here, not 1970.
+      createdAt: 0,
     });
   });
   return rows;
