@@ -1,9 +1,12 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
+import { createPublicClient, http, type Address } from 'viem';
+import { activeChain } from '@/app/chains';
+import { getPassportDetails } from '@/lib/passport-lookup';
 
 export const runtime = 'edge';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
+const PASSPORT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address | undefined;
 
 interface PassportData {
   tokenId: string;
@@ -34,56 +37,46 @@ async function getPassportData(tokenId: string): Promise<PassportData | null> {
     return cached.data;
   }
 
+  if (!PASSPORT_ADDRESS) {
+    console.error('❌ NEXT_PUBLIC_PASSPORT_NFT is not set');
+    return null;
+  }
+
   try {
-    console.log('🔍 Querying Envio for passport:', tokenId);
+    // Read the contract rather than the indexer. The indexer's passport entry is named
+    // `PassportNFTV2`, points at an address its own comment calls V3, and the live contract is
+    // V4 — two generations behind, so it never saw the passports that matter here. The contract
+    // answers this exact question with one call.
+    const client = createPublicClient({ chain: activeChain, transport: http() });
+    const [passport] = await getPassportDetails(client, PASSPORT_ADDRESS, [
+      { tokenId, countryCode: '' },
+    ]);
 
-    const query = `
-      query GetPassport($tokenId: String!) {
-        PassportNFT(where: { tokenId: { _eq: $tokenId } }, limit: 1) {
-          tokenId
-          countryCode
-          countryName
-          region
-          continent
-          owner
-        }
-      }
-    `;
-
-    const response = await fetch(ENVIO_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query,
-        variables: { tokenId }
-      }),
-      cache: 'no-store'
-    });
-
-    if (!response.ok) {
-      console.error('❌ Envio query failed:', response.status);
+    // An unminted id still returns a row, with the fields empty. A blank country is how that
+    // shows up, and rendering a card for a passport that does not exist is worse than the
+    // default image.
+    if (!passport || !passport.countryCode) {
+      console.log('⚠️ Passport not found onchain:', tokenId);
       return null;
     }
 
-    const data = await response.json();
-    const passport = data.data?.PassportNFT?.[0];
+    const result: PassportData = {
+      tokenId: passport.tokenId,
+      countryCode: passport.countryCode,
+      countryName: passport.countryName,
+      region: passport.region,
+      continent: passport.continent,
+      owner: passport.owner ?? '',
+    };
 
-    if (passport) {
-      console.log('✅ Found passport in Envio:', passport);
+    ogCache.set(`passport:${tokenId}`, {
+      data: result,
+      expiry: Date.now() + 5 * 60 * 1000,
+    });
 
-      // Cache for 5 minutes
-      ogCache.set(`passport:${tokenId}`, {
-        data: passport,
-        expiry: Date.now() + 5 * 60 * 1000
-      });
-
-      return passport;
-    }
-
-    console.log('⚠️ Passport not found in Envio');
-    return null;
-  } catch (err: any) {
-    console.error('❌ Error fetching passport data:', err.message);
+    return result;
+  } catch (err) {
+    console.error('❌ Error fetching passport data:', err);
     return null;
   }
 }

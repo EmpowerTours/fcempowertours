@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http, formatEther, Address } from 'viem';
 import { activeChain } from '@/app/chains';
+import { getPassportCount } from '@/lib/passport-lookup';
+import { readCatalogueFromChain } from '@/lib/catalogue-source';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
 const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
 const BOT_SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address; // ✅ Bot's Safe account
@@ -117,88 +118,60 @@ export async function POST(req: NextRequest) {
     console.log(`✅ WMON balance formatted: ${wmonFormatted} WMON (user wallet only)`);
 
     // =============================================
-    // STEP 3: Get NFT balances from Envio indexer
-    // ✅ FIXED: Query actual NFTs and filter out burned ones
+    // STEP 3: Count NFTs from the contracts
+    //
+    // This was three retries with backoff against the indexer, because the indexer was flaky.
+    // The contracts are not: passports come from the ERC-721 `balanceOf` in one read, and the
+    // music counts from the master registry. No retry loop, because a contract read that fails
+    // is a real failure rather than an intermittent one, and the counts degrade to 0 instead of
+    // taking the whole balances response down with them.
+    //
+    // `owner` in the indexer's MusicNFT table meant the master's holder, which for a master is
+    // the artist who minted it — so filtering the catalogue by artist reproduces that count.
     // =============================================
-    const query = `
-      query GetUserNFTs($address: String!) {
-        MusicNFT(where: {owner: {_eq: $address}, isBurned: {_eq: false}}) {
-          id
-          isArt
-        }
-        PassportNFT(where: {owner: {_eq: $address}}) {
-          id
-        }
-      }
-    `;
-
-    console.log('⏳ Fetching NFT balances from indexer (excluding burned)...');
     let nftData = {
       id: userAddress,
       address: userAddress,
       musicNFTCount: 0,
       artNFTCount: 0,
       passportNFTCount: 0,
-      totalNFTs: 0
+      totalNFTs: 0,
     };
 
-    // Retry logic with timeout for intermittent failures
-    const maxRetries = 3;
-    const timeoutMs = 5000;
+    try {
+      const nftClient = createPublicClient({
+        chain: activeChain,
+        transport: http(),
+      });
+      const passportAddress = process.env.NEXT_PUBLIC_PASSPORT_NFT as
+        | Address
+        | undefined;
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const [passportCount, catalogue] = await Promise.all([
+        passportAddress
+          ? getPassportCount(nftClient, passportAddress, userAddress as Address)
+          : Promise.resolve(0),
+        // Unbounded on purpose: this is a count, so a limit would silently under-report it.
+        readCatalogueFromChain({ client: nftClient, limit: 1000 }),
+      ]);
 
-        const response = await fetch(ENVIO_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({
-            query,
-            variables: { address: userAddress }
-          }),
-          signal: controller.signal,
-        });
+      const mine = catalogue.filter(
+        (row) => row.artist.toLowerCase() === userAddress.toLowerCase(),
+      );
+      const musicCount = mine.filter((row) => !row.isArt).length;
+      const artCount = mine.filter((row) => row.isArt).length;
 
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          const result = await response.json();
-          const musicNFTs = result.data?.MusicNFT || [];
-          const passportNFTs = result.data?.PassportNFT || [];
-
-          // Count music vs art NFTs (both are in MusicNFT table)
-          const musicCount = musicNFTs.filter((nft: any) => !nft.isArt).length;
-          const artCount = musicNFTs.filter((nft: any) => nft.isArt).length;
-          const passportCount = passportNFTs.length;
-
-          nftData = {
-            id: userAddress,
-            address: userAddress,
-            musicNFTCount: musicCount,
-            artNFTCount: artCount,
-            passportNFTCount: passportCount,
-            totalNFTs: musicCount + artCount + passportCount
-          };
-          console.log(`✅ NFT data retrieved (attempt ${attempt}):`, nftData);
-          break; // Success, exit retry loop
-        } else {
-          console.warn(`⚠️ Indexer returned ${response.status} (attempt ${attempt}/${maxRetries})`);
-          if (attempt < maxRetries) {
-            await new Promise(r => setTimeout(r, 500 * attempt)); // Backoff
-          }
-        }
-      } catch (error: any) {
-        const isTimeout = error.name === 'AbortError';
-        console.error(`❌ Error fetching NFT data (attempt ${attempt}/${maxRetries}): ${isTimeout ? 'TIMEOUT' : error.message}`);
-        if (attempt < maxRetries) {
-          await new Promise(r => setTimeout(r, 500 * attempt)); // Backoff
-        }
-      }
+      nftData = {
+        id: userAddress,
+        address: userAddress,
+        musicNFTCount: musicCount,
+        artNFTCount: artCount,
+        passportNFTCount: passportCount,
+        totalNFTs: musicCount + artCount + passportCount,
+      };
+      console.log('✅ NFT counts from chain:', nftData);
+    } catch (error) {
+      console.error('❌ Could not count NFTs from chain:', error);
     }
 
     // =============================================

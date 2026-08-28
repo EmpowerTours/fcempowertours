@@ -36,6 +36,14 @@ const PASSPORT_ABI = parseAbi([
   // keeps the passport with empty fields, so the UI showed three passports with no country
   // names rather than an error.
   "function getPassportData(uint256 tokenId) view returns ((uint256 userFid, string countryCode, string countryName, string region, string continent, uint256 mintedAt, bool verified, string verificationProof, uint256 verifiedAt))",
+  // Named `getTotalSupply`, NOT the ERC721Enumerable `totalSupply` — that one reverts here, as
+  // does `tokenByIndex`. V4 extends plain ERC721, so this is the only counter.
+  "function getTotalSupply() view returns (uint256)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function balanceOf(address owner) view returns (uint256)",
+  // Arrays of structs, so one tuple[] each — the same by-name decoding as getPassportData.
+  "function getItineraryStamps(uint256 tokenId) view returns ((uint256 itineraryId, string locationName, string city, string country, uint256 stampedAt, bool gpsVerified, string placeId, string googleMapsUri, int256 latitude, int256 longitude)[])",
+  "function getPassportStamps(uint256 tokenId) view returns ((string location, string eventType, address artist, uint256 timestamp, bool verified, string placeId, string googleMapsUri, int256 latitude, int256 longitude)[])",
 ]);
 
 export interface PassportRef {
@@ -44,6 +52,8 @@ export interface PassportRef {
 }
 
 export interface PassportDetail extends PassportRef {
+  /** Empty unless the caller asked for it — the owner costs an extra read per passport. */
+  owner?: string;
   countryName: string;
   region: string;
   continent: string;
@@ -171,4 +181,234 @@ export async function getPassportDetails(
   });
 
   return out;
+}
+
+/**
+ * How many passports exist. Ids run 1..N with no gaps.
+ *
+ * `_mintPassport` does `_tokenIdCounter++` and then uses the incremented value, so the first
+ * passport is id 1, not 0 — and since V4 has no burn, every id in that range is live. Both facts
+ * are what make the walk below safe.
+ */
+export async function getTotalSupply(
+  client: PublicClient,
+  passportAddress: Address,
+): Promise<number> {
+  const supply = await client.readContract({
+    address: passportAddress,
+    abi: PASSPORT_ABI,
+    functionName: "getTotalSupply",
+  });
+  return Number(supply);
+}
+
+/**
+ * The most recently minted passports across every holder.
+ *
+ * ## Why this is not a search
+ *
+ * The indexer answered `PassportNFT(limit: 8, order_by: {mintedAt: desc})` — a global feed, which
+ * `findAllPassports` cannot produce because it is anchored to one holder. But the contract makes
+ * it cheaper than a search, not harder: ids are handed out by a monotonic counter, so **id order
+ * IS mint order** and "most recent" is just the top of the range. No sorting, and no need to read
+ * anything to decide what to read.
+ *
+ * One multicall covers the details and the owners together.
+ *
+ * ## What is lost
+ *
+ * `txHash`. The indexer knew which transaction minted each passport; a contract read cannot, and
+ * the logs are out of reach — the public RPC caps `eth_getLogs` at 100 blocks and the current
+ * Alchemy key at 10, so the mint transactions are unreachable at any tier available here. Callers
+ * render that link as `{item.txHash && ...}`, so it degrades to no link rather than a break.
+ */
+export async function getRecentPassports(
+  client: PublicClient,
+  passportAddress: Address,
+  limit = 10,
+): Promise<PassportDetail[]> {
+  const supply = await getTotalSupply(client, passportAddress);
+  if (supply === 0 || limit <= 0) return [];
+
+  // Ids descend from the newest. `Math.max(1, …)` matters while the collection is small: with a
+  // supply of 3 and a limit of 8 this must produce [3,2,1], not ids down to -4.
+  const ids: number[] = [];
+  for (let id = supply; id >= Math.max(1, supply - limit + 1); id--) ids.push(id);
+
+  const results = await client.multicall({
+    contracts: ids.flatMap((id) => [
+      {
+        address: passportAddress,
+        abi: PASSPORT_ABI,
+        functionName: "getPassportData" as const,
+        args: [BigInt(id)] as const,
+      },
+      {
+        address: passportAddress,
+        abi: PASSPORT_ABI,
+        functionName: "ownerOf" as const,
+        args: [BigInt(id)] as const,
+      },
+    ]),
+    allowFailure: true,
+  });
+
+  const out: PassportDetail[] = [];
+  ids.forEach((id, i) => {
+    // Two calls per id, so the stride is 2 — reading these as one-per-id would pair every
+    // passport with the previous one's owner.
+    const data = results[i * 2];
+    const owner = results[i * 2 + 1];
+    if (data?.status !== "success") return;
+
+    const d = data.result as {
+      userFid?: bigint;
+      countryCode?: string;
+      countryName?: string;
+      region?: string;
+      continent?: string;
+      mintedAt?: bigint;
+      verified?: boolean;
+    };
+    out.push({
+      tokenId: String(id),
+      countryCode: d.countryCode || "",
+      countryName: d.countryName || "",
+      region: d.region || "",
+      continent: d.continent || "",
+      mintedAt: Number(d.mintedAt ?? 0),
+      verified: Boolean(d.verified),
+      userFid: Number(d.userFid ?? 0),
+      owner: owner?.status === "success" ? (owner.result as string) : undefined,
+    });
+  });
+
+  return out;
+}
+
+export interface ItineraryStamp {
+  itineraryId: number;
+  locationName: string;
+  city: string;
+  country: string;
+  stampedAt: number;
+  gpsVerified: boolean;
+}
+
+/**
+ * The itinerary stamps on a passport.
+ *
+ * The indexer served these from `PassportNFT_ItineraryStampAdded` events, which is the one place
+ * an event feed genuinely had an edge — except the contract stores the stamps rather than only
+ * emitting them, so `getItineraryStamps` returns the same list without touching logs. That
+ * matters because logs are unreachable here: the public RPC caps `eth_getLogs` at 100 blocks and
+ * the current Alchemy key at 10.
+ *
+ * The indexer called the time field `timestamp`; the contract calls it `stampedAt`. Same value.
+ *
+ * Newest first, to match the `order_by: {timestamp: desc}` the callers were written against —
+ * the contract returns them in the order they were added, so this reverses a copy.
+ */
+export async function getItineraryStamps(
+  client: PublicClient,
+  passportAddress: Address,
+  tokenId: string | number,
+  limit = 20,
+): Promise<ItineraryStamp[]> {
+  const raw = (await client.readContract({
+    address: passportAddress,
+    abi: PASSPORT_ABI,
+    functionName: "getItineraryStamps",
+    args: [BigInt(tokenId)],
+  })) as ReadonlyArray<{
+    itineraryId: bigint;
+    locationName: string;
+    city: string;
+    country: string;
+    stampedAt: bigint;
+    gpsVerified: boolean;
+  }>;
+
+  return [...raw]
+    .reverse()
+    .slice(0, limit)
+    .map((s) => ({
+      itineraryId: Number(s.itineraryId),
+      locationName: s.locationName || "Unknown",
+      city: s.city || "Unknown",
+      country: s.country || "Unknown",
+      stampedAt: Number(s.stampedAt),
+      gpsVerified: Boolean(s.gpsVerified),
+    }));
+}
+
+export interface VenueStamp {
+  location: string;
+  eventType: string;
+  timestamp: number;
+  verified: boolean;
+}
+
+/**
+ * The venue stamps on a passport — what the indexer served as `PassportNFT_StampAdded`.
+ *
+ * Kept separate from itinerary stamps because they are different structs with different fields,
+ * and callers treat venue stamps as the legacy fallback: they read itinerary stamps first and
+ * come here only when there are none.
+ */
+export async function getVenueStamps(
+  client: PublicClient,
+  passportAddress: Address,
+  tokenId: string | number,
+  limit = 20,
+): Promise<VenueStamp[]> {
+  const raw = (await client.readContract({
+    address: passportAddress,
+    abi: PASSPORT_ABI,
+    functionName: "getPassportStamps",
+    args: [BigInt(tokenId)],
+  })) as ReadonlyArray<{
+    location: string;
+    eventType: string;
+    timestamp: bigint;
+    verified: boolean;
+  }>;
+
+  return [...raw]
+    .reverse()
+    .slice(0, limit)
+    .map((s) => ({
+      location: s.location || "Event",
+      eventType: s.eventType || "",
+      timestamp: Number(s.timestamp),
+      verified: Boolean(s.verified),
+    }));
+}
+
+/**
+ * How many passports an address holds.
+ *
+ * `findAllPassports` can answer this, but it costs a 195-country multicall to do it. Callers that
+ * only need the number — a profile stat, a balances panel — get it from the ERC-721 `balanceOf`
+ * in a single read. Use the search when you need to know WHICH countries; use this when you need
+ * HOW MANY.
+ */
+export async function getPassportCount(
+  client: PublicClient,
+  passportAddress: Address,
+  owner: Address,
+): Promise<number> {
+  try {
+    const n = await client.readContract({
+      address: passportAddress,
+      abi: PASSPORT_ABI,
+      functionName: "balanceOf",
+      args: [owner],
+    });
+    return Number(n);
+  } catch {
+    // A balance read that fails is "unknown", and reporting 0 is the honest degradation for a
+    // count — better than throwing a whole balances response away over one number.
+    return 0;
+  }
 }

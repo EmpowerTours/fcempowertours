@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, type Address } from "viem";
 import { activeChain } from "@/app/chains";
 import { getAllCountryCodes } from "@/lib/passport/countries";
-import { findAllPassports, getPassportDetails } from "@/lib/passport-lookup";
+import {
+  findAllPassports,
+  getPassportDetails,
+  getRecentPassports,
+} from "@/lib/passport-lookup";
 
 /**
  * Every passport an address holds.
@@ -45,9 +49,15 @@ export async function GET(req: NextRequest) {
   }
 
   const fid = fidParam ? Number(fidParam) : undefined;
-  if (!address && !fid) {
+  const recentParam = searchParams.get("recent");
+  const tokenIdParam = searchParams.get("tokenId");
+
+  if (!address && !fid && !recentParam && !tokenIdParam) {
     return NextResponse.json(
-      { success: false, error: "Pass ?address= or ?fid=" },
+      {
+        success: false,
+        error: "Pass ?address=, ?fid=, ?tokenId= or ?recent=",
+      },
       { status: 400 },
     );
   }
@@ -80,6 +90,43 @@ export async function GET(req: NextRequest) {
       chain: activeChain,
       transport: http(),
     });
+
+    // The global feed and the single-token read are different questions from "what does this
+    // wallet hold", and neither goes through the 195-country search. `recent` is the cheaper of
+    // the three: id order is mint order, so it reads the top of the range directly.
+    if (recentParam || tokenIdParam) {
+      if (tokenIdParam) {
+        if (!/^\d+$/.test(tokenIdParam)) {
+          return NextResponse.json(
+            { success: false, error: "tokenId must be a positive integer" },
+            { status: 400 },
+          );
+        }
+        const one = await getPassportDetails(client, passportAddress, [
+          { tokenId: tokenIdParam, countryCode: "" },
+        ]);
+        return NextResponse.json(
+          { success: true, passports: one },
+          {
+            headers: {
+              "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
+            },
+          },
+        );
+      }
+
+      // Bounded so a caller cannot ask for the whole collection in one multicall as it grows.
+      const limit = Math.min(Math.max(Number(recentParam) || 10, 1), 50);
+      const recent = await getRecentPassports(client, passportAddress, limit);
+      return NextResponse.json(
+        { success: true, passports: recent },
+        {
+          headers: {
+            "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300",
+          },
+        },
+      );
+    }
 
     const refs = await findAllPassports(client, {
       passportAddress,

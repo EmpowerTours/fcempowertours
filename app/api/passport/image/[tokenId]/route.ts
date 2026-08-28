@@ -2,16 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generatePassportSVG, PassportStamp } from '@/lib/passport/generatePassportSVG';
 import { getCountryByCode } from '@/lib/passport/countries';
 import { getStampImages } from '@/lib/stamp-images';
-import { createPublicClient, http, parseAbi } from 'viem';
+import { createPublicClient, http } from 'viem';
 import { activeChain } from '@/app/chains';
+import {
+  getPassportDetails,
+  getItineraryStamps,
+  getVenueStamps,
+} from '@/lib/passport-lookup';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as `0x${string}`;
 
 /**
  * Dynamic Passport Image Generator
  *
- * Generates an SVG passport image with stamps fetched from the indexer.
+ * Generates an SVG passport image with stamps read from the contract.
  * This allows passports to display their collected stamps dynamically.
  */
 export async function GET(
@@ -28,165 +32,68 @@ export async function GET(
 
     let countryCode = 'XX';
     let countryName = 'Unknown';
-    let passportOwner = '';
 
-    // First, try to fetch passport data from Envio indexer (more reliable)
-    try {
-      const passportQuery = `
-        query GetPassport($tokenId: String!) {
-          PassportNFT(where: { tokenId: { _eq: $tokenId } }) {
-            tokenId
-            countryCode
-            countryName
-            region
-            continent
-            owner
-          }
-        }
-      `;
-
-      const passportRes = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: passportQuery,
-          variables: { tokenId: tokenId }
-        }),
-      });
-
-      if (passportRes.ok) {
-        const passportData = await passportRes.json();
-        const passport = passportData.data?.PassportNFT?.[0];
-
-        if (passport && passport.countryCode) {
-          countryCode = passport.countryCode;
-          countryName = passport.countryName || getCountryByCode(countryCode)?.name || countryCode;
-          passportOwner = passport.owner || '';
-          console.log('[PassportImage] Got passport data from indexer:', { countryCode, countryName, owner: passportOwner });
-        }
-      }
-    } catch {
-      console.log('[PassportImage] Indexer passport query failed, trying chain');
-    }
-
-    // Fallback: try to get from chain if indexer didn't work
-    if (countryCode === 'XX') {
-      try {
-        const publicClient = createPublicClient({
-          chain: activeChain,
-          transport: http(),
-        });
-
-        const result = await publicClient.readContract({
-          address: PASSPORT_NFT_ADDRESS,
-          abi: parseAbi(['function passportCountries(uint256 tokenId) view returns (string)']),
-          functionName: 'passportCountries',
-          args: [BigInt(tokenIdNum)],
-        });
-
-        if (result) {
-          countryCode = result as string;
-          const country = getCountryByCode(countryCode);
-          countryName = country?.name || countryCode;
-        }
-      } catch {
-        console.log('[PassportImage] Could not fetch from chain, using defaults');
-      }
-    }
-
-    // Fetch stamps from indexer
+    // Read the contract directly. This used to try the indexer first and fall back to chain,
+    // but the indexer's passport entry is two contract generations behind — it never saw V4 — so
+    // the "more reliable" path was the one that returned nothing. The contract stores stamps
+    // rather than only emitting them, so even the stamp lists come from a plain read; the events
+    // are out of reach anyway, with eth_getLogs capped at 100 blocks on the public RPC and 10 on
+    // the current key.
     let stamps: PassportStamp[] = [];
 
     try {
-      // Query for itinerary stamps on this passport
-      const stampsQuery = `
-        query GetPassportStamps($tokenId: String!) {
-          PassportNFT_ItineraryStampAdded(
-            where: { passportId: { _eq: $tokenId } }
-            order_by: { timestamp: desc }
-            limit: 20
-          ) {
-            itineraryId
-            locationName
-            city
-            country
-            timestamp
-            gpsVerified
-          }
-        }
-      `;
-
-      const envioRes = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: stampsQuery,
-          variables: { tokenId: tokenId }
-        }),
+      const publicClient = createPublicClient({
+        chain: activeChain,
+        transport: http(),
       });
 
-      if (envioRes.ok) {
-        const envioData = await envioRes.json();
-        const rawStamps = envioData.data?.PassportNFT_ItineraryStampAdded || [];
+      const [passport] = await getPassportDetails(publicClient, PASSPORT_NFT_ADDRESS, [
+        { tokenId, countryCode: '' },
+      ]);
 
-        // Fetch AI-generated stamp images from store
+      if (passport?.countryCode) {
+        countryCode = passport.countryCode;
+        countryName =
+          passport.countryName || getCountryByCode(countryCode)?.name || countryCode;
+      }
+
+      const itinerary = await getItineraryStamps(
+        publicClient,
+        PASSPORT_NFT_ADDRESS,
+        tokenIdNum,
+      );
+
+      if (itinerary.length > 0) {
         const stampImages = await getStampImages(BigInt(tokenIdNum));
-
-        stamps = rawStamps.map((s: any) => ({
-          locationName: s.locationName || 'Unknown',
-          city: s.city || 'Unknown',
-          country: s.country || 'Unknown',
-          stampedAt: parseInt(s.timestamp) || Math.floor(Date.now() / 1000),
-          stampImageIPFS: stampImages[`${tokenIdNum}_${s.itineraryId}`] || undefined,
+        stamps = itinerary.map((s) => ({
+          locationName: s.locationName,
+          city: s.city,
+          country: s.country,
+          stampedAt: s.stampedAt,
+          stampImageIPFS:
+            stampImages[`${tokenIdNum}_${s.itineraryId}`] || undefined,
         }));
-
-        console.log('[PassportImage] Found', stamps.length, 'stamps for passport', tokenId, '(', Object.keys(stampImages).length, 'with AI images)');
+      } else {
+        // Venue stamps are the older mechanism, and only worth reading when there are no
+        // itinerary stamps — matching what the two indexer queries did in sequence.
+        const venue = await getVenueStamps(
+          publicClient,
+          PASSPORT_NFT_ADDRESS,
+          tokenIdNum,
+        );
+        stamps = venue.map((s) => ({
+          locationName: s.location,
+          city: 'Unknown',
+          country: 'Unknown',
+          stampedAt: s.timestamp,
+        }));
       }
-    } catch {
-      console.log('[PassportImage] Indexer query failed, passport has no stamps');
-    }
 
-    // Also try legacy event stamps if no itinerary stamps found
-    if (stamps.length === 0) {
-      try {
-        const legacyQuery = `
-          query GetLegacyStamps($tokenId: String!) {
-            PassportNFT_StampAdded(
-              where: { tokenId: { _eq: $tokenId } }
-              order_by: { timestamp: desc }
-              limit: 20
-            ) {
-              venueName
-              city
-              country
-              timestamp
-            }
-          }
-        `;
-
-        const legacyRes = await fetch(ENVIO_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: legacyQuery,
-            variables: { tokenId: tokenId }
-          }),
-        });
-
-        if (legacyRes.ok) {
-          const legacyData = await legacyRes.json();
-          const legacyStamps = legacyData.data?.PassportNFT_StampAdded || [];
-
-          stamps = legacyStamps.map((s: any) => ({
-            locationName: s.venueName || 'Event',
-            city: s.city || 'Unknown',
-            country: s.country || 'Unknown',
-            stampedAt: parseInt(s.timestamp) || Math.floor(Date.now() / 1000),
-          }));
-        }
-      } catch {
-        // No legacy stamps either
-      }
+      console.log('[PassportImage] token', tokenId, countryCode, stamps.length, 'stamps');
+    } catch (err) {
+      // A read failure must still produce an image: the SVG generator handles the 'XX' default,
+      // and a broken picture is worse than a generic one.
+      console.error('[PassportImage] chain read failed:', err);
     }
 
     // Generate the SVG

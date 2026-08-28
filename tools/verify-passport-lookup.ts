@@ -26,15 +26,22 @@
 import {
   findAllPassports,
   getPassportDetails,
+  getRecentPassports,
 } from "../lib/passport-lookup.ts";
 
 const failures: string[] = [];
 let checks = 0;
 
+// BigInt-safe: a stride slip puts a raw `getPassportData` struct where a plain owner string
+// belongs, and a bare JSON.stringify throws on its BigInts — turning a reportable failure into an
+// uncaught crash that a "did it print a pass line" harness reads as no result at all.
+const show = (v: unknown) =>
+  JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? `${x}n` : x));
+
 function check(name: string, actual: unknown, expected: unknown) {
   checks++;
-  const a = JSON.stringify(actual);
-  const e = JSON.stringify(expected);
+  const a = show(actual);
+  const e = show(expected);
   if (a !== e) failures.push(`${name}\n     expected ${e}\n     actual   ${a}`);
 }
 
@@ -46,9 +53,16 @@ function stubClient(opts: {
   byFid?: Record<string, number>;
   reverts?: string[];
   details?: Record<number, Record<string, unknown>>;
+  owners?: Record<number, string>;
+  supply?: number;
   seen?: string[];
 }) {
   return {
+    readContract: async ({ functionName }: { functionName: string }) => {
+      opts.seen?.push(functionName);
+      if (functionName === "getTotalSupply") return BigInt(opts.supply ?? 0);
+      throw new Error(`unstubbed read: ${functionName}`);
+    },
     multicall: async ({
       contracts,
       allowFailure,
@@ -61,12 +75,32 @@ function stubClient(opts: {
         const args = (c.args ?? []) as unknown[];
         opts.seen?.push(fn);
 
+        // Token ids are uint256. viem throws at encode time on a negative, so a stub that
+        // quietly accepts one is more permissive than the real client — and the range-clamp
+        // check below then cannot fail, because ids 0 and -1 just look like empty results.
+        if (fn === "getPassportData" || fn === "ownerOf") {
+          const raw = BigInt(args[0] as bigint);
+          if (raw < 1n) {
+            throw new Error(
+              `cannot encode ${raw} as uint256 tokenId — ids are 1-based`,
+            );
+          }
+        }
+
         if (fn === "getPassportData") {
           const id = Number(args[0]);
           const d = opts.details?.[id];
           return d
             ? { status: "success" as const, result: d }
             : { status: "failure" as const, error: new Error("no data") };
+        }
+
+        if (fn === "ownerOf") {
+          const id = Number(args[0]);
+          const o = opts.owners?.[id];
+          return o
+            ? { status: "success" as const, result: o }
+            : { status: "failure" as const, error: new Error("nonexistent") };
         }
 
         const code = String(args[1]);
@@ -248,6 +282,81 @@ const CODES = ["MX", "US", "FR", "CN", "TH", "GB"];
   ]);
   check("a failed detail read keeps the passport", d.length, 1);
   check("...falling back to the code we searched with", d[0].countryCode, "JP");
+}
+
+// ---------------------------------------------------------------- the global recent feed
+
+/**
+ * `PassportNFT(limit: 8, order_by: {mintedAt: desc})` was a global feed, which `findAllPassports`
+ * cannot produce — it is anchored to one holder. The contract makes it cheap instead of hard: ids
+ * come from a monotonic counter, so id order IS mint order.
+ *
+ * Two things here fail silently if broken. The multicall interleaves two calls per id, so a
+ * wrong stride pairs each passport with the PREVIOUS one's owner — plausible output, wrong
+ * attribution. And the range clamp only matters when the limit exceeds the supply, which is the
+ * live case today: supply is 3 and the dashboard asks for 8.
+ */
+const DETAILS_3 = {
+  1: { userFid: 765994n, countryCode: "MX", countryName: "Mexico", region: "Central America", continent: "North America", mintedAt: 1769157019n, verified: false },
+  2: { userFid: 765994n, countryCode: "FR", countryName: "France", region: "Western Europe", continent: "Europe", mintedAt: 1770512345n, verified: false },
+  3: { userFid: 765994n, countryCode: "CN", countryName: "China", region: "Eastern Asia", continent: "Asia", mintedAt: 1770729681n, verified: false },
+};
+const OWNERS_3 = { 1: "0xaaa", 2: "0xbbb", 3: "0xccc" };
+
+{
+  const c = stubClient({ supply: 3, details: DETAILS_3, owners: OWNERS_3 });
+  const recent = await getRecentPassports(c, PASSPORT, 8);
+  check(
+    "asking for more than exist returns what exists, not ids 0 and below",
+    recent.map((p) => p.tokenId),
+    ["3", "2", "1"],
+  );
+  check(
+    "each passport keeps its OWN owner — a stride slip would shift these by one",
+    recent.map((p) => p.owner),
+    ["0xccc", "0xbbb", "0xaaa"],
+  );
+  check(
+    "...and its own country, from the same interleaved batch",
+    recent.map((p) => p.countryCode),
+    ["CN", "FR", "MX"],
+  );
+  check(
+    "newest first, because id order is mint order",
+    recent.map((p) => p.mintedAt),
+    [1770729681, 1770512345, 1769157019],
+  );
+}
+
+{
+  const c = stubClient({ supply: 3, details: DETAILS_3, owners: OWNERS_3 });
+  const recent = await getRecentPassports(c, PASSPORT, 2);
+  check("a limit below the supply takes the NEWEST, not the oldest", recent.map((p) => p.tokenId), ["3", "2"]);
+}
+
+{
+  const c = stubClient({ supply: 0 });
+  check("an empty collection is empty, not a crash", await getRecentPassports(c, PASSPORT, 8), []);
+}
+
+{
+  const c = stubClient({ supply: 3, details: DETAILS_3, owners: OWNERS_3 });
+  check("a zero limit reads nothing", await getRecentPassports(c, PASSPORT, 0), []);
+}
+
+{
+  // Ids are 1-based: `_mintPassport` increments the counter BEFORE using it, so there is no
+  // token 0. Reading a supply of 1 as a 0-based range would ask for id 0 and find nothing.
+  const c = stubClient({ supply: 1, details: { 1: DETAILS_3[1] }, owners: { 1: "0xaaa" } });
+  check("a single passport is id 1, not id 0", (await getRecentPassports(c, PASSPORT, 5)).map((p) => p.tokenId), ["1"]);
+}
+
+{
+  // A missing owner must not drop the passport — the feed is about the mint, not the transfer.
+  const c = stubClient({ supply: 3, details: DETAILS_3, owners: { 3: "0xccc" } });
+  const recent = await getRecentPassports(c, PASSPORT, 8);
+  check("a failed ownerOf keeps the passport", recent.length, 3);
+  check("...with the owner simply absent", recent.map((p) => p.owner ?? null), ["0xccc", null, null]);
 }
 
 // ------------------------------------------------------------------------------------ report
