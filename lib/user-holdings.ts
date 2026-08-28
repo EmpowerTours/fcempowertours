@@ -355,3 +355,106 @@ export async function getRecentLicenses(
 
   return out;
 }
+
+export interface OwnedLicense extends RecentLicense {
+  /** Present when the caller asked for legacy licences too. */
+  generation: "v3" | "legacy";
+}
+
+/**
+ * The licence tokens one address holds, with their ids.
+ *
+ * `getLicenceHoldings` answers "how many licences for which masters", which is what a playback
+ * gate needs. This answers "which licence TOKENS", which is what a profile needs — the resale
+ * flow keys listings by `licenseId`, so a count is not enough.
+ *
+ * Done by walking the licence range and asking `ownerOf`, because the registry has no
+ * per-owner enumerator. That is linear in the number of licences ever minted rather than in the
+ * number this address holds, which is fine at one licence and stays fine for a long time; the
+ * probe is bounded so it cannot become unbounded work by surprise.
+ */
+export async function getOwnedLicenses(
+  client: PublicClient,
+  owner: string,
+  registryAddress?: Address,
+  probeLimit = 512,
+): Promise<OwnedLicense[]> {
+  const registry =
+    registryAddress ??
+    (process.env.NEXT_PUBLIC_NFT_CONTRACT as Address | undefined);
+  if (!registry || !owner) return [];
+
+  let total: number;
+  try {
+    total = Number(
+      await client.readContract({
+        address: registry,
+        abi: V3_ABI,
+        functionName: "totalLicenses",
+      }),
+    );
+  } catch {
+    return [];
+  }
+  if (total <= 0) return [];
+
+  // Newest first, and capped. If the catalogue ever outgrows this the answer is a per-owner
+  // index on the contract, not a bigger number here — so the cap is visible rather than silent.
+  const count = Math.min(total, probeLimit);
+  const ids: bigint[] = [];
+  for (let n = total; n > total - count; n--) {
+    ids.push(LICENSE_ID_OFFSET + BigInt(n));
+  }
+
+  const owners = await client.multicall({
+    contracts: ids.map((id) => ({
+      address: registry,
+      abi: V3_ABI,
+      functionName: "ownerOf" as const,
+      args: [id] as const,
+    })),
+    allowFailure: true,
+  });
+
+  const wanted = owner.toLowerCase();
+  const mine = ids.filter((_, i) => {
+    const r = owners[i];
+    return (
+      r?.status === "success" && String(r.result).toLowerCase() === wanted
+    );
+  });
+  if (mine.length === 0) return [];
+
+  const details = await client.multicall({
+    contracts: mine.map((id) => ({
+      address: registry,
+      abi: V3_ABI,
+      functionName: "getLicense" as const,
+      args: [id] as const,
+    })),
+    allowFailure: true,
+  });
+
+  const out: OwnedLicense[] = [];
+  mine.forEach((id, i) => {
+    const r = details[i];
+    if (r?.status !== "success") return;
+    const d = r.result as {
+      masterTokenId?: bigint;
+      mintedAt?: bigint;
+      isCollector?: boolean;
+    };
+    // A zeroed struct means the id was never minted — see getRecentLicenses.
+    if (!d.masterTokenId || d.masterTokenId === 0n) return;
+    out.push({
+      licenseId: id.toString(),
+      masterTokenId: d.masterTokenId.toString(),
+      mintedAt: Number(d.mintedAt ?? 0),
+      isCollector: Boolean(d.isCollector),
+      licensee: owner,
+      generation: "v3",
+    });
+  });
+
+  return out;
+}

@@ -7,7 +7,6 @@ import { useGeolocation } from '@/lib/useGeolocation';
 import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
 import FarcasterAppSetup from '@/app/components/FarcasterAppSetup';
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 interface UserPassport {
   tokenId: string;
@@ -67,28 +66,16 @@ export default function PassportPage() {
     const fetchPassports = async () => {
       setLoadingPassports(true);
       try {
-        const query = `
-          query GetUserPassports($owner: String!) {
-            PassportNFT(where: { owner: { _eq: $owner } }, order_by: { mintedAt: desc }) {
-              tokenId
-              countryCode
-              countryName
-              mintedAt
-            }
-          }
-        `;
-
-        const response = await fetch(ENVIO_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-          body: JSON.stringify({
-            query,
-            variables: { owner: walletAddress.toLowerCase() }
-          })
-        });
+        // The contract has no enumerator — `getPassportByAddress` can confirm a passport for a
+        // country you name but cannot list them — so the endpoint inverts the question and asks
+        // about every country in one Multicall3 batch. ~1.2s cold for all 195.
+        const response = await fetch(
+          `/api/passports?address=${walletAddress}`,
+          { headers: { ...(await authHeaders()) } },
+        );
 
         const data = await response.json();
-        const passports = data?.data?.PassportNFT || [];
+        const passports = data?.passports || [];
         setUserPassports(passports);
         console.log('🎫 Found', passports.length, 'passports for user');
       } catch (err) {

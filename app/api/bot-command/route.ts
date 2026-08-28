@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { authorizeUserAddress, forwardAuthHeader } from "@/lib/quick-auth";
 import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
 import { getResolvedCatalogue, getResolvedTrack } from "@/lib/catalogue-resolved";
+import { createPublicClient, http, type Address, type PublicClient } from "viem";
+import { activeChain } from "@/app/chains";
+import { findAllPassports } from "@/lib/passport-lookup";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
   "https://fcempowertours-production-6551.up.railway.app";
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 // ✅ Helper to extract FID from Farcaster context
 function extractFidFromRequest(req: NextRequest): string | null {
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
     // ✅ Get FID from body or request context
     const fid = bodyFid || extractFidFromRequest(req);
 
-    // SECURITY: rate limit. This route fans out to paid APIs (Neynar, Envio,
+    // SECURITY: rate limit. This route fans out to paid APIs (Neynar,
     // Gemini) and internally to create/execute-delegated, so it was an
     // unthrottled cost-amplification vector.
     const botRl = await checkRateLimit(
@@ -806,62 +808,44 @@ Click below to open the transaction page and connect your Farcaster wallet with 
           `🔍 Checking if user has existing passport for ${countryCode}...`,
         );
         try {
-          const checkQuery = `
-            query CheckPassport($owner: String!, $countryCode: String!, $contract: String!) {
-              PassportNFT(
-                where: {
-                  owner: { _eq: $owner }
-                  countryCode: { _eq: $countryCode }
-                  contract: { _eq: $contract }
-                }
-                limit: 1
-              ) {
-                tokenId
-                countryCode
-                countryName
-                contract
-              }
-            }
-          `;
-
+          // Ask the contract, which is the thing that will actually reject a duplicate. The
+          // indexer's passport entry is two contract generations behind — named V2, pointed at
+          // V3, live contract is V4 — so it reported "no passport" for every V4 holder and let
+          // duplicates through to revert on chain. `findAllPassports` narrowed to one country is
+          // a single read.
           const PASSPORT_NFT_ADDRESS = process.env
-            .NEXT_PUBLIC_PASSPORT_NFT as string;
+            .NEXT_PUBLIC_PASSPORT_NFT as Address;
 
-          const checkRes = await fetch(ENVIO_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: checkQuery,
-              variables: {
-                owner: userAddress.toLowerCase(),
-                countryCode: countryCode.toUpperCase(),
-                contract: PASSPORT_NFT_ADDRESS.toLowerCase(),
-              },
-            }),
+          const passportClient = createPublicClient({
+            chain: activeChain,
+            transport: http(),
+          }) as PublicClient;
+
+          const existing = await findAllPassports(passportClient, {
+            passportAddress: PASSPORT_NFT_ADDRESS,
+            countryCodes: [countryCode.toUpperCase()],
+            address: userAddress as Address,
           });
 
-          if (checkRes.ok) {
-            const checkData = await checkRes.json();
-            const existingPassport = checkData.data?.PassportNFT?.[0];
+          const existingPassport = existing[0];
 
-            if (existingPassport) {
-              console.warn(
-                `⚠️ User already owns passport for ${countryCode}:`,
-                existingPassport,
-              );
-              return NextResponse.json({
-                success: false,
-                message: `You already own a passport for ${countryCode} ${countryName}!
+          if (existingPassport) {
+            console.warn(
+              `⚠️ User already owns passport for ${countryCode}:`,
+              existingPassport,
+            );
+            return NextResponse.json({
+              success: false,
+              message: `You already own a passport for ${countryCode} ${countryName}!
 Token #${existingPassport.tokenId}
 You can only mint one passport per country.
 Try "mint passport" from a different location or "help" for other commands.`,
-              });
-            }
-
-            console.log(
-              `✅ No existing passport found for ${countryCode} - proceeding with mint`,
-            );
+            });
           }
+
+          console.log(
+            `✅ No existing passport found for ${countryCode} - proceeding with mint`,
+          );
         } catch (checkErr: any) {
           console.warn("⚠️ Passport duplicate check failed:", checkErr.message);
           // Don't block on check failure - continue with mint

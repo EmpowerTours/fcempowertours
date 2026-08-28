@@ -14,7 +14,6 @@ import { AnimatedStatCard } from "@/app/components/animations/AnimatedCard";
 import UserSafeWidget from "@/app/components/UserSafeWidget";
 import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 interface MusicMetadata {
   animation_url?: string;
@@ -642,113 +641,50 @@ export default function ProfilePage() {
         uniqueAddresses,
       });
 
-      const query = `
-        query GetUserData($addresses: [String!]!) {
-          PassportNFT(where: {owner: {_in: $addresses}}, order_by: {mintedAt: desc}, limit: 100) {
-            id
-            tokenId
-            owner
-            countryCode
-            countryName
-            region
-            continent
-            tokenURI
-            mintedAt
-            txHash
-          }
-          CreatedNFT: MusicNFT(where: {artist: {_in: $addresses}, isBurned: {_eq: false}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}, order_by: {mintedAt: desc}, limit: 100) {
-            id
-            tokenId
-            artist
-            owner
-            tokenURI
-            mintedAt
-            txHash
-            price
-            name
-            imageUrl
-            previewAudioUrl
-            fullAudioUrl
-            metadataFetched
-            totalSold
-            active
-            isArt
-          }
-          OwnedNFT: MusicNFT(where: {owner: {_in: $addresses, _neq: "0x0000000000000000000000000000000000000000"}, artist: {_nin: $addresses}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 100) {
-            id
-            tokenId
-            artist
-            owner
-            tokenURI
-            mintedAt
-            txHash
-            price
-            name
-            imageUrl
-            previewAudioUrl
-            fullAudioUrl
-            metadataFetched
-            totalSold
-            active
-            isArt
-          }
-          MusicLicense(where: {licensee: {_in: $addresses}}, order_by: {purchasedAt: desc}, limit: 100) {
-            id
-            licenseId
-            masterTokenId
-            licensee
-            active
-            purchasedAt
-            txHash
-          }
-        }
-      `;
-      const response = await fetch(ENVIO_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({
-          query,
-          variables: { addresses: uniqueAddresses },
-        }),
-      });
+      // One shared endpoint. `uniqueAddresses` is a wallet plus its Safe and custody address,
+      // which is why this accepts a list — a user's holdings are genuinely split across them.
+      const response = await fetch(
+        `/api/user-stats?address=${uniqueAddresses.join(",")}`,
+        { headers: { ...(await authHeaders()) } },
+      );
       if (!response.ok)
-        throw new Error(`Envio API returned ${response.status}`);
+        throw new Error(`Holdings API returned ${response.status}`);
       const result = await response.json();
-      if (result.errors)
-        throw new Error(result.errors[0]?.message || "GraphQL query failed");
+      if (!result.success)
+        throw new Error(result.error || "Could not read holdings");
 
-      let passports: PassportNFT[] = result.data?.PassportNFT || [];
-      const createdNFTs = result.data?.CreatedNFT || [];
-      const ownedNFTs = result.data?.OwnedNFT || [];
-      const purchasedLicenses = result.data?.MusicLicense || [];
+      let passports: PassportNFT[] = result.passports || [];
+      const created = result.created || [];
+      // Masters OWNED but not CREATED — transferred masters. Masters are minted to their artist
+      // and none has been transferred, so this is empty rather than guessed at.
+      const ownedNFTs: any[] = [];
+      const purchasedLicenses = result.purchased || [];
 
-      console.log("[Profile] Envio results:", {
+      console.log("[Profile] chain results:", {
         passports: passports.length,
-        createdNFTs: createdNFTs.length,
-        ownedNFTs: ownedNFTs.length,
+        createdNFTs: created.length,
         purchasedLicenses: purchasedLicenses.length,
-        purchasedLicensesData: purchasedLicenses.map((l: any) => ({
-          id: l.id,
-          licenseId: l.licenseId,
-          masterTokenId: l.masterTokenId,
-          licensee: l.licensee,
-          txHash: l.txHash?.slice(0, 20) + "...",
-        })),
         queriedAddresses: uniqueAddresses,
+        unavailable: result.unavailable,
       });
 
-      // Debug: If no licenses found, check what addresses are being used
-      if (purchasedLicenses.length === 0) {
-        console.log("[Profile] No licenses found. Verifying addresses:", {
-          walletAddress: walletAddress?.toLowerCase(),
-          safeAddress: (user as any)?.safeAddress?.toLowerCase?.(),
-          custodyAddress: (user as any)?.custodyAddress?.toLowerCase?.(),
-          allQueriedAddresses: uniqueAddresses,
-        });
-      }
+      // Already resolved server-side, so the metadata cache is shared with every other surface
+      // rather than each page fetching the same IPFS documents again.
+      const createdNFTs = created.map((t: any) => ({
+        id: t.id,
+        tokenId: t.tokenId,
+        artist: t.artist,
+        owner: t.artist,
+        tokenURI: t.tokenURI,
+        mintedAt: t.createdAt,
+        price: t.price,
+        name: t.name,
+        imageUrl: t.imageUrl,
+        fullAudioUrl: t.audioUrl,
+        previewAudioUrl: t.audioUrl,
+        isArt: t.isArt,
+        active: true,
+      }));
 
       passports = await Promise.all(
         passports.map(async (passport) => {
@@ -800,50 +736,21 @@ export default function ProfilePage() {
       // Get owned art NFTs (user didn't create) - will combine with art licenses later
       const purchasedArtOnly = allOwnedNFTs.filter((nft) => nft.isArt);
 
-      // Fetch master token details for purchased licenses
-      const masterTokenIds = purchasedLicenses
-        .map((l: any) => l.masterTokenId)
-        .filter((id: any) => id);
+      // The holdings endpoint already joins each licence to its master, so the second query
+      // that used to live here is gone. That also means the name shown on a purchase is the
+      // same one shown in the catalogue, rather than two lookups that could disagree.
       const masterTokensMap = new Map<string, any>();
-      if (masterTokenIds.length > 0) {
-        const masterQuery = `
-          query GetMasterTokens($tokenIds: [String!]!) {
-            MusicNFT(where: {tokenId: {_in: $tokenIds}, isBurned: {_eq: false}, owner: {_neq: "0x0000000000000000000000000000000000000000"}}) {
-              id
-              tokenId
-              artist
-              name
-              imageUrl
-              previewAudioUrl
-              fullAudioUrl
-              price
-              isArt
-            }
-          }
-        `;
-        try {
-          const masterResponse = await fetch(ENVIO_ENDPOINT, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(await authHeaders()),
-            },
-            body: JSON.stringify({
-              query: masterQuery,
-              variables: { tokenIds: masterTokenIds.map(String) },
-            }),
-          });
-          if (masterResponse.ok) {
-            const masterResult = await masterResponse.json();
-            const masterTokens = masterResult.data?.MusicNFT || [];
-            masterTokens.forEach((token: any) => {
-              masterTokensMap.set(String(token.tokenId), token);
-            });
-          }
-        } catch (err) {
-          console.error("Failed to fetch master tokens:", err);
-        }
-      }
+      purchasedLicenses.forEach((l: any) => {
+        if (!l.masterTokenId) return;
+        masterTokensMap.set(String(l.masterTokenId), {
+          tokenId: l.masterTokenId,
+          artist: l.masterArtist,
+          name: l.masterName,
+          imageUrl: l.masterImage,
+          fullAudioUrl: l.masterAudioUrl,
+          isArt: l.isArt,
+        });
+      });
 
       // Purchased licenses with IPFS resolution - separate music and art
       const allPurchasedLicenses: MusicNFTWithMetadata[] =
@@ -2451,7 +2358,7 @@ export default function ProfilePage() {
               </AnimatePresence>
             </motion.button>
             <p className="text-xs text-gray-500 mt-2">
-              Powered by Envio Indexer
+              Read live from Monad
             </p>
             {queriedAddresses.length > 0 && (
               <p className="text-xs text-gray-400 mt-1">

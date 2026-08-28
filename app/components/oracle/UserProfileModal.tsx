@@ -15,7 +15,6 @@ interface UserProfileModalProps {
   isDarkMode?: boolean;
 }
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 interface UserProfile {
   walletAddress: string;
@@ -104,51 +103,24 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
   const loadUserProfile = async () => {
     setLoading(true);
     try {
-      const query = `
-        query GetUserData($address: String!) {
-          CreatedNFT: MusicNFT(where: {artist: {_eq: $address}, isBurned: {_eq: false}}, order_by: {mintedAt: desc}, limit: 50) {
-            id
-            tokenId
-            name
-            imageUrl
-            isArt
-          }
-          PurchasedLicenses: MusicLicense(where: {licensee: {_eq: $address}}, order_by: {createdAt: desc}, limit: 50) {
-            id
-            licenseId
-            masterTokenId
-            active
-            masterToken {
-              name
-              imageUrl
-              isArt
-            }
-          }
-          PassportNFT(where: {owner: {_eq: $address}}, order_by: {mintedAt: desc}) {
-            id
-            tokenId
-            countryCode
-          }
-        }
-      `;
-
-      const response = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ query, variables: { address: walletAddress.toLowerCase() } }),
-      });
+      // Shared with ProfileModal and the public-profile route. Contract reads throughout: the
+      // registry has no per-owner index for licences, so the endpoint walks the licence range
+      // asking ownerOf, and joins each licence to its master for the name and cover art.
+      const response = await fetch(
+        `/api/user-stats?address=${walletAddress}`,
+        { headers: { ...(await authHeaders()) } },
+      );
 
       const result = await response.json();
 
-      if (result.data) {
-        setCreatedNFTs(result.data.CreatedNFT || []);
+      if (result.success) {
+        setCreatedNFTs(result.created || []);
 
-        // Process purchased licenses
-        const licenses = (result.data.PurchasedLicenses || []).map((l: any) => ({
+        const licenses = (result.purchased || []).map((l: any) => ({
           ...l,
-          masterName: l.masterToken?.name,
-          masterImage: l.masterToken?.imageUrl,
-          isArt: l.masterToken?.isArt,
+          masterName: l.masterName,
+          masterImage: l.masterImage,
+          isArt: l.isArt,
         }));
 
         // Fetch resale listings for this seller
@@ -180,12 +152,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
         }
 
         setPurchasedLicenses(licenses);
-        setPassports(result.data.PassportNFT || []);
+        setPassports(result.passports || []);
 
         // Set default tab based on data
-        if (result.data.CreatedNFT?.length > 0) {
+        if (result.created?.length > 0) {
           setActiveTab('created');
-        } else if (result.data.PurchasedLicenses?.length > 0) {
+        } else if (result.purchased?.length > 0) {
           setActiveTab('purchased');
         } else {
           setActiveTab('passports');

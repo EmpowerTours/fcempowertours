@@ -5,7 +5,8 @@ import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import { generatePassportMetadata, isValidCountryCode } from "@/lib/passport/generatePassportSVG";
 import { getCountryByCode } from "@/lib/passport/countries";
 import { redis } from "@/lib/redis";
-import { encodeFunctionData, type Address, type Hex } from 'viem';
+import { encodeFunctionData, type Address, type Hex, type PublicClient } from 'viem';
+import { findAllPassports } from '@/lib/passport-lookup';
 import { sendSafeTransaction, publicClient } from '@/lib/pimlico-safe-aa';
 
 const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as string;
@@ -64,7 +65,6 @@ async function getCountryFromIP(request: NextRequest): Promise<{ country: string
 const NEYNAR_API_KEY = (process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY)!;
 const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 const PINATA_JWT = process.env.PINATA_JWT!;
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
 
 // ✅ UPDATED ABI FOR PassportNFT with FID (Dec 21, 2025)
@@ -284,66 +284,35 @@ export async function POST(req: NextRequest) {
 
     console.log(`👤 Recipient: ${recipientAddress} (@${username})`);
 
-    // 🚨 Check for existing passport for this country + wallet combination (using Envio)
+    // 🚨 Check for existing passport for this country + wallet combination (read from chain)
     console.log(`🔍 Checking for existing ${countryCode} passport for ${recipientAddress}...`);
     
     try {
-      const checkQuery = `
-        query CheckExistingPassport($owner: String!, $countryCode: String!, $contract: String!) {
-          PassportNFT(
-            where: {
-              owner: {_eq: $owner}
-              countryCode: {_eq: $countryCode}
-              contract: {_eq: $contract}
-            }
-            limit: 1
-          ) {
-            id
-            tokenId
-            countryCode
-            contract
-          }
-        }
-      `;
-
-      const checkResponse = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: checkQuery,
-          variables: {
-            owner: recipientAddress.toLowerCase(),
-            countryCode: countryCode,
-            contract: PASSPORT_NFT_ADDRESS.toLowerCase()
-          }
-        })
+      // Ask the contract. This used to ask the indexer, whose passport entry is two contract
+      // generations behind — named V2, pointing at V3, live contract V4 — so it answered "no
+      // passport" for every V4 holder and this guard passed every duplicate straight through to
+      // a revert on chain. One read, narrowed to the one country being minted.
+      //
+      // The fail-closed behaviour below is unchanged and load-bearing: a read that throws must
+      // BLOCK the mint, never wave it through. That is what the catch does.
+      const existingPassports = await findAllPassports(publicClient as PublicClient, {
+        passportAddress: PASSPORT_NFT_ADDRESS as Address,
+        countryCodes: [countryCode.toUpperCase()],
+        address: recipientAddress as Address,
       });
 
-      if (checkResponse.ok) {
-        const checkResult = await checkResponse.json();
-        const existingPassports = checkResult.data?.PassportNFT || [];
-
-        if (existingPassports.length > 0) {
-          console.log(`❌ DUPLICATE DETECTED: User already has ${countryCode} passport #${existingPassports[0].tokenId}`);
-          await redis.del(lockKey); // Release lock
-
-          return NextResponse.json({
-            error: `You already own a ${countryInfo.flag} ${countryName} passport!`,
-            details: `Each wallet can only mint ONE passport per country. Your existing passport: Token #${existingPassports[0].tokenId}`,
-            existingTokenId: existingPassports[0].tokenId
-          }, { status: 400 });
-        }
-
-        console.log(`✅ No existing ${countryCode} passport found - proceeding with mint`);
-      } else {
-        // 🛡️ ANTI-GAMING: Fail-closed - block mints if Envio check fails
-        console.error('❌ Envio check failed - blocking mint for safety');
+      if (existingPassports.length > 0) {
+        console.log(`❌ DUPLICATE DETECTED: User already has ${countryCode} passport #${existingPassports[0].tokenId}`);
         await redis.del(lockKey); // Release lock
+
         return NextResponse.json({
-          error: "Could not verify passport eligibility. Please try again.",
-          details: "Our verification system is temporarily unavailable."
-        }, { status: 503 });
+          error: `You already own a ${countryInfo.flag} ${countryName} passport!`,
+          details: `Each wallet can only mint ONE passport per country. Your existing passport: Token #${existingPassports[0].tokenId}`,
+          existingTokenId: existingPassports[0].tokenId
+        }, { status: 400 });
       }
+
+      console.log(`✅ No existing ${countryCode} passport found - proceeding with mint`);
     } catch (checkError) {
       // 🛡️ ANTI-GAMING: Fail-closed - block mints on any verification error
       console.error('❌ Passport verification error - blocking mint:', checkError);

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { createPublicClient, http, type Address, type PublicClient } from 'viem';
+import { activeChain } from '@/app/chains';
+import { getAllCountryCodes } from '@/lib/passport/countries';
+import { findAllPassports, getPassportDetails } from '@/lib/passport-lookup';
+import { getOwnedLicenses } from '@/lib/user-holdings';
+import { getResolvedCatalogue } from '@/lib/catalogue-resolved';
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 /**
  * Public Profile API
@@ -147,54 +152,70 @@ async function getPrivacySettings(fid: number): Promise<PrivacySettings> {
   return DEFAULT_PRIVACY;
 }
 
+/**
+ * A wallet's onchain footprint, read from the contracts.
+ *
+ * Keeps the indexer's key names — CreatedNFT, PurchasedNFT, PassportNFT, MusicLicense — so the
+ * profile assembly below is unchanged. What each one means has not changed, only where it comes
+ * from.
+ *
+ * This calls the libraries directly rather than /api/user-stats: both live in the same process,
+ * and a route fetching itself buys a serialisation round trip and a second failure mode for
+ * nothing.
+ *
+ * `PurchasedNFT` was masters OWNED but not CREATED by this wallet — transferred masters. Masters
+ * are minted to their artist and none has ever been transferred, so this is empty today and is
+ * returned as such rather than guessed at. It becomes real work if masters ever change hands.
+ */
 async function getBlockchainStats(walletAddress: string): Promise<any> {
-  try {
-    const query = `
-      query GetUserStats($addresses: [String!]!) {
-        PassportNFT(where: {owner: {_in: $addresses}}) {
-          id
-          tokenId
-          countryCode
-          mintedAt
-        }
-        CreatedNFT: MusicNFT(where: {artist: {_in: $addresses}, isBurned: {_eq: false}}, limit: 50) {
-          id
-          tokenId
-          name
-          imageUrl
-          price
-          isArt
-        }
-        PurchasedNFT: MusicNFT(where: {owner: {_in: $addresses}, artist: {_nin: $addresses}, isBurned: {_eq: false}}, limit: 50) {
-          id
-          tokenId
-          name
-          imageUrl
-          isArt
-        }
-        MusicLicense(where: {licensee: {_in: $addresses}}) {
-          id
-        }
-      }
-    `;
-
-    const response = await fetch(ENVIO_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query,
-        variables: { addresses: [walletAddress.toLowerCase()] }
-      }),
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      return result.data;
-    }
-  } catch (error) {
-    console.error('[PublicProfile] Blockchain stats fetch failed:', error);
+  const registry = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address | undefined;
+  const passportAddress = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address | undefined;
+  if (!registry) {
+    console.error('[PublicProfile] NEXT_PUBLIC_NFT_CONTRACT is not set');
+    return null;
   }
-  return null;
+
+  const address = walletAddress.toLowerCase();
+
+  try {
+    const client = createPublicClient({
+      chain: activeChain,
+      transport: http(),
+    }) as PublicClient;
+
+    const [catalogue, licenses, passportRefs] = await Promise.all([
+      getResolvedCatalogue({ client, limit: 1000 }).catch(() => null),
+      getOwnedLicenses(client, address, registry).catch(() => []),
+      passportAddress
+        ? findAllPassports(client, {
+            passportAddress,
+            countryCodes: getAllCountryCodes(),
+            address: address as Address,
+          }).catch(() => [])
+        : Promise.resolve([]),
+    ]);
+
+    const passports =
+      passportAddress && passportRefs.length > 0
+        ? await getPassportDetails(client, passportAddress, passportRefs).catch(
+            () => passportRefs,
+          )
+        : passportRefs;
+
+    const created = (catalogue?.tracks ?? []).filter(
+      (t) => t.artist.toLowerCase() === address,
+    );
+
+    return {
+      CreatedNFT: created,
+      PurchasedNFT: [],
+      PassportNFT: passports,
+      MusicLicense: licenses,
+    };
+  } catch (error) {
+    console.error('[PublicProfile] Blockchain stats read failed:', error);
+    return null;
+  }
 }
 
 export async function GET(req: NextRequest) {

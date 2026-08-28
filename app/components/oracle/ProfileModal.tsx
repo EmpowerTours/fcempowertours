@@ -70,7 +70,6 @@ interface EPKData {
   streamingStats?: ArtistStreamingStats | null;
 }
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   walletAddress,
@@ -268,53 +267,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const loadStats = async (address: string) => {
     setLoading(true);
     try {
-      const query = `
-        query GetStats($address: String!) {
-          PassportNFT(where: {owner: {_eq: $address}}) {
-            tokenId
-            countryCode
-          }
-          CreatedMusic: MusicNFT(where: {artist: {_eq: $address}, isArt: {_eq: false}, isBurned: {_eq: false}}) {
-            tokenId
-          }
-          CreatedArt: MusicNFT(where: {artist: {_eq: $address}, isArt: {_eq: true}, isBurned: {_eq: false}}) {
-            tokenId
-          }
-          PurchasedMusic: MusicLicense(where: {licensee: {_eq: $address}}) {
-            licenseId
-          }
-        }
-      `;
-
-      const response = await fetch(ENVIO_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({
-          query,
-          variables: { address: address.toLowerCase() },
-        }),
-      });
-
+      // One shared endpoint instead of this modal's own copy of the query. Every figure is a
+      // contract read: passports come from a 195-country Multicall3 batch (the contract has no
+      // enumerator), created masters from the catalogue filtered by artist, purchases from
+      // walking the licence range.
+      const response = await fetch(
+        `/api/user-stats?address=${address}`,
+        { headers: { ...(await authHeaders()) } },
+      );
       const result = await response.json();
-      const data = result.data || {};
 
-      const passportList: PassportData[] = (data.PassportNFT || [])
+      if (!result.success) {
+        throw new Error(result.error || "Could not read holdings");
+      }
+
+      const passportList: PassportData[] = (result.passports || [])
         .filter((p: any) => p.countryCode && p.countryCode !== "XX")
         .map((p: any) => ({ tokenId: p.tokenId, countryCode: p.countryCode }));
 
-      const countries = [
-        ...new Set(passportList.map((p) => p.countryCode)),
-      ] as string[];
-
       setStats({
-        passports: (data.PassportNFT || []).length,
-        musicCreated: (data.CreatedMusic || []).length,
-        artCreated: (data.CreatedArt || []).length,
-        musicPurchased: (data.PurchasedMusic || []).length,
-        countries,
+        passports: result.stats.passports,
+        musicCreated: result.stats.musicCreated,
+        artCreated: result.stats.artCreated,
+        musicPurchased: result.stats.musicPurchased,
+        countries: result.stats.countries,
         passportList,
       });
     } catch (error) {
