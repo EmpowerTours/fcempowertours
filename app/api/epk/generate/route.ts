@@ -334,7 +334,11 @@ Be professional and concise. Do not fabricate achievements not in the data.`;
         name: artistName,
         slug: "",
         bio: generated.bio || profile?.bio || "",
-        genre: generated.genre || genres || ["AI Music"],
+        // No machine-generated fallback genre. The old one was applied to any artist whose
+        // tracks carried no genre tag, labelling their catalogue as something it is not — the
+        // seed catalogue is real vocals over purchased instrumentals. An empty genre list is a
+        // gap the artist fills in; a wrong one is a claim they have to retract.
+        genre: generated.genre || genres || [],
         location: generated.location || "Web3 Native / Global",
         profileImage: profile?.pfpUrl,
         farcasterFid: userFid,
@@ -480,7 +484,7 @@ function buildFallbackDraft(
       name: artistName,
       slug: "",
       bio,
-      genre: genres.length > 0 ? genres : ["AI Music"],
+      genre: genres,
       location: "Web3 Native / Global",
       profileImage: profile?.pfpUrl,
       farcasterFid: userFid,

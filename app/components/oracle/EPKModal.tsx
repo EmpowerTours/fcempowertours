@@ -1,10 +1,22 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { X, ChevronLeft, ChevronRight, Loader2, CheckCircle, Music, FileText, Hotel, CalendarCheck, RefreshCw, Sparkles } from 'lucide-react';
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  CheckCircle,
+  Music,
+  FileText,
+  Hotel,
+  CalendarCheck,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 
-import type { EPKMetadata } from '@/lib/epk/types';
+import type { EPKMetadata } from "@/lib/epk/types";
 
 interface EPKModalProps {
   isOpen: boolean;
@@ -14,80 +26,132 @@ interface EPKModalProps {
   existingEpk?: EPKMetadata;
 }
 
-type Step = 'artist' | 'media' | 'riders' | 'booking' | 'review';
+type Step = "artist" | "media" | "riders" | "booking" | "review";
 
 const STEPS: { key: Step; label: string; icon: any }[] = [
-  { key: 'artist', label: 'Artist Info', icon: Music },
-  { key: 'media', label: 'Music & Media', icon: FileText },
-  { key: 'riders', label: 'Riders', icon: Hotel },
-  { key: 'booking', label: 'Booking', icon: CalendarCheck },
-  { key: 'review', label: 'Review & Publish', icon: CheckCircle },
+  { key: "artist", label: "Artist Info", icon: Music },
+  { key: "media", label: "Music & Media", icon: FileText },
+  { key: "riders", label: "Riders", icon: Hotel },
+  { key: "booking", label: "Booking", icon: CalendarCheck },
+  { key: "review", label: "Review & Publish", icon: CheckCircle },
 ];
 
-export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }: EPKModalProps) {
+export function EPKModal({
+  isOpen,
+  onClose,
+  userAddress,
+  userFid,
+  existingEpk,
+}: EPKModalProps) {
   const isEdit = !!existingEpk;
-  const [step, setStep] = useState<Step>('artist');
+  const [step, setStep] = useState<Step>("artist");
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(false);
   const [publishResult, setPublishResult] = useState<any>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // AI generation state
   const [generating, setGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState('');
+  const [generationError, setGenerationError] = useState("");
   const [generated, setGenerated] = useState(false);
   const generationTriggered = useRef(false);
 
   // Form state - pre-fill from existing EPK if editing
-  const [artistName, setArtistName] = useState(existingEpk?.artist?.name || '');
-  const [bio, setBio] = useState(existingEpk?.artist?.bio || '');
-  const [genre, setGenre] = useState(existingEpk?.artist?.genre?.join(', ') || '');
-  const [location, setLocation] = useState(existingEpk?.artist?.location || '');
-  const [videoUrl, setVideoUrl] = useState(existingEpk?.media?.videos?.[0]?.url || '');
-  const [videoTitle, setVideoTitle] = useState(existingEpk?.media?.videos?.[0]?.title || '');
-  const [pressArticles, setPressArticles] = useState(
-    existingEpk?.press?.length ? existingEpk.press.map(a => ({ outlet: a.outlet, title: a.title, url: a.url, date: a.date, excerpt: a.excerpt })) : [{ outlet: '', title: '', url: '', date: '', excerpt: '' }]
+  const [artistName, setArtistName] = useState(existingEpk?.artist?.name || "");
+  const [bio, setBio] = useState(existingEpk?.artist?.bio || "");
+  const [genre, setGenre] = useState(
+    existingEpk?.artist?.genre?.join(", ") || "",
   );
-  const [pricing, setPricing] = useState(existingEpk?.booking?.pricing || 'Contact for rates');
-  const [availableFor, setAvailableFor] = useState(existingEpk?.booking?.availableFor?.join(', ') || '');
-  const [territories, setTerritories] = useState(existingEpk?.booking?.territories?.join(', ') || '');
-  const [minimumDeposit, setMinimumDeposit] = useState(existingEpk?.booking?.minimumDeposit || '100');
+  const [location, setLocation] = useState(existingEpk?.artist?.location || "");
+  const [videoUrl, setVideoUrl] = useState(
+    existingEpk?.media?.videos?.[0]?.url || "",
+  );
+  const [videoTitle, setVideoTitle] = useState(
+    existingEpk?.media?.videos?.[0]?.title || "",
+  );
+  const [pressArticles, setPressArticles] = useState(
+    existingEpk?.press?.length
+      ? existingEpk.press.map((a) => ({
+          outlet: a.outlet,
+          title: a.title,
+          url: a.url,
+          date: a.date,
+          excerpt: a.excerpt,
+        }))
+      : [{ outlet: "", title: "", url: "", date: "", excerpt: "" }],
+  );
+  const [pricing, setPricing] = useState(
+    existingEpk?.booking?.pricing || "Contact for rates",
+  );
+  const [availableFor, setAvailableFor] = useState(
+    existingEpk?.booking?.availableFor?.join(", ") || "",
+  );
+  const [territories, setTerritories] = useState(
+    existingEpk?.booking?.territories?.join(", ") || "",
+  );
+  const [minimumDeposit, setMinimumDeposit] = useState(
+    existingEpk?.booking?.minimumDeposit || "100",
+  );
 
   // Simple rider state - newline-separated items
-  const [stageItems, setStageItems] = useState(existingEpk?.technicalRider?.stage?.items?.join('\n') || '');
-  const [soundItems, setSoundItems] = useState(existingEpk?.technicalRider?.sound?.items?.join('\n') || '');
-  const [lightingItems, setLightingItems] = useState(existingEpk?.technicalRider?.lighting?.items?.join('\n') || '');
-  const [dressingRoomItems, setDressingRoomItems] = useState(existingEpk?.hospitalityRider?.dressingRoom?.items?.join('\n') || '');
-  const [cateringItems, setCateringItems] = useState(existingEpk?.hospitalityRider?.catering?.items?.join('\n') || '');
-  const [beverageItems, setBeverageItems] = useState(existingEpk?.hospitalityRider?.beverages?.items?.join('\n') || '');
+  const [stageItems, setStageItems] = useState(
+    existingEpk?.technicalRider?.stage?.items?.join("\n") || "",
+  );
+  const [soundItems, setSoundItems] = useState(
+    existingEpk?.technicalRider?.sound?.items?.join("\n") || "",
+  );
+  const [lightingItems, setLightingItems] = useState(
+    existingEpk?.technicalRider?.lighting?.items?.join("\n") || "",
+  );
+  const [dressingRoomItems, setDressingRoomItems] = useState(
+    existingEpk?.hospitalityRider?.dressingRoom?.items?.join("\n") || "",
+  );
+  const [cateringItems, setCateringItems] = useState(
+    existingEpk?.hospitalityRider?.catering?.items?.join("\n") || "",
+  );
+  const [beverageItems, setBeverageItems] = useState(
+    existingEpk?.hospitalityRider?.beverages?.items?.join("\n") || "",
+  );
 
   // Pre-fill form fields from AI-generated draft
   const prefillFromDraft = (draft: EPKMetadata) => {
-    setArtistName(draft.artist?.name || '');
-    setBio(draft.artist?.bio || '');
-    setGenre(draft.artist?.genre?.join(', ') || '');
-    setLocation(draft.artist?.location || '');
+    setArtistName(draft.artist?.name || "");
+    setBio(draft.artist?.bio || "");
+    setGenre(draft.artist?.genre?.join(", ") || "");
+    setLocation(draft.artist?.location || "");
 
     if (draft.media?.videos?.[0]) {
-      setVideoUrl(draft.media.videos[0].url || '');
-      setVideoTitle(draft.media.videos[0].title || '');
+      setVideoUrl(draft.media.videos[0].url || "");
+      setVideoTitle(draft.media.videos[0].title || "");
     }
 
     if (draft.press?.length) {
-      setPressArticles(draft.press.map(a => ({ outlet: a.outlet, title: a.title, url: a.url, date: a.date, excerpt: a.excerpt })));
+      setPressArticles(
+        draft.press.map((a) => ({
+          outlet: a.outlet,
+          title: a.title,
+          url: a.url,
+          date: a.date,
+          excerpt: a.excerpt,
+        })),
+      );
     }
 
-    setPricing(draft.booking?.pricing || 'Contact for rates');
-    setAvailableFor(draft.booking?.availableFor?.join(', ') || '');
-    setTerritories(draft.booking?.territories?.join(', ') || '');
-    setMinimumDeposit(draft.booking?.minimumDeposit || '100');
+    setPricing(draft.booking?.pricing || "Contact for rates");
+    setAvailableFor(draft.booking?.availableFor?.join(", ") || "");
+    setTerritories(draft.booking?.territories?.join(", ") || "");
+    setMinimumDeposit(draft.booking?.minimumDeposit || "100");
 
-    setStageItems(draft.technicalRider?.stage?.items?.join('\n') || '');
-    setSoundItems(draft.technicalRider?.sound?.items?.join('\n') || '');
-    setLightingItems(draft.technicalRider?.lighting?.items?.join('\n') || '');
-    setDressingRoomItems(draft.hospitalityRider?.dressingRoom?.items?.join('\n') || '');
-    setCateringItems(draft.hospitalityRider?.catering?.items?.join('\n') || '');
-    setBeverageItems(draft.hospitalityRider?.beverages?.items?.join('\n') || '');
+    setStageItems(draft.technicalRider?.stage?.items?.join("\n") || "");
+    setSoundItems(draft.technicalRider?.sound?.items?.join("\n") || "");
+    setLightingItems(draft.technicalRider?.lighting?.items?.join("\n") || "");
+    setDressingRoomItems(
+      draft.hospitalityRider?.dressingRoom?.items?.join("\n") || "",
+    );
+    setCateringItems(draft.hospitalityRider?.catering?.items?.join("\n") || "");
+    setBeverageItems(
+      draft.hospitalityRider?.beverages?.items?.join("\n") || "",
+    );
   };
 
   // Trigger AI generation when modal opens for new EPK (not edit mode)
@@ -95,26 +159,26 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
     if (!userAddress) return;
 
     setGenerating(true);
-    setGenerationError('');
+    setGenerationError("");
 
     try {
-      const res = await fetch('/api/epk/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/epk/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userAddress, userFid }),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Generation failed');
+        throw new Error(data.error || "Generation failed");
       }
 
       prefillFromDraft(data.draft);
       setGenerated(true);
     } catch (err: any) {
-      console.error('[EPKModal] Generation failed:', err);
-      setGenerationError(err.message || 'Failed to generate press kit');
+      console.error("[EPKModal] Generation failed:", err);
+      setGenerationError(err.message || "Failed to generate press kit");
     } finally {
       setGenerating(false);
     }
@@ -129,7 +193,7 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
 
   if (!isOpen) return null;
 
-  const stepIndex = STEPS.findIndex(s => s.key === step);
+  const stepIndex = STEPS.findIndex((s) => s.key === step);
 
   const goNext = () => {
     const nextIndex = stepIndex + 1;
@@ -143,100 +207,145 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
 
   const handlePublish = async () => {
     if (!artistName || !bio) {
-      setError('Artist name and bio are required');
+      setError("Artist name and bio are required");
       return;
     }
 
     setPublishing(true);
-    setError('');
+    setError("");
 
     try {
-      const parseItems = (text: string) => text.split('\n').map(s => s.trim()).filter(Boolean);
+      const parseItems = (text: string) =>
+        text
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
 
       const metadata = {
-        version: '1.0.0',
+        version: "1.0.0",
         artist: {
           name: artistName,
-          slug: '',
+          slug: "",
           bio,
-          genre: genre.split(',').map(g => g.trim()).filter(Boolean),
+          genre: genre
+            .split(",")
+            .map((g) => g.trim())
+            .filter(Boolean),
           location,
           farcasterFid: userFid,
           walletAddress: userAddress,
         },
         musicCatalog: { showCatalog: true },
         media: {
-          videos: videoUrl ? [{ title: videoTitle || 'Video', url: videoUrl, platform: 'other' as const }] : [],
+          videos: videoUrl
+            ? [
+                {
+                  title: videoTitle || "Video",
+                  url: videoUrl,
+                  platform: "other" as const,
+                },
+              ]
+            : [],
           photos: [],
         },
-        press: pressArticles.filter(a => a.outlet && a.title),
+        press: pressArticles.filter((a) => a.outlet && a.title),
         booking: {
           pricing,
           inquiryEnabled: true,
-          availableFor: availableFor.split(',').map(s => s.trim()).filter(Boolean),
-          territories: territories.split(',').map(s => s.trim()).filter(Boolean),
+          availableFor: availableFor
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          territories: territories
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
           targetEvents: [],
           minimumDeposit,
         },
         technicalRider: {
-          stage: { title: 'Stage Requirements', items: parseItems(stageItems) },
-          sound: { title: 'Sound System', items: parseItems(soundItems) },
-          lighting: { title: 'Lighting', items: parseItems(lightingItems) },
-          video: { title: 'Video / LED', items: [] },
-          backline: { title: 'Backline', items: [] },
-          soundcheck: { title: 'Soundcheck', items: [] },
-          crew: { title: 'Crew', items: [] },
+          stage: { title: "Stage Requirements", items: parseItems(stageItems) },
+          sound: { title: "Sound System", items: parseItems(soundItems) },
+          lighting: { title: "Lighting", items: parseItems(lightingItems) },
+          video: { title: "Video / LED", items: [] },
+          backline: { title: "Backline", items: [] },
+          soundcheck: { title: "Soundcheck", items: [] },
+          crew: { title: "Crew", items: [] },
         },
         hospitalityRider: {
-          dressingRoom: { title: 'Dressing Room', items: parseItems(dressingRoomItems) },
-          catering: { title: 'Catering', items: parseItems(cateringItems) },
-          beverages: { title: 'Beverages', items: parseItems(beverageItems) },
-          transport: { title: 'Transportation', items: [] },
-          hotel: { title: 'Hotel', items: [] },
-          security: { title: 'Security', items: [] },
-          guestList: { title: 'Guest List', items: [] },
-          payment: { title: 'Payment', items: ['WMON deposit required', 'Crypto payments accepted'] },
+          dressingRoom: {
+            title: "Dressing Room",
+            items: parseItems(dressingRoomItems),
+          },
+          catering: { title: "Catering", items: parseItems(cateringItems) },
+          beverages: { title: "Beverages", items: parseItems(beverageItems) },
+          transport: { title: "Transportation", items: [] },
+          hotel: { title: "Hotel", items: [] },
+          security: { title: "Security", items: [] },
+          guestList: { title: "Guest List", items: [] },
+          payment: {
+            title: "Payment",
+            items: ["WMON deposit required", "Crypto payments accepted"],
+          },
         },
         socials: {},
         onChain: {},
       };
 
-      const res = await fetch('/api/epk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metadata, userAddress, userFid, update: isEdit }),
+      const res = await fetch("/api/epk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metadata,
+          userAddress,
+          userFid,
+          update: isEdit,
+        }),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to publish EPK');
+        throw new Error(data.error || "Failed to publish EPK");
       }
 
       setPublishResult(data);
       setPublished(true);
     } catch (err: any) {
-      setError(err.message || 'Publishing failed');
+      setError(err.message || "Publishing failed");
     } finally {
       setPublishing(false);
     }
   };
 
   const addPressArticle = () => {
-    setPressArticles(prev => [...prev, { outlet: '', title: '', url: '', date: '', excerpt: '' }]);
+    setPressArticles((prev) => [
+      ...prev,
+      { outlet: "", title: "", url: "", date: "", excerpt: "" },
+    ]);
   };
 
   const updatePressArticle = (index: number, field: string, value: string) => {
-    setPressArticles(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a));
+    setPressArticles((prev) =>
+      prev.map((a, i) => (i === index ? { ...a, [field]: value } : a)),
+    );
   };
 
   const modalContent = (
-    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10003, backgroundColor: 'rgba(0,0,0,0.85)' }}>
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex: 10003, backgroundColor: "rgba(0,0,0,0.85)" }}
+    >
       <div className="bg-[#1e293b] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-white/10">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-          <h2 className="text-lg font-semibold text-white">{isEdit ? 'Edit Press Kit' : 'Generate Press Kit'}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+          <h2 className="text-lg font-semibold text-white">
+            {isEdit ? "Edit Press Kit" : "Generate Press Kit"}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white transition-colors"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -248,17 +357,28 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
               <Loader2 className="w-12 h-12 text-purple-400 animate-spin" />
               <Sparkles className="w-5 h-5 text-yellow-400 absolute -top-1 -right-1" />
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">Generating Your Press Kit</h3>
-            <p className="text-slate-400 mb-1">Paying 5 WMON and analyzing your on-chain music data...</p>
-            <p className="text-xs text-slate-500 mt-4">This may take a few moments while we fetch your Farcaster profile, streaming stats, and generate a professional draft.</p>
+            <h3 className="text-xl font-bold text-white mb-2">
+              Generating Your Press Kit
+            </h3>
+            <p className="text-slate-400 mb-1">
+              Paying 5 WMON and analyzing your on-chain music data...
+            </p>
+            <p className="text-xs text-slate-500 mt-4">
+              This may take a few moments while we fetch your Farcaster profile,
+              streaming stats, and generate a professional draft.
+            </p>
           </div>
         ) : generationError && !generated ? (
           <div className="px-6 py-12 flex flex-col items-center justify-center text-center">
             <div className="w-12 h-12 bg-red-900/30 rounded-full flex items-center justify-center mb-4">
               <X className="w-6 h-6 text-red-400" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Generation Failed</h3>
-            <p className="text-sm text-red-400 mb-4 max-w-md">{generationError}</p>
+            <h3 className="text-lg font-bold text-white mb-2">
+              Generation Failed
+            </h3>
+            <p className="text-sm text-red-400 mb-4 max-w-md">
+              {generationError}
+            </p>
             <div className="flex gap-3">
               <button
                 onClick={() => {
@@ -271,7 +391,7 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
                 Retry
               </button>
               <button
-                onClick={() => setGenerationError('')}
+                onClick={() => setGenerationError("")}
                 className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm transition-colors"
               >
                 Fill Manually
@@ -288,10 +408,10 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
                   onClick={() => setStep(s.key)}
                   className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-colors ${
                     step === s.key
-                      ? 'bg-purple-600 text-white'
+                      ? "bg-purple-600 text-white"
                       : i < stepIndex
-                      ? 'bg-purple-600/20 text-purple-300'
-                      : 'bg-white/5 text-slate-400'
+                        ? "bg-purple-600/20 text-purple-300"
+                        : "bg-white/5 text-slate-400"
                   }`}
                 >
                   <s.icon className="w-3 h-3" />
@@ -301,10 +421,12 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
             </div>
 
             {/* AI-generated label */}
-            {generated && !isEdit && step === 'artist' && (
+            {generated && !isEdit && step === "artist" && (
               <div className="mx-6 mt-3 flex items-center gap-2 bg-purple-900/30 border border-purple-500/20 rounded-lg px-3 py-2">
                 <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                <span className="text-xs text-purple-300">AI-generated draft — review and edit before publishing</span>
+                <span className="text-xs text-purple-300">
+                  AI-generated draft — review and edit before publishing
+                </span>
               </div>
             )}
 
@@ -313,8 +435,14 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
               {published ? (
                 <div className="text-center py-8">
                   <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-white mb-2">{isEdit ? 'EPK Updated!' : 'EPK Published!'}</h3>
-                  <p className="text-slate-400 mb-4">{isEdit ? 'Your press kit has been updated on IPFS and Monad.' : 'Your press kit is now live on IPFS and registered on Monad.'}</p>
+                  <h3 className="text-xl font-bold text-white mb-2">
+                    {isEdit ? "EPK Updated!" : "EPK Published!"}
+                  </h3>
+                  <p className="text-slate-400 mb-4">
+                    {isEdit
+                      ? "Your press kit has been updated on IPFS and Monad."
+                      : "Your press kit is now live on IPFS and registered on Monad."}
+                  </p>
                   <div className="space-y-3">
                     <button
                       onClick={onClose}
@@ -338,41 +466,49 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
               ) : (
                 <>
                   {/* Artist Info Step */}
-                  {step === 'artist' && (
+                  {step === "artist" && (
                     <>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Artist / Act Name *</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Artist / Act Name *
+                        </label>
                         <input
                           value={artistName}
-                          onChange={e => setArtistName(e.target.value)}
+                          onChange={(e) => setArtistName(e.target.value)}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                           placeholder="Your artist name"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Bio *</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Bio *
+                        </label>
                         <textarea
                           value={bio}
-                          onChange={e => setBio(e.target.value)}
+                          onChange={(e) => setBio(e.target.value)}
                           rows={5}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
                           placeholder="Your artist biography..."
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Genre(s) (comma-separated)</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Genre(s) (comma-separated)
+                        </label>
                         <input
                           value={genre}
-                          onChange={e => setGenre(e.target.value)}
+                          onChange={(e) => setGenre(e.target.value)}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                          placeholder="e.g., Hip-Hop, Electronic, AI Music"
+                          placeholder="e.g., Hip-Hop, Electronic, Latin"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Location</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Location
+                        </label>
                         <input
                           value={location}
-                          onChange={e => setLocation(e.target.value)}
+                          onChange={(e) => setLocation(e.target.value)}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                           placeholder="City, Country"
                         />
@@ -381,45 +517,60 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
                   )}
 
                   {/* Media Step */}
-                  {step === 'media' && (
+                  {step === "media" && (
                     <>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Video URL</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Video URL
+                        </label>
                         <input
                           value={videoUrl}
-                          onChange={e => setVideoUrl(e.target.value)}
+                          onChange={(e) => setVideoUrl(e.target.value)}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                           placeholder="https://rumble.com/... or https://youtube.com/..."
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Video Title</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Video Title
+                        </label>
                         <input
                           value={videoTitle}
-                          onChange={e => setVideoTitle(e.target.value)}
+                          onChange={(e) => setVideoTitle(e.target.value)}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                           placeholder="Music Video Title"
                         />
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium text-white mb-3">Press Articles</h3>
+                        <h3 className="text-sm font-medium text-white mb-3">
+                          Press Articles
+                        </h3>
                         {pressArticles.map((article, i) => (
-                          <div key={i} className="space-y-2 mb-4 p-3 bg-[#0f172a] rounded-lg">
+                          <div
+                            key={i}
+                            className="space-y-2 mb-4 p-3 bg-[#0f172a] rounded-lg"
+                          >
                             <input
                               value={article.outlet}
-                              onChange={e => updatePressArticle(i, 'outlet', e.target.value)}
+                              onChange={(e) =>
+                                updatePressArticle(i, "outlet", e.target.value)
+                              }
                               className="w-full bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500"
                               placeholder="Outlet name (e.g., Rolling Stone)"
                             />
                             <input
                               value={article.title}
-                              onChange={e => updatePressArticle(i, 'title', e.target.value)}
+                              onChange={(e) =>
+                                updatePressArticle(i, "title", e.target.value)
+                              }
                               className="w-full bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500"
                               placeholder="Article title"
                             />
                             <input
                               value={article.url}
-                              onChange={e => updatePressArticle(i, 'url', e.target.value)}
+                              onChange={(e) =>
+                                updatePressArticle(i, "url", e.target.value)
+                              }
                               className="w-full bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500"
                               placeholder="https://..."
                             />
@@ -427,12 +578,20 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
                               <input
                                 type="date"
                                 value={article.date}
-                                onChange={e => updatePressArticle(i, 'date', e.target.value)}
+                                onChange={(e) =>
+                                  updatePressArticle(i, "date", e.target.value)
+                                }
                                 className="bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
                               />
                               <input
                                 value={article.excerpt}
-                                onChange={e => updatePressArticle(i, 'excerpt', e.target.value)}
+                                onChange={(e) =>
+                                  updatePressArticle(
+                                    i,
+                                    "excerpt",
+                                    e.target.value,
+                                  )
+                                }
                                 className="bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500"
                                 placeholder="Short excerpt"
                               />
@@ -451,64 +610,78 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
                   )}
 
                   {/* Riders Step */}
-                  {step === 'riders' && (
+                  {step === "riders" && (
                     <>
-                      <p className="text-sm text-slate-400 mb-4">Enter each requirement on a new line.</p>
+                      <p className="text-sm text-slate-400 mb-4">
+                        Enter each requirement on a new line.
+                      </p>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Stage Requirements</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Stage Requirements
+                        </label>
                         <textarea
                           value={stageItems}
-                          onChange={e => setStageItems(e.target.value)}
+                          onChange={(e) => setStageItems(e.target.value)}
                           rows={3}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
                           placeholder="40ft x 30ft minimum&#10;4ft+ stage height"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Sound System</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Sound System
+                        </label>
                         <textarea
                           value={soundItems}
-                          onChange={e => setSoundItems(e.target.value)}
+                          onChange={(e) => setSoundItems(e.target.value)}
                           rows={3}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
                           placeholder="Line array PA system&#10;6 wedge monitors"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Lighting</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Lighting
+                        </label>
                         <textarea
                           value={lightingItems}
-                          onChange={e => setLightingItems(e.target.value)}
+                          onChange={(e) => setLightingItems(e.target.value)}
                           rows={3}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
                           placeholder="Moving head fixtures&#10;LED wash lights"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Dressing Room</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Dressing Room
+                        </label>
                         <textarea
                           value={dressingRoomItems}
-                          onChange={e => setDressingRoomItems(e.target.value)}
+                          onChange={(e) => setDressingRoomItems(e.target.value)}
                           rows={3}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
                           placeholder="Private room with bathroom&#10;Seating for 6"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Catering</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Catering
+                        </label>
                         <textarea
                           value={cateringItems}
-                          onChange={e => setCateringItems(e.target.value)}
+                          onChange={(e) => setCateringItems(e.target.value)}
                           rows={3}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
                           placeholder="Hot meal for 6&#10;Vegetarian option"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Beverages</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Beverages
+                        </label>
                         <textarea
                           value={beverageItems}
-                          onChange={e => setBeverageItems(e.target.value)}
+                          onChange={(e) => setBeverageItems(e.target.value)}
                           rows={3}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
                           placeholder="Water, juice, energy drinks&#10;Premium spirits"
@@ -518,41 +691,49 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
                   )}
 
                   {/* Booking Step */}
-                  {step === 'booking' && (
+                  {step === "booking" && (
                     <>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Pricing</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Pricing
+                        </label>
                         <input
                           value={pricing}
-                          onChange={e => setPricing(e.target.value)}
+                          onChange={(e) => setPricing(e.target.value)}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                           placeholder="Contact for rates"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Available For (comma-separated)</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Available For (comma-separated)
+                        </label>
                         <input
                           value={availableFor}
-                          onChange={e => setAvailableFor(e.target.value)}
+                          onChange={(e) => setAvailableFor(e.target.value)}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                           placeholder="Conferences, Festivals, Private Events"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Territories (comma-separated)</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Territories (comma-separated)
+                        </label>
                         <input
                           value={territories}
-                          onChange={e => setTerritories(e.target.value)}
+                          onChange={(e) => setTerritories(e.target.value)}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                           placeholder="Global, North America, Europe"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-1.5">Minimum WMON Deposit</label>
+                        <label className="block text-sm text-slate-300 mb-1.5">
+                          Minimum WMON Deposit
+                        </label>
                         <input
                           type="number"
                           value={minimumDeposit}
-                          onChange={e => setMinimumDeposit(e.target.value)}
+                          onChange={(e) => setMinimumDeposit(e.target.value)}
                           className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                           placeholder="100"
                         />
@@ -561,26 +742,37 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
                   )}
 
                   {/* Review Step */}
-                  {step === 'review' && (
+                  {step === "review" && (
                     <div className="space-y-4">
                       <div className="bg-[#0f172a] rounded-lg p-4">
-                        <h3 className="text-white font-medium mb-2">{artistName || 'Unnamed Artist'}</h3>
-                        <p className="text-sm text-slate-400 mb-2">{genre || 'No genre specified'}</p>
-                        <p className="text-sm text-slate-400">{location || 'No location specified'}</p>
+                        <h3 className="text-white font-medium mb-2">
+                          {artistName || "Unnamed Artist"}
+                        </h3>
+                        <p className="text-sm text-slate-400 mb-2">
+                          {genre || "No genre specified"}
+                        </p>
+                        <p className="text-sm text-slate-400">
+                          {location || "No location specified"}
+                        </p>
                       </div>
                       <div className="bg-[#0f172a] rounded-lg p-4">
-                        <p className="text-sm text-slate-300 line-clamp-3">{bio || 'No bio provided'}</p>
+                        <p className="text-sm text-slate-300 line-clamp-3">
+                          {bio || "No bio provided"}
+                        </p>
                       </div>
                       <div className="bg-[#0f172a] rounded-lg p-4">
                         <p className="text-sm text-slate-400">
-                          {pressArticles.filter(a => a.outlet).length} press articles |
-                          {videoUrl ? ' 1 video' : ' No video'} |
+                          {pressArticles.filter((a) => a.outlet).length} press
+                          articles |{videoUrl ? " 1 video" : " No video"} |
                           Deposit: {minimumDeposit} WMON
                         </p>
                       </div>
                       <p className="text-xs text-slate-500">
-                        Publishing will upload your EPK to IPFS and register it on Monad blockchain.
-                        {userAddress ? ` Wallet: ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : ' Connect wallet for on-chain registration.'}
+                        Publishing will upload your EPK to IPFS and register it
+                        on Monad blockchain.
+                        {userAddress
+                          ? ` Wallet: ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`
+                          : " Connect wallet for on-chain registration."}
                       </p>
                     </div>
                   )}
@@ -602,7 +794,7 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
 
                 {error && <p className="text-xs text-red-400">{error}</p>}
 
-                {step === 'review' ? (
+                {step === "review" ? (
                   <button
                     onClick={handlePublish}
                     disabled={publishing}
@@ -611,12 +803,12 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
                     {publishing ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        {isEdit ? 'Updating...' : 'Publishing...'}
+                        {isEdit ? "Updating..." : "Publishing..."}
                       </>
                     ) : (
                       <>
                         <CheckCircle className="w-4 h-4" />
-                        {isEdit ? 'Update EPK' : 'Publish EPK'}
+                        {isEdit ? "Update EPK" : "Publish EPK"}
                       </>
                     )}
                   </button>
@@ -637,6 +829,6 @@ export function EPKModal({ isOpen, onClose, userAddress, userFid, existingEpk }:
     </div>
   );
 
-  if (typeof document === 'undefined') return null;
+  if (typeof document === "undefined") return null;
   return createPortal(modalContent, document.body);
 }
