@@ -18,7 +18,7 @@ export interface ArtistInfo {
   genre: string[];
   location: string;
   profileImage?: string; // IPFS CID or URL
-  bannerImage?: string;  // IPFS CID or URL
+  bannerImage?: string; // IPFS CID or URL
   farcasterFid?: number;
   walletAddress?: string;
 }
@@ -37,7 +37,7 @@ export interface MediaSection {
 export interface MediaVideo {
   title: string;
   url: string;
-  platform: 'rumble' | 'youtube' | 'vimeo' | 'other';
+  platform: "rumble" | "youtube" | "vimeo" | "other";
 }
 
 export interface PressArticle {
@@ -103,7 +103,13 @@ export interface OnChainInfo {
 // Envio query types for streaming stats
 export interface ArtistStreamingStats {
   totalPlays: number;
-  uniqueListeners: number;
+  /**
+   * `null` when unknown, which is the normal case since the indexer was removed: no contract
+   * keeps a roster of listeners. `PlayOracleV3` stores `lastPlayTime[user][song]` — a timestamp,
+   * not a set — and `MusicSubscriptionV6` keys plays by user and day with nothing enumerable.
+   * Zero would claim nobody has ever listened, which is a different and false statement.
+   */
+  uniqueListeners: number | null;
   totalSales: number;
   totalRevenue: string; // formatted WMON
   topSongs: SongStats[];
@@ -135,6 +141,6 @@ export interface BookingInquiry {
   depositAmount?: string;
   bookingId?: number; // on-chain booking ID
   txHash?: string;
-  status: 'inquiry' | 'deposited' | 'confirmed' | 'completed' | 'cancelled';
+  status: "inquiry" | "deposited" | "confirmed" | "completed" | "cancelled";
   createdAt: number;
 }

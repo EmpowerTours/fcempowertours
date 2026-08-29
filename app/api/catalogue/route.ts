@@ -7,7 +7,7 @@ import { getResolvedCatalogue } from "@/lib/catalogue-resolved";
  * ## Why this exists
  *
  * Four client components — `discover`, `nft/[tokenId]`, `artist/[address]` and `LiveRadioModal`
- * — fetched `NEXT_PUBLIC_ENVIO_ENDPOINT` directly. Being client components they cannot import
+ * — fetched the indexer directly. Being client components they cannot import
  * `catalogue-source`, so they had no fallback: when the indexer went stale on 2026-08-01 they
  * silently served a three-week-old catalogue, while the server routes that shared the same data
  * had already been given one.
@@ -15,7 +15,7 @@ import { getResolvedCatalogue } from "@/lib/catalogue-resolved";
  * Putting the read behind an endpoint fixes that in the same move as removing the indexer URL
  * from the browser bundle.
  *
- * ## Not `/api/envio/get-nfts`
+ * ## Not `/api/nfts`
  *
  * That route shuffles its results and slices to ten, because it backs a discovery carousel.
  * Shuffling is exactly wrong for a page that wants one track by id, so this returns the whole

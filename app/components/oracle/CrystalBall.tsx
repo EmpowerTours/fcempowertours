@@ -34,7 +34,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
   useEffect(() => {
     const fetchNFTs = async () => {
       try {
-        const response = await fetch('/api/envio/get-nfts');
+        const response = await fetch('/api/nfts');
         const data = await response.json();
         if (data.success) {
           setNFTObjects(data.nfts);

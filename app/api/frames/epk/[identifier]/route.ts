@@ -2,10 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { escapeHtml } from "@/lib/auth";
 import { Redis } from "@upstash/redis";
 import { EPK_SLUG_PREFIX } from "@/lib/epk/constants";
-import { fetchEPKFromIPFS, fetchEPKFromChain } from "@/lib/epk/utils";
+import { fetchEPKFromIPFS } from "@/lib/epk/utils";
+import { readEPKFromChain } from "@/lib/epk/chain";
+import {
+  createPublicClient,
+  http,
+  type Address,
+  type PublicClient,
+} from "viem";
+import { activeChain } from "@/app/chains";
 
 const redis = Redis.fromEnv();
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT || "";
+const EPK_REGISTRY = process.env.NEXT_PUBLIC_EPK_REGISTRY as
+  | Address
+  | undefined;
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
   "https://fcempowertours-production-6551.up.railway.app";
@@ -37,10 +47,17 @@ export async function GET(
     let location = "";
     let verified = false;
 
-    if (artistAddress && ENVIO_ENDPOINT) {
-      const onChainData = await fetchEPKFromChain(
+    if (artistAddress && EPK_REGISTRY) {
+      const client = createPublicClient({
+        chain: activeChain,
+        transport: http(),
+      }) as PublicClient;
+      // `verified` below now means "has a LIVE EPK": readEPKFromChain returns null for a
+      // deactivated one, where the EPKCreated event this used to read stayed true forever.
+      const onChainData = await readEPKFromChain(
+        client,
+        EPK_REGISTRY,
         artistAddress,
-        ENVIO_ENDPOINT,
       );
       if (onChainData) {
         verified = true;

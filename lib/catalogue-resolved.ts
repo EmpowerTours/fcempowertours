@@ -8,7 +8,7 @@
  *
  * Everything a listener actually sees — the track name, the cover, the audio file — lives in a
  * JSON document behind that `tokenURI`. The indexer used to resolve those documents and serve
- * them pre-joined, which is the single real convenience it provided. Leaving Envio means doing
+ * them pre-joined, which is the single real convenience it provided. Leaving the indexer means doing
  * that join here instead, once, rather than in each of the fourteen call sites that need it.
  *
  * ## The cache is safe to keep forever
@@ -132,16 +132,14 @@ export async function fetchTrackMetadata(
 export async function getResolvedCatalogue(opts?: {
   limit?: number;
   client?: PublicClient;
-  fetchFromEnvio?: () => Promise<CatalogueRow[]>;
 }): Promise<{
   tracks: ResolvedTrack[];
-  source: "envio" | "chain";
+  source: "chain";
   reason: string;
 }> {
-  // Imported at call time, not at module scope, for the same reason `envio-health.ts` takes the
-  // chain head as a callback: `catalogue-source` pulls in `@/app/chains`, and the `@/` alias does
-  // not resolve under `node --experimental-strip-types`. Keeping the metadata helpers free of it
-  // is what lets `tools/verify-catalogue-resolved.ts` exercise them directly.
+  // Imported at call time, not at module scope: `catalogue-source` pulls in `@/app/chains`, and
+  // the `@/` alias does not resolve under `node --experimental-strip-types`. Keeping the metadata
+  // helpers free of it is what lets `tools/verify-catalogue-resolved.ts` exercise them directly.
   const { getCatalogue } = await import("@/lib/catalogue-source");
   const { rows, source, reason } = await getCatalogue(opts);
 

@@ -168,7 +168,7 @@ export default function OraclePage() {
     const fetchNFTs = async () => {
       try {
         // Add cache-busting to ensure fresh data after burns
-        const response = await fetch("/api/envio/get-nfts", {
+        const response = await fetch("/api/nfts", {
           cache: "no-store",
           headers: {
             "Cache-Control": "no-cache",

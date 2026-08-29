@@ -33,35 +33,6 @@ import {
 } from "viem";
 import { activeChain } from "@/app/chains";
 import { isV3Contracts, readMasterPrice } from "@/lib/contract-generation";
-import {
-  checkEnvioHealth,
-  resetEnvioHealthCache,
-  type EnvioHealth,
-} from "@/lib/envio-health";
-
-export { resetEnvioHealthCache, type EnvioHealth };
-
-/**
- * Is the indexer trustworthy right now?
- *
- * Delegates to `lib/envio-health`, which is deliberately free of project imports so it can be
- * tested under plain node. The chain head is supplied here, where the viem client lives.
- */
-export async function envioHealth(client?: PublicClient): Promise<EnvioHealth> {
-  return checkEnvioHealth({
-    endpoint: process.env.NEXT_PUBLIC_ENVIO_ENDPOINT,
-    getHead: async () => {
-      const c =
-        client ??
-        (createPublicClient({
-          chain: activeChain,
-          transport: http(),
-        }) as PublicClient);
-      return c.getBlockNumber();
-    },
-  });
-}
-
 // --------------------------------------------------------------- chain fallback
 
 /** The subset of an indexed row the catalogue actually needs. */
@@ -334,25 +305,25 @@ async function filterModerated(
 }
 
 /**
- * The catalogue, from whichever source is currently trustworthy.
+ * The catalogue, read from the contracts.
  *
- * `source` is returned rather than logged only, so the caller can surface it: an operator
- * seeing "chain" for a week is the signal that the indexer bill went unpaid, which is exactly
- * the failure that produced this module.
+ * This used to pick between an indexer and the chain, with a health check deciding. The indexer
+ * is gone — it had been dead since 2026-08-01 and every read had been falling through to this
+ * path for weeks before it was removed — so there is one source and no decision to make.
+ *
+ * `source` and `reason` are kept in the return shape because callers display and assert on them,
+ * and because a constant "chain" is a cheaper thing for a reader to verify than a field that
+ * disappeared. They are no longer a signal about anything.
  */
 export async function getCatalogue(opts?: {
   limit?: number;
   client?: PublicClient;
-  fetchFromEnvio?: () => Promise<CatalogueRow[]>;
 }): Promise<{
   rows: CatalogueRow[];
-  source: "envio" | "chain";
+  source: "chain";
   reason: string;
 }> {
-  const health = await envioHealth(opts?.client);
-
-  // The moderation filter needs a client whichever path is taken, so build one once here rather
-  // than twice below.
+  // `filterModerated` needs a client, so build one here rather than inside it.
   const resolved =
     opts?.client ??
     (createPublicClient({
@@ -360,30 +331,17 @@ export async function getCatalogue(opts?: {
       transport: http(),
     }) as PublicClient);
 
-  if (health.healthy && opts?.fetchFromEnvio) {
-    try {
-      const rows = await opts.fetchFromEnvio();
-      // A fresh indexer returning nothing is not proof the catalogue is empty — it is far more
-      // likely a schema or query problem. Fall through to the chain and let it disagree.
-      if (rows.length > 0) {
-        return {
-          rows: await filterModerated(rows, resolved),
-          source: "envio",
-          reason: health.reason,
-        };
-      }
-    } catch {
-      // fall through
-    }
-  }
-
   const rows = await readCatalogueFromChain({
     limit: opts?.limit,
     client: opts?.client,
   });
+
+  // Still filtered. This is the one thing that must not be lost with the indexer: the filter was
+  // moved out of the chain reader precisely because a suspended track would have reappeared the
+  // day the indexer recovered, and it fails CLOSED — a failed moderation read drops the rows.
   return {
     rows: await filterModerated(rows, resolved),
     source: "chain",
-    reason: health.healthy ? "indexer returned nothing usable" : health.reason,
+    reason: "read from the contracts",
   };
 }

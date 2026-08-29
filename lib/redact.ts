@@ -64,6 +64,8 @@ const SECRET_ENV_VARS = [
   "PIMLICO_API_KEY",
   "NEXT_PUBLIC_MONAD_RPC",
   "MONAD_WS_RPC",
+  // Kept after the indexer was removed: the variable may still be set in a deployment,
+  // and redaction is about what can appear in output, not about what the code reads.
   "NEXT_PUBLIC_ENVIO_ENDPOINT",
   "NEYNAR_API_KEY",
   "ALCHEMY_API_KEY",

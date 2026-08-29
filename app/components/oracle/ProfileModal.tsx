@@ -3,7 +3,30 @@
 import { authHeaders } from "@/lib/quick-auth-client";
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Globe, Music, Palette, MapPin, Ticket, Search, Loader2, User, Wallet, ExternalLink, FileText, CheckCircle, Edit3, ChevronRight, Play, Users, DollarSign, ChevronDown, Download, Radio, TrendingUp } from "lucide-react";
+import {
+  X,
+  Globe,
+  Music,
+  Palette,
+  MapPin,
+  Ticket,
+  Search,
+  Loader2,
+  User,
+  Wallet,
+  ExternalLink,
+  FileText,
+  CheckCircle,
+  Edit3,
+  ChevronRight,
+  Play,
+  Users,
+  DollarSign,
+  ChevronDown,
+  Download,
+  Radio,
+  TrendingUp,
+} from "lucide-react";
 import { getAddressExplorerUrl } from "@/app/chains";
 import { getFlagEmoji, getCountryByCode } from "@/lib/passport/countries";
 import { EPKModal } from "./EPKModal";
@@ -69,7 +92,6 @@ interface EPKData {
   fullEpk?: EPKMetadata;
   streamingStats?: ArtistStreamingStats | null;
 }
-
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   walletAddress,
@@ -271,10 +293,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       // contract read: passports come from a 195-country Multicall3 batch (the contract has no
       // enumerator), created masters from the catalogue filtered by artist, purchases from
       // walking the licence range.
-      const response = await fetch(
-        `/api/user-stats?address=${address}`,
-        { headers: { ...(await authHeaders()) } },
-      );
+      const response = await fetch(`/api/user-stats?address=${address}`, {
+        headers: { ...(await authHeaders()) },
+      });
       const result = await response.json();
 
       if (!result.success) {
@@ -1274,8 +1295,12 @@ const EPKViewContent = ({
                   <Users className="w-3.5 h-3.5 text-blue-400" />
                   <span className="text-xs text-slate-400">Listeners</span>
                 </div>
+                {/* Null means unknown, not zero: no contract keeps a roster of listeners, so
+                    "—" is the honest render. A 0 here would say nobody has ever listened. */}
                 <p className="text-lg font-bold text-white">
-                  {stats.uniqueListeners.toLocaleString()}
+                  {stats.uniqueListeners === null
+                    ? "—"
+                    : stats.uniqueListeners.toLocaleString()}
                 </p>
               </div>
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
