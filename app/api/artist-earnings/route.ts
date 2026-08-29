@@ -1,8 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, parseAbi, formatEther, type Address } from 'viem';
+import { NextRequest, NextResponse } from "next/server";
+import {
+  createPublicClient,
+  http,
+  parseAbi,
+  formatEther,
+  type Address,
+} from "viem";
 
-const MUSIC_SUBSCRIPTION = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION as Address;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+const MUSIC_SUBSCRIPTION = process.env
+  .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as Address;
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz";
 
 interface SongBreakdown {
   tokenId: string;
@@ -21,10 +28,13 @@ interface TopSupporter {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const address = searchParams.get('address');
+    const address = searchParams.get("address");
 
     if (!address) {
-      return NextResponse.json({ error: 'address parameter required' }, { status: 400 });
+      return NextResponse.json(
+        { error: "address parameter required" },
+        { status: 400 },
+      );
     }
 
     const artistLower = address.toLowerCase();
@@ -35,25 +45,32 @@ export async function GET(req: NextRequest) {
     // supplied play counts, tips and licence rows. Of those three:
     //
     // - Licences are contract state, so they are read directly.
-    // - Play counts are contract state too: getArtistMonthlyStats returns a per-month playCount
-    //   per artist, which is authoritative and better than counting event rows.
-    // - Per-song play breakdown is NOT contract state. The Redis play ledger has it, capped at
-    //   the last 100 plays, so the breakdown is recent rather than lifetime and says so.
+    // - Lifetime play count is one read: `artistLifetimePlays(artist)`. The first pass summed
+    //   getArtistMonthlyStats over 12 months instead, which costs 24 reads and silently drops
+    //   anything older than a year. The monthly loop stays only because per-month payout needs
+    //   per-month numbers.
+    // - Per-song play breakdown really is NOT contract state, re-checked against all three
+    //   candidates: MusicSubscriptionV6 keeps dailySongPlayCount[user][day][song] (needs every
+    //   user and day enumerated), LiveRadioV3 keeps only the global totalSongsPlayed, and
+    //   PlayOracleV3 keeps lastPlayTime[user][song] — a timestamp, not a count. The Redis play
+    //   ledger has it, capped at the last 100 plays, so the breakdown is recent, not lifetime.
     // - Tips ARE contract state, contrary to the first pass at this file. `queueSong` emits
     //   TipReceived *and* pushes a QueuedSong carrying `tipAmount` into the public `songQueue`
     //   array, which nothing ever removes from — `queueHead` is a read cursor, not a pop. So the
     //   lifetime record is readable without touching a log. See lib/radio-queue.ts.
     const unavailable: string[] = [];
 
-    const { getResolvedCatalogue } = await import('@/lib/catalogue-resolved');
-    const { activeChain: chainForReads } = await import('@/app/chains');
+    const { getResolvedCatalogue } = await import("@/lib/catalogue-resolved");
+    const { activeChain: chainForReads } = await import("@/app/chains");
     const readClient = createPublicClient({
       chain: chainForReads,
       transport: http(MONAD_RPC),
     });
 
-    const catalogue = await getResolvedCatalogue({ limit: 1000 }).catch(() => null);
-    if (!catalogue) unavailable.push('catalogue');
+    const catalogue = await getResolvedCatalogue({ limit: 1000 }).catch(
+      () => null,
+    );
+    if (!catalogue) unavailable.push("catalogue");
     const myTracks = (catalogue?.tracks ?? []).filter(
       (t) => t.artist.toLowerCase() === artistLower,
     );
@@ -62,21 +79,24 @@ export async function GET(req: NextRequest) {
     // Every licence ever minted, kept only where the master is this artist's. Bounded by the
     // licence count, which is small; if that stops being true this needs a per-artist index on
     // the contract rather than a bigger walk here.
-    const { getRecentLicenses } = await import('@/lib/user-holdings');
-    const allLicences = await getRecentLicenses(readClient as any, undefined, 512).catch(
-      () => {
-        unavailable.push('licences');
-        return [];
-      },
-    );
+    const { getRecentLicenses } = await import("@/lib/user-holdings");
+    const allLicences = await getRecentLicenses(
+      readClient as any,
+      undefined,
+      512,
+    ).catch(() => {
+      unavailable.push("licences");
+      return [];
+    });
     const licenses = allLicences
       .filter((l) => myTokenIds.has(l.masterTokenId))
       .map((l) => ({
-        licensee: l.licensee ?? '0x0000000000000000000000000000000000000000',
+        licensee: l.licensee ?? "0x0000000000000000000000000000000000000000",
         masterTokenId: l.masterTokenId,
         masterToken: {
           name: myTracks.find((t) => t.tokenId === l.masterTokenId)?.name,
-          price: myTracks.find((t) => t.tokenId === l.masterTokenId)?.price ?? '0',
+          price:
+            myTracks.find((t) => t.tokenId === l.masterTokenId)?.price ?? "0",
         },
       }));
 
@@ -84,14 +104,20 @@ export async function GET(req: NextRequest) {
     // to the last 100, so this is a recent window, not a lifetime count.
     let plays: any[] = [];
     try {
-      const { Redis } = await import('@upstash/redis');
+      const { Redis } = await import("@upstash/redis");
       const redisClient = new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL!,
         token: process.env.UPSTASH_REDIS_REST_TOKEN!,
       });
-      const history = await redisClient.lrange('live-radio:play-history', 0, 99);
+      const history = await redisClient.lrange(
+        "live-radio:play-history",
+        0,
+        99,
+      );
       plays = history
-        .map((entry: any) => (typeof entry === 'string' ? JSON.parse(entry) : entry))
+        .map((entry: any) =>
+          typeof entry === "string" ? JSON.parse(entry) : entry,
+        )
         .filter((entry: any) => myTokenIds.has(String(entry?.tokenId)))
         .map((entry: any) => ({
           masterTokenId: String(entry.tokenId),
@@ -99,29 +125,40 @@ export async function GET(req: NextRequest) {
           masterToken: { name: entry.name },
         }));
     } catch (err: any) {
-      console.warn('[ArtistEarnings] play ledger read failed:', err.message?.slice(0, 80));
-      unavailable.push('recentPlays');
+      console.warn(
+        "[ArtistEarnings] play ledger read failed:",
+        err.message?.slice(0, 80),
+      );
+      unavailable.push("recentPlays");
     }
 
     // Tips: read from the queue. A read failure marks tips unavailable rather than reporting 0,
     // because a broken read and a genuinely untipped artist must not look identical.
     let tips: { amount: bigint; masterTokenId: string; tipper: string }[] = [];
-    const radioAddress = process.env.NEXT_PUBLIC_LIVE_RADIO as Address | undefined;
+    const radioAddress = process.env.NEXT_PUBLIC_LIVE_RADIO as
+      | Address
+      | undefined;
     if (!radioAddress) {
-      unavailable.push('tips (NEXT_PUBLIC_LIVE_RADIO unset)');
+      unavailable.push("tips (NEXT_PUBLIC_LIVE_RADIO unset)");
     } else {
       try {
-        const { readRadioQueue, tipsForMasters } = await import('@/lib/radio-queue');
+        const { readRadioQueue, tipsForMasters } = await import(
+          "@/lib/radio-queue"
+        );
         const queue = await readRadioQueue(readClient as any, radioAddress);
-        if (queue.truncated) unavailable.push('tips (queue longer than the read cap)');
+        if (queue.truncated)
+          unavailable.push("tips (queue longer than the read cap)");
         tips = tipsForMasters(queue, myTokenIds).map((e) => ({
           amount: e.tipAmount,
           masterTokenId: e.masterTokenId,
           tipper: e.queuedBy,
         }));
       } catch (err: any) {
-        console.warn('[ArtistEarnings] queue read failed:', err.message?.slice(0, 80));
-        unavailable.push('tips');
+        console.warn(
+          "[ArtistEarnings] queue read failed:",
+          err.message?.slice(0, 80),
+        );
+        unavailable.push("tips");
       }
     }
 
@@ -145,24 +182,43 @@ export async function GET(req: NextRequest) {
       songPlays.set(tokenId, existing);
     }
 
-    // Authoritative lifetime play count, accumulated per month from the contract in the same
-    // loop that sums earnings below.
+    // Authoritative lifetime play count — one read, and not bounded by the 12-month earnings
+    // window below.
     let contractPlayCount = 0;
 
     // Fetch real earnings from MusicSubscription contract (monthly distribution)
     let subscriptionEarningsWei = BigInt(0);
     if (MUSIC_SUBSCRIPTION) {
       try {
-        const { activeChain } = await import('@/app/chains');
-        const client = createPublicClient({ chain: activeChain, transport: http(MONAD_RPC) });
+        const { activeChain } = await import("@/app/chains");
+        const client = createPublicClient({
+          chain: activeChain,
+          transport: http(MONAD_RPC),
+        });
         const subAbi = parseAbi([
-          'function getCurrentMonthStats() view returns (uint256 monthId, uint256 totalRevenue, uint256 totalPlays, bool finalized)',
-          'function getArtistMonthlyStats(address artist, uint256 monthId) view returns (uint256 playCount, uint256 payout, bool claimed)',
-          'function monthlyStats(uint256 monthId) view returns (uint256 totalRevenue, uint256 totalPlays, uint256 distributedAmount, bool finalized)',
+          "function getCurrentMonthStats() view returns (uint256 monthId, uint256 totalRevenue, uint256 totalPlays, bool finalized)",
+          "function getArtistMonthlyStats(address artist, uint256 monthId) view returns (uint256 playCount, uint256 payout, bool claimed)",
+          "function monthlyStats(uint256 monthId) view returns (uint256 totalRevenue, uint256 totalPlays, uint256 distributedAmount, bool finalized)",
+          "function artistLifetimePlays(address artist) view returns (uint256)",
         ]);
 
+        try {
+          contractPlayCount = Number(
+            await client.readContract({
+              address: MUSIC_SUBSCRIPTION,
+              abi: subAbi,
+              functionName: "artistLifetimePlays",
+              args: [artistLower as Address],
+            }),
+          );
+        } catch {
+          unavailable.push("lifetimePlays");
+        }
+
         const currentMonth = await client.readContract({
-          address: MUSIC_SUBSCRIPTION, abi: subAbi, functionName: 'getCurrentMonthStats',
+          address: MUSIC_SUBSCRIPTION,
+          abi: subAbi,
+          functionName: "getCurrentMonthStats",
         });
         const currentMonthId = Number(currentMonth[0]);
 
@@ -173,28 +229,36 @@ export async function GET(req: NextRequest) {
           try {
             const [artistStats, monthStats] = await Promise.all([
               client.readContract({
-                address: MUSIC_SUBSCRIPTION, abi: subAbi,
-                functionName: 'getArtistMonthlyStats',
+                address: MUSIC_SUBSCRIPTION,
+                abi: subAbi,
+                functionName: "getArtistMonthlyStats",
                 args: [artistLower as Address, BigInt(monthId)],
               }),
               client.readContract({
-                address: MUSIC_SUBSCRIPTION, abi: subAbi,
-                functionName: 'monthlyStats',
+                address: MUSIC_SUBSCRIPTION,
+                abi: subAbi,
+                functionName: "monthlyStats",
                 args: [BigInt(monthId)],
               }),
             ]);
             const playCount = Number(artistStats[0]);
-            contractPlayCount += playCount;
             const totalPlaysMonth = Number(monthStats[1]);
             const distributedAmount = monthStats[2] as bigint;
             if (playCount > 0 && totalPlaysMonth > 0) {
-              const payout = (BigInt(playCount) * distributedAmount) / BigInt(totalPlaysMonth);
+              const payout =
+                (BigInt(playCount) * distributedAmount) /
+                BigInt(totalPlaysMonth);
               subscriptionEarningsWei += payout;
             }
-          } catch { /* skip uninitialized months */ }
+          } catch {
+            /* skip uninitialized months */
+          }
         }
       } catch (err: any) {
-        console.warn('[ArtistEarnings] Subscription query failed:', err.message?.slice(0, 80));
+        console.warn(
+          "[ArtistEarnings] Subscription query failed:",
+          err.message?.slice(0, 80),
+        );
       }
     }
 
@@ -202,7 +266,10 @@ export async function GET(req: NextRequest) {
 
     // Aggregate tips
     let totalTipsWei = BigInt(0);
-    const supporterMap = new Map<string, { totalPaid: bigint; songsQueued: number }>();
+    const supporterMap = new Map<
+      string,
+      { totalPaid: bigint; songsQueued: number }
+    >();
 
     for (const tip of tips) {
       const amount = tip.amount;
@@ -217,7 +284,10 @@ export async function GET(req: NextRequest) {
 
       // Track supporter
       const tipper = tip.tipper.toLowerCase();
-      const supporter = supporterMap.get(tipper) || { totalPaid: BigInt(0), songsQueued: 0 };
+      const supporter = supporterMap.get(tipper) || {
+        totalPaid: BigInt(0),
+        songsQueued: 0,
+      };
       supporter.totalPaid += amount;
       supporter.songsQueued += 1;
       supporterMap.set(tipper, supporter);
@@ -226,13 +296,16 @@ export async function GET(req: NextRequest) {
     // Aggregate license sales (artist gets 70% of price)
     let totalLicenseSalesWei = BigInt(0);
     for (const license of licenses) {
-      const price = BigInt(license.masterToken?.price || '0');
+      const price = BigInt(license.masterToken?.price || "0");
       const artistCut = (price * BigInt(70)) / BigInt(100);
       totalLicenseSalesWei += artistCut;
 
       // Track license buyers as supporters
       const buyer = license.licensee.toLowerCase();
-      const supporter = supporterMap.get(buyer) || { totalPaid: BigInt(0), songsQueued: 0 };
+      const supporter = supporterMap.get(buyer) || {
+        totalPaid: BigInt(0),
+        songsQueued: 0,
+      };
       supporter.totalPaid += artistCut;
       supporter.songsQueued += 1;
       supporterMap.set(buyer, supporter);
@@ -275,10 +348,10 @@ export async function GET(req: NextRequest) {
       unavailable,
     });
   } catch (error: any) {
-    console.error('[ArtistEarnings] Error:', error);
+    console.error("[ArtistEarnings] Error:", error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch artist earnings' },
-      { status: 500 }
+      { error: error.message || "Failed to fetch artist earnings" },
+      { status: 500 },
     );
   }
 }

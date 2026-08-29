@@ -126,7 +126,6 @@ function stubClient(opts: {
   } as never;
 }
 
-
 const CODES = ["MX", "US", "FR", "CN", "TH", "GB"];
 
 // ---------------------------------------------------------------- every hit, not the first
@@ -269,7 +268,11 @@ const CODES = ["MX", "US", "FR", "CN", "TH", "GB"];
   const d = await getPassportDetails(c, PASSPORT, [
     { tokenId: "1", countryCode: "MX" },
   ]);
-  check("a struct return decodes by NAME, not by position", d[0].countryName, "Mexico");
+  check(
+    "a struct return decodes by NAME, not by position",
+    d[0].countryName,
+    "Mexico",
+  );
   check("...region survives", d[0].region, "Central America");
   check("...and the fid", d[0].userFid, 765994);
 }
@@ -288,18 +291,48 @@ const CODES = ["MX", "US", "FR", "CN", "TH", "GB"];
 
 /**
  * `PassportNFT(limit: 8, order_by: {mintedAt: desc})` was a global feed, which `findAllPassports`
- * cannot produce — it is anchored to one holder. The contract makes it cheap instead of hard: ids
- * come from a monotonic counter, so id order IS mint order.
+ * cannot produce — it is anchored to one holder.
  *
- * Two things here fail silently if broken. The multicall interleaves two calls per id, so a
+ * The first version of this took the shortcut that ids come from a monotonic counter, so id order
+ * IS mint order. It is not: `migrateLegacyPassport` takes a fresh id and preserves the ORIGINAL
+ * `mintedAt`, so a passport migrated today carries a high id and an old timestamp. Every passport
+ * live today is a migrated one, so this is the normal case rather than an edge. The MIGRATION
+ * group below is the check that was missing — it passes against the sort and fails against the
+ * shortcut.
+ *
+ * Two more things here fail silently if broken. The multicall interleaves two calls per id, so a
  * wrong stride pairs each passport with the PREVIOUS one's owner — plausible output, wrong
  * attribution. And the range clamp only matters when the limit exceeds the supply, which is the
  * live case today: supply is 3 and the dashboard asks for 8.
  */
 const DETAILS_3 = {
-  1: { userFid: 765994n, countryCode: "MX", countryName: "Mexico", region: "Central America", continent: "North America", mintedAt: 1769157019n, verified: false },
-  2: { userFid: 765994n, countryCode: "FR", countryName: "France", region: "Western Europe", continent: "Europe", mintedAt: 1770512345n, verified: false },
-  3: { userFid: 765994n, countryCode: "CN", countryName: "China", region: "Eastern Asia", continent: "Asia", mintedAt: 1770729681n, verified: false },
+  1: {
+    userFid: 765994n,
+    countryCode: "MX",
+    countryName: "Mexico",
+    region: "Central America",
+    continent: "North America",
+    mintedAt: 1769157019n,
+    verified: false,
+  },
+  2: {
+    userFid: 765994n,
+    countryCode: "FR",
+    countryName: "France",
+    region: "Western Europe",
+    continent: "Europe",
+    mintedAt: 1770512345n,
+    verified: false,
+  },
+  3: {
+    userFid: 765994n,
+    countryCode: "CN",
+    countryName: "China",
+    region: "Eastern Asia",
+    continent: "Asia",
+    mintedAt: 1770729681n,
+    verified: false,
+  },
 };
 const OWNERS_3 = { 1: "0xaaa", 2: "0xbbb", 3: "0xccc" };
 
@@ -322,41 +355,128 @@ const OWNERS_3 = { 1: "0xaaa", 2: "0xbbb", 3: "0xccc" };
     ["CN", "FR", "MX"],
   );
   check(
-    "newest first, because id order is mint order",
+    "newest first",
     recent.map((p) => p.mintedAt),
     [1770729681, 1770512345, 1769157019],
+  );
+}
+
+// ------------------------------------------------------- MIGRATION: a high id with an old mint
+
+{
+  // Passport 3 is migrated: the newest id, but minted long before the other two. Sorting by id
+  // would put it first and call it the most recent passport on the platform.
+  const MIGRATED = {
+    1: { ...DETAILS_3[1], mintedAt: 1770000000n },
+    2: { ...DETAILS_3[2], mintedAt: 1780000000n },
+    3: { ...DETAILS_3[3], mintedAt: 1700000000n },
+  };
+  const c = stubClient({ supply: 3, details: MIGRATED, owners: OWNERS_3 });
+  const recent = await getRecentPassports(c, PASSPORT, 8);
+  check(
+    "a migrated passport sorts by its ORIGINAL mint, not by its fresh id",
+    recent.map((p) => p.tokenId),
+    ["2", "1", "3"],
+  );
+  check(
+    "...so the feed is ordered by mintedAt descending",
+    recent.map((p) => p.mintedAt),
+    [1780000000, 1770000000, 1700000000],
+  );
+
+  // The limit must be applied AFTER the sort. Applied before, this returns ids 3 and 2 — and 3
+  // is the OLDEST passport of the three.
+  const two = await getRecentPassports(
+    stubClient({ supply: 3, details: MIGRATED, owners: OWNERS_3 }),
+    PASSPORT,
+    2,
+  );
+  check(
+    "a limit takes the two newest by mint, not the two highest ids",
+    two.map((p) => p.tokenId),
+    ["2", "1"],
+  );
+}
+
+{
+  // Same second for two migrations: order must still be deterministic, not whatever the multicall
+  // happened to return.
+  const TIED = {
+    1: { ...DETAILS_3[1], mintedAt: 1770000000n },
+    2: { ...DETAILS_3[2], mintedAt: 1770000000n },
+    3: { ...DETAILS_3[3], mintedAt: 1770000000n },
+  };
+  const c = stubClient({ supply: 3, details: TIED, owners: OWNERS_3 });
+  // Honest about what this pins: it fixes the OUTPUT for equal mint times, but it cannot
+  // discriminate the comparator's tie-break clause. The scan already yields ids descending and
+  // V8's sort is stable, so dropping the clause passes this check too — verified by mutation.
+  // The clause stays because it states the intent rather than leaning on sort stability, and it
+  // is what keeps this correct if the scan order ever changes.
+  check(
+    "equal mint times still produce a fixed order, not an arbitrary one",
+    (await getRecentPassports(c, PASSPORT, 8)).map((p) => p.tokenId),
+    ["3", "2", "1"],
   );
 }
 
 {
   const c = stubClient({ supply: 3, details: DETAILS_3, owners: OWNERS_3 });
   const recent = await getRecentPassports(c, PASSPORT, 2);
-  check("a limit below the supply takes the NEWEST, not the oldest", recent.map((p) => p.tokenId), ["3", "2"]);
+  check(
+    "a limit below the supply takes the NEWEST, not the oldest",
+    recent.map((p) => p.tokenId),
+    ["3", "2"],
+  );
+  check("...and reads the whole collection to decide that", recent.length, 2);
 }
 
 {
   const c = stubClient({ supply: 0 });
-  check("an empty collection is empty, not a crash", await getRecentPassports(c, PASSPORT, 8), []);
+  check(
+    "an empty collection is empty, not a crash",
+    await getRecentPassports(c, PASSPORT, 8),
+    [],
+  );
 }
 
 {
   const c = stubClient({ supply: 3, details: DETAILS_3, owners: OWNERS_3 });
-  check("a zero limit reads nothing", await getRecentPassports(c, PASSPORT, 0), []);
+  check(
+    "a zero limit reads nothing",
+    await getRecentPassports(c, PASSPORT, 0),
+    [],
+  );
 }
 
 {
   // Ids are 1-based: `_mintPassport` increments the counter BEFORE using it, so there is no
   // token 0. Reading a supply of 1 as a 0-based range would ask for id 0 and find nothing.
-  const c = stubClient({ supply: 1, details: { 1: DETAILS_3[1] }, owners: { 1: "0xaaa" } });
-  check("a single passport is id 1, not id 0", (await getRecentPassports(c, PASSPORT, 5)).map((p) => p.tokenId), ["1"]);
+  const c = stubClient({
+    supply: 1,
+    details: { 1: DETAILS_3[1] },
+    owners: { 1: "0xaaa" },
+  });
+  check(
+    "a single passport is id 1, not id 0",
+    (await getRecentPassports(c, PASSPORT, 5)).map((p) => p.tokenId),
+    ["1"],
+  );
 }
 
 {
   // A missing owner must not drop the passport — the feed is about the mint, not the transfer.
-  const c = stubClient({ supply: 3, details: DETAILS_3, owners: { 3: "0xccc" } });
+  const c = stubClient({
+    supply: 3,
+    details: DETAILS_3,
+    owners: { 3: "0xccc" },
+  });
   const recent = await getRecentPassports(c, PASSPORT, 8);
   check("a failed ownerOf keeps the passport", recent.length, 3);
-  check("...with the owner simply absent", recent.map((p) => p.owner ?? null), ["0xccc", null, null]);
+  check(
+    "...with the owner simply absent",
+    recent.map((p) => p.owner ?? null),
+    ["0xccc", null, null],
+  );
 }
 
 // ------------------------------------------------------------------------------------ report

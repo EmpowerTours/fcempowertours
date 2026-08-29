@@ -208,10 +208,30 @@ export async function getTotalSupply(
  * ## Why this is not a search
  *
  * The indexer answered `PassportNFT(limit: 8, order_by: {mintedAt: desc})` — a global feed, which
- * `findAllPassports` cannot produce because it is anchored to one holder. But the contract makes
- * it cheaper than a search, not harder: ids are handed out by a monotonic counter, so **id order
- * IS mint order** and "most recent" is just the top of the range. No sorting, and no need to read
- * anything to decide what to read.
+ * `findAllPassports` cannot produce because it is anchored to one holder.
+ *
+ * ## Why id order is NOT mint order
+ *
+ * The obvious shortcut is that ids come from a monotonic counter, so the newest ids are the newest
+ * passports and no sort is needed. That is wrong here, and this file said otherwise until it was
+ * checked against the contract: `migrateLegacyPassport` takes a **fresh** id from the same counter
+ * while **preserving the original `mintedAt`** (V4 line 761 — the stated reason the function
+ * exists). A passport migrated today therefore carries a high id and a months-old timestamp.
+ *
+ * It is not hypothetical. All three passports live today were migrated: the contract was deployed
+ * 2026-08-22 and their `mintedAt` values are 2026-01-23, 2026-02-08 and 2026-02-10. They are in id
+ * order only because they happened to be migrated in that order — luck, not a guarantee.
+ *
+ * So the range is a candidate window and `mintedAt` decides the order. `mintedAt` is a stored
+ * struct field, so this costs a sort, not a read.
+ *
+ * ## The bound on that, stated rather than hidden
+ *
+ * Sorting a window is exact only when the window holds every passport that could belong in the
+ * answer. Below `MAX_RECENT_SCAN` every passport is read and the answer is exact. Above it, a
+ * migration whose original mint predates the window can still be missed — so the scan is capped
+ * loudly rather than silently returning a window that looks like a ranking. At a supply of 3 this
+ * is theoretical, which is exactly when it is cheap to get right.
  *
  * One multicall covers the details and the owners together.
  *
@@ -222,6 +242,14 @@ export async function getTotalSupply(
  * Alchemy key at 10, so the mint transactions are unreachable at any tier available here. Callers
  * render that link as `{item.txHash && ...}`, so it degrades to no link rather than a break.
  */
+/**
+ * How many passports `getRecentPassports` will read before it stops being exact.
+ *
+ * Every id in the scan is one multicall entry pair, so this is a real cost ceiling, not a
+ * formality. It is far above the current supply of 3.
+ */
+export const MAX_RECENT_SCAN = 500;
+
 export async function getRecentPassports(
   client: PublicClient,
   passportAddress: Address,
@@ -230,10 +258,14 @@ export async function getRecentPassports(
   const supply = await getTotalSupply(client, passportAddress);
   if (supply === 0 || limit <= 0) return [];
 
-  // Ids descend from the newest. `Math.max(1, …)` matters while the collection is small: with a
-  // supply of 3 and a limit of 8 this must produce [3,2,1], not ids down to -4.
+  // The whole collection, up to the cap. Reading only `limit` ids would rank a window by
+  // `mintedAt` without knowing whether an older id holds a newer mint — which a migration makes
+  // possible. `Math.max(1, …)` matters while the collection is small: with a supply of 3 this
+  // must produce [3,2,1], not ids down to -4.
+  const scan = Math.min(supply, MAX_RECENT_SCAN);
   const ids: number[] = [];
-  for (let id = supply; id >= Math.max(1, supply - limit + 1); id--) ids.push(id);
+  for (let id = supply; id >= Math.max(1, supply - scan + 1); id--)
+    ids.push(id);
 
   const results = await client.multicall({
     contracts: ids.flatMap((id) => [
@@ -283,7 +315,13 @@ export async function getRecentPassports(
     });
   });
 
-  return out;
+  // By mint time, not by id — see the note above. Ties keep the higher id first, so a batch
+  // migrated within one second still has a stable order.
+  out.sort(
+    (a, b) => b.mintedAt - a.mintedAt || Number(b.tokenId) - Number(a.tokenId),
+  );
+
+  return out.slice(0, limit);
 }
 
 export interface ItineraryStamp {

@@ -10,6 +10,16 @@ import { getResolvedCatalogue } from "@/lib/catalogue-resolved";
 import { getCatalogueTotals, getRecentLicenses } from "@/lib/user-holdings";
 import { getRecentPassports } from "@/lib/passport-lookup";
 
+const SUBSCRIPTION_ABI = [
+  {
+    type: "function",
+    name: "totalActiveSubscribers",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
+
 /**
  * Everything the dashboard shows, read from the contracts.
  *
@@ -77,6 +87,9 @@ export async function GET() {
   const passportAddress = process.env.NEXT_PUBLIC_PASSPORT_NFT as
     | Address
     | undefined;
+  const subscription = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION as
+    | Address
+    | undefined;
 
   // Without the registry address there is nothing to read, and answering 200 with zeros would be
   // the worst possible response: a misconfigured deployment would look exactly like a platform
@@ -105,7 +118,7 @@ export async function GET() {
       return null;
     };
 
-    const [catalogueRes, totalsRes, licensesRes, passportsRes] =
+    const [catalogueRes, totalsRes, subscribersRes, licensesRes, passportsRes] =
       await Promise.all([
         // Resolved rather than raw: the modal shows track names, cover art and artist names,
         // and this shares the metadata cache with every other surface instead of building a
@@ -113,6 +126,15 @@ export async function GET() {
         // from this list, so a limit would under-report them rather than truncate a feed.
         getResolvedCatalogue({ client, limit: 1000 }).catch(note("catalogue")),
         getCatalogueTotals(client, registry).catch(note("totals")),
+        subscription
+          ? (
+              client.readContract({
+                address: subscription,
+                abi: SUBSCRIPTION_ABI,
+                functionName: "totalActiveSubscribers",
+              }) as Promise<bigint>
+            ).catch(note("subscribers"))
+          : Promise.resolve(null),
         getRecentLicenses(client, registry, 10).catch(note("licenses")),
         passportAddress
           ? getRecentPassports(client, passportAddress, 10).catch(
@@ -121,7 +143,10 @@ export async function GET() {
           : Promise.resolve(null),
       ]);
 
-    if (!passportAddress) errors.push("passports (NEXT_PUBLIC_PASSPORT_NFT unset)");
+    if (!passportAddress)
+      errors.push("passports (NEXT_PUBLIC_PASSPORT_NFT unset)");
+    if (!subscription)
+      errors.push("activeSubscribers (NEXT_PUBLIC_MUSIC_SUBSCRIPTION unset)");
 
     const catalogue = catalogueRes?.tracks ?? [];
     const totals = totalsRes ?? { totalMasters: 0, totalLicenses: 0 };
@@ -151,11 +176,16 @@ export async function GET() {
     const music = nfts.filter((n) => !n.isArt);
     const art = nfts.filter((n) => n.isArt);
 
-    // The indexer's "Active Users" counted every address it had ever seen in an event, which no
-    // contract read can reproduce — there is no user registry, and the logs are out of reach.
-    // This counts distinct addresses that currently hold or created something, which is a
-    // smaller and different number. The consumers relabel the tile "Participants" rather than
-    // presenting this as the old figure.
+    // The indexer's "Active Users" counted every address it had ever seen in an event. That
+    // exact figure is not reproducible — an address that appeared once in an event and holds
+    // nothing leaves no trace in contract state, and the logs are out of reach.
+    //
+    // But "there is no user registry" — which this comment said until it was re-checked — is
+    // wrong: MusicSubscriptionV6 maintains `totalActiveSubscribers`, a live counter of paying
+    // subscribers, reported separately below. Two honest numbers beat one invented one.
+    //
+    // This set is distinct addresses that currently hold or created something. The consumers
+    // label the tile "Participants" rather than presenting it as the old figure.
     const participants = new Set<string>();
     for (const n of nfts) participants.add(n.artist.toLowerCase());
     for (const l of licenses)
@@ -179,6 +209,10 @@ export async function GET() {
           totalLicenses: totals.totalLicenses,
           totalPassports: passports.length,
           totalParticipants: participants.size,
+          // Paying subscribers right now, straight off the contract. `null` when the read failed
+          // or the address is unset — never 0, which would read as "nobody subscribes".
+          activeSubscribers:
+            subscribersRes === null ? null : Number(subscribersRes),
         },
         allNFTs: nfts.slice(0, 10),
         music: music.slice(0, 10),
