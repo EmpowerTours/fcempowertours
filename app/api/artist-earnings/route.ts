@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  PLAY_HISTORY_KEY,
+  PLAY_HISTORY_CAP,
+  toPlayWindow,
+} from "@/lib/play-ledger";
+import {
   createPublicClient,
   http,
   parseAbi,
@@ -101,8 +106,12 @@ export async function GET(req: NextRequest) {
       }));
 
     // Recent plays from the Redis ledger — the live-radio route writes each play here and trims
-    // to the last 100, so this is a recent window, not a lifetime count.
+    // to a fixed cap, so this is a recent window, not a lifetime count. When the window comes
+    // back FULL the count derived from it is a floor: this endpoint reported totalPlays 100
+    // against a contract lifetime of 5, with the per-song breakdown summing to exactly the cap,
+    // and nothing in the response said so.
     let plays: any[] = [];
+    let playsSaturated = false;
     try {
       const { Redis } = await import("@upstash/redis");
       const redisClient = new Redis({
@@ -110,10 +119,13 @@ export async function GET(req: NextRequest) {
         token: process.env.UPSTASH_REDIS_REST_TOKEN!,
       });
       const history = await redisClient.lrange(
-        "live-radio:play-history",
+        PLAY_HISTORY_KEY,
         0,
-        99,
+        PLAY_HISTORY_CAP - 1,
       );
+      // Saturation is a property of the WHOLE ledger, not of this artist's slice: the window is
+      // filtered below, and a filtered count taken from a full window is just as much a floor.
+      playsSaturated = toPlayWindow(history, (e) => e ?? null).saturated;
       plays = history
         .map((entry: any) =>
           typeof entry === "string" ? JSON.parse(entry) : entry,
@@ -342,6 +354,14 @@ export async function GET(req: NextRequest) {
       // Recent window from the Redis ledger, not a lifetime figure — `totalPlaysAllTime` below
       // is the authoritative one, from the subscription contract.
       totalPlays: plays.length,
+      /**
+       * True when `totalPlays` and every `songBreakdown[].plays` are FLOORS rather than counts,
+       * because the ledger is at its cap and older plays have been dropped. A caller must render
+       * "100+" or "at least 100", never "100".
+       */
+      totalPlaysIsFloor: playsSaturated,
+      /** The ledger's cap, so a caller does not have to hard-code it to explain the floor. */
+      playWindowCap: PLAY_HISTORY_CAP,
       totalPlaysAllTime: contractPlayCount,
       totalLicenseCount: licenses.length,
       // Named so a caller can render "unavailable" instead of a zero that looks measured.

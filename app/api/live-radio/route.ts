@@ -35,7 +35,11 @@ const LISTENER_STATS_KEY = "live-radio:listener-stats";
 const _ACTIVE_LISTENERS_KEY = "live-radio:active-listeners"; // Legacy - individual keys
 const ACTIVE_LISTENERS_ZSET = "live-radio:active-listeners-zset"; // ZSET for efficient counting
 const DAILY_FIRST_LISTENER_KEY = "live-radio:first-listener";
-const PLAY_HISTORY_KEY = "live-radio:play-history"; // Recent plays list
+// Key and cap come from lib/play-ledger so the writer's trim and every reader's
+// saturation check cannot drift apart. A reader that hard-codes the cap starts calling a
+// full ledger unsaturated the moment this trim changes, and goes back to presenting a
+// floor as a count.
+import { PLAY_HISTORY_KEY, PLAY_HISTORY_TRIM_STOP } from "@/lib/play-ledger";
 const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
 const SONG_DURATIONS_KEY = "live-radio:song-durations"; // tokenId -> real seconds, reported by clients
 
@@ -128,7 +132,6 @@ interface ListenerStats {
   firstListenerBonuses: number;
   lastRewardedSongId?: string; // Track last song rewarded to prevent duplicate rewards
 }
-
 
 // Record plays on-chain for active radio listeners when a song finishes
 async function recordRadioPlays(tokenId: string, duration: number) {
@@ -665,7 +668,7 @@ export async function POST(req: NextRequest) {
           paidAmount: queuedSong.paidAmount,
         }),
       );
-      await redis.ltrim(PLAY_HISTORY_KEY, 0, 99);
+      await redis.ltrim(PLAY_HISTORY_KEY, 0, PLAY_HISTORY_TRIM_STOP);
 
       // Broadcast state update so all listeners switch to the new song
       broadcastRadioUpdate("state_update", { type: "song_playing", state });
@@ -728,7 +731,10 @@ export async function POST(req: NextRequest) {
 
       // Update listener stats
       const userKey = userAddress.toLowerCase();
-      const stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
+      const stats = await redis.hget<ListenerStats>(
+        LISTENER_STATS_KEY,
+        userKey,
+      );
       if (stats) {
         stats.voiceNotesSubmitted++;
         await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
@@ -814,7 +820,10 @@ export async function POST(req: NextRequest) {
 
       // Update listener stats
       const userKey = userAddress.toLowerCase();
-      const stats = await redis.hget<ListenerStats>(LISTENER_STATS_KEY, userKey);
+      const stats = await redis.hget<ListenerStats>(
+        LISTENER_STATS_KEY,
+        userKey,
+      );
       if (stats) {
         stats.voiceNotesSubmitted++;
         await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
@@ -1186,7 +1195,9 @@ export async function POST(req: NextRequest) {
       // rest of the app shows.
       let randomSong: any = null;
       try {
-        const { getResolvedCatalogue } = await import("@/lib/catalogue-resolved");
+        const { getResolvedCatalogue } = await import(
+          "@/lib/catalogue-resolved"
+        );
         const { tracks } = await getResolvedCatalogue({ limit: 100 });
         const songs = tracks
           .filter((t) => t.audioUrl && t.audioUrl.length > 0)
@@ -1252,7 +1263,7 @@ export async function POST(req: NextRequest) {
 
       // Log to play history
       await redis.lpush(
-        "live-radio:play-history",
+        PLAY_HISTORY_KEY,
         JSON.stringify({
           tokenId: randomSong.tokenId,
           name: randomSong.name,
@@ -1265,7 +1276,7 @@ export async function POST(req: NextRequest) {
           skippedBy: userAddress,
         }),
       );
-      await redis.ltrim("live-radio:play-history", 0, 99);
+      await redis.ltrim(PLAY_HISTORY_KEY, 0, PLAY_HISTORY_TRIM_STOP);
 
       // Broadcast to all listeners
       broadcastRadioUpdate("state_update", { type: "song_skipped", state });

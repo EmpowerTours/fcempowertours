@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { formatEther } from 'viem';
-import { Redis } from '@upstash/redis';
+import { NextRequest, NextResponse } from "next/server";
+import { formatEther } from "viem";
+import { Redis } from "@upstash/redis";
 
 /**
  * Streaming Stats API
@@ -13,16 +13,22 @@ import { Redis } from '@upstash/redis';
  *    eth_getLogs capped at 100 blocks on the public RPC and 10 on the current key.
  */
 
-
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const PLAY_HISTORY_KEY = 'live-radio:play-history';
+import { PLAY_HISTORY_KEY, PLAY_HISTORY_CAP } from "@/lib/play-ledger";
 
 interface StreamingStats {
   totalPlays: number;
+  /**
+   * True when `totalPlays` is a FLOOR: it came from the trimmed play ledger rather than the
+   * uncapped counter, and the ledger is full. Render "100+", never "100".
+   */
+  totalPlaysIsFloor: boolean;
+  /** The ledger's cap, so a caller need not hard-code it to explain the floor. */
+  playWindowCap: number;
   totalSalesWMON: string;
   uniqueListeners: number;
   uniqueArtists: number;
@@ -46,18 +52,31 @@ interface StreamingStats {
     songName?: string;
     artistAddress?: string;
   }[];
-  topSongs: { tokenId: string; name: string; salesCount: number; artist: string; totalRevenue: string }[];
-  topArtists: { address: string; totalSales: string; songCount: number; licensesSold: number }[];
+  topSongs: {
+    tokenId: string;
+    name: string;
+    salesCount: number;
+    artist: string;
+    totalRevenue: string;
+  }[];
+  topArtists: {
+    address: string;
+    totalSales: string;
+    songCount: number;
+    licensesSold: number;
+  }[];
 }
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get('limit') || '15');
+    const limit = parseInt(searchParams.get("limit") || "15");
 
     const stats: StreamingStats = {
       totalPlays: 0,
-      totalSalesWMON: '0',
+      totalPlaysIsFloor: false,
+      playWindowCap: PLAY_HISTORY_CAP,
+      totalSalesWMON: "0",
       uniqueListeners: 0,
       uniqueArtists: 0,
       recentPlays: [],
@@ -77,12 +96,15 @@ export async function GET(req: NextRequest) {
     // txHash is gone: contract reads cannot know the minting transaction, and eth_getLogs is
     // capped at 100 blocks on the public RPC and 10 on the current key.
     try {
-      const { getRecentLicenses } = await import('@/lib/user-holdings');
-      const { getResolvedCatalogue } = await import('@/lib/catalogue-resolved');
-      const { activeChain } = await import('@/app/chains');
-      const { createPublicClient, http } = await import('viem');
+      const { getRecentLicenses } = await import("@/lib/user-holdings");
+      const { getResolvedCatalogue } = await import("@/lib/catalogue-resolved");
+      const { activeChain } = await import("@/app/chains");
+      const { createPublicClient, http } = await import("viem");
 
-      const client = createPublicClient({ chain: activeChain, transport: http() }) as any;
+      const client = createPublicClient({
+        chain: activeChain,
+        transport: http(),
+      }) as any;
 
       const [recentLicences, catalogue] = await Promise.all([
         getRecentLicenses(client, undefined, 50).catch(() => []),
@@ -101,11 +123,15 @@ export async function GET(req: NextRequest) {
               id: l.licenseId,
               licenseId: l.licenseId,
               masterTokenId: l.masterTokenId,
-              licensee: l.licensee ?? '',
+              licensee: l.licensee ?? "",
               createdAt: String(l.mintedAt),
-              txHash: '',
+              txHash: "",
               masterToken: master
-                ? { name: master.name, artist: master.artist, price: master.price }
+                ? {
+                    name: master.name,
+                    artist: master.artist,
+                    price: master.price,
+                  }
                 : undefined,
             };
           }),
@@ -119,7 +145,7 @@ export async function GET(req: NextRequest) {
         },
       };
 
-      console.log('[StreamingStats] chain reads:', {
+      console.log("[StreamingStats] chain reads:", {
         licences: salesData.data.MusicLicense.length,
         tracks: salesData.data.MusicNFT.length,
       });
@@ -130,13 +156,20 @@ export async function GET(req: NextRequest) {
 
         // Calculate total sales and artist stats
         let totalSales = BigInt(0);
-        const artistStats = new Map<string, { sales: bigint; songs: Set<string>; licenses: number }>();
-        const songStats = new Map<string, { name: string; artist: string; salesCount: number; revenue: bigint }>();
+        const artistStats = new Map<
+          string,
+          { sales: bigint; songs: Set<string>; licenses: number }
+        >();
+        const songStats = new Map<
+          string,
+          { name: string; artist: string; salesCount: number; revenue: bigint }
+        >();
 
         // Process licenses (sales)
         licenses.forEach((license: any) => {
-          const price = BigInt(license.masterToken?.price || '0');
-          const artistAddress = license.masterToken?.artist?.toLowerCase() || '';
+          const price = BigInt(license.masterToken?.price || "0");
+          const artistAddress =
+            license.masterToken?.artist?.toLowerCase() || "";
           const tokenId = license.masterTokenId;
           const songName = license.masterToken?.name || `Song #${tokenId}`;
 
@@ -147,7 +180,11 @@ export async function GET(req: NextRequest) {
           // Track artist stats
           if (artistAddress) {
             if (!artistStats.has(artistAddress)) {
-              artistStats.set(artistAddress, { sales: BigInt(0), songs: new Set(), licenses: 0 });
+              artistStats.set(artistAddress, {
+                sales: BigInt(0),
+                songs: new Set(),
+                licenses: 0,
+              });
             }
             const stat = artistStats.get(artistAddress)!;
             stat.sales += artistPayment;
@@ -157,7 +194,12 @@ export async function GET(req: NextRequest) {
 
           // Track song stats
           if (!songStats.has(tokenId)) {
-            songStats.set(tokenId, { name: songName, artist: artistAddress, salesCount: 0, revenue: BigInt(0) });
+            songStats.set(tokenId, {
+              name: songName,
+              artist: artistAddress,
+              salesCount: 0,
+              revenue: BigInt(0),
+            });
           }
           const sstat = songStats.get(tokenId)!;
           sstat.salesCount++;
@@ -169,8 +211,10 @@ export async function GET(req: NextRequest) {
           licenseId: license.licenseId,
           masterTokenId: license.masterTokenId,
           buyer: license.licensee,
-          price: license.masterToken?.price || '0',
-          priceFormatted: formatEther(BigInt(license.masterToken?.price || '0')),
+          price: license.masterToken?.price || "0",
+          priceFormatted: formatEther(
+            BigInt(license.masterToken?.price || "0"),
+          ),
           createdAt: license.createdAt,
           txHash: license.txHash,
           songName: license.masterToken?.name,
@@ -204,21 +248,21 @@ export async function GET(req: NextRequest) {
           }));
       }
     } catch (error) {
-      console.error('[StreamingStats] Error fetching sales data:', error);
+      console.error("[StreamingStats] Error fetching sales data:", error);
     }
 
     // Fetch radio play data from Redis (live-radio tracks plays and listeners)
     try {
-      const LISTENER_STATS_KEY = 'live-radio:listener-stats';
-      const RADIO_STATE_KEY = 'live-radio:state';
+      const LISTENER_STATS_KEY = "live-radio:listener-stats";
+      const RADIO_STATE_KEY = "live-radio:state";
 
       // Get play history from Redis
       const playHistory = await redis.lrange(PLAY_HISTORY_KEY, 0, limit - 1);
       const plays = playHistory.map((item: any) => {
-        const entry = typeof item === 'string' ? JSON.parse(item) : item;
+        const entry = typeof item === "string" ? JSON.parse(item) : item;
         return {
-          user: entry.queuedBy || '',
-          masterTokenId: entry.tokenId || '',
+          user: entry.queuedBy || "",
+          masterTokenId: entry.tokenId || "",
           duration: 0,
           timestamp: Math.floor((entry.playedAt || 0) / 1000),
           txHash: `radio-${entry.tokenId}-${entry.playedAt}`,
@@ -230,11 +274,18 @@ export async function GET(req: NextRequest) {
       stats.recentPlays = plays;
 
       // Get total plays from radio state
-      const radioState = await redis.get<{ totalSongsPlayed?: number }>(RADIO_STATE_KEY);
+      const radioState = await redis.get<{ totalSongsPlayed?: number }>(
+        RADIO_STATE_KEY,
+      );
       const totalFromState = radioState?.totalSongsPlayed || 0;
-      // Use the higher of state count or history length
+      // The higher of the running counter and the ledger length. The counter is uncapped; the
+      // ledger is not, so when the LEDGER wins and is full the answer is a floor rather than a
+      // count — there were at least this many plays and the older ones were trimmed away.
       const historyLength = await redis.llen(PLAY_HISTORY_KEY);
       stats.totalPlays = Math.max(totalFromState, historyLength);
+      stats.totalPlaysIsFloor =
+        historyLength >= PLAY_HISTORY_CAP && historyLength >= totalFromState;
+      stats.playWindowCap = PLAY_HISTORY_CAP;
 
       // Get unique listeners from listener stats hash
       const allListenerStats = await redis.hgetall(LISTENER_STATS_KEY);
@@ -242,23 +293,25 @@ export async function GET(req: NextRequest) {
         stats.uniqueListeners = Object.keys(allListenerStats).length;
       }
     } catch (redisError) {
-      console.error('[StreamingStats] Redis play data error:', redisError);
+      console.error("[StreamingStats] Redis play data error:", redisError);
     }
 
     return NextResponse.json({
       success: true,
       stats,
       sources: {
-        sales: 'chain (LicenseRegistry)',
-        plays: 'redis (live-radio)',
+        sales: "chain (LicenseRegistry)",
+        plays: "redis (live-radio)",
       },
     });
-
   } catch (error: any) {
-    console.error('[StreamingStats] Error:', error);
+    console.error("[StreamingStats] Error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to fetch streaming stats' },
-      { status: 500 }
+      {
+        success: false,
+        error: error.message || "Failed to fetch streaming stats",
+      },
+      { status: 500 },
     );
   }
 }
