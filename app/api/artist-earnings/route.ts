@@ -39,10 +39,10 @@ export async function GET(req: NextRequest) {
     //   per artist, which is authoritative and better than counting event rows.
     // - Per-song play breakdown is NOT contract state. The Redis play ledger has it, capped at
     //   the last 100 plays, so the breakdown is recent rather than lifetime and says so.
-    // - TIPS ARE UNRECOVERABLE. LiveRadioV3 emits TipReceived and stores nothing, so historical
-    //   tip totals live only in event logs — and eth_getLogs is capped at 100 blocks on the
-    //   public RPC and 10 on the current key. Reporting 0 as though it were a measured zero
-    //   would be a lie, so the response marks tips unavailable and the UI can say so.
+    // - Tips ARE contract state, contrary to the first pass at this file. `queueSong` emits
+    //   TipReceived *and* pushes a QueuedSong carrying `tipAmount` into the public `songQueue`
+    //   array, which nothing ever removes from — `queueHead` is a read cursor, not a pop. So the
+    //   lifetime record is readable without touching a log. See lib/radio-queue.ts.
     const unavailable: string[] = [];
 
     const { getResolvedCatalogue } = await import('@/lib/catalogue-resolved');
@@ -103,9 +103,27 @@ export async function GET(req: NextRequest) {
       unavailable.push('recentPlays');
     }
 
-    // Tips: see the note above. No source exists.
-    const tips: any[] = [];
-    unavailable.push('tips');
+    // Tips: read from the queue. A read failure marks tips unavailable rather than reporting 0,
+    // because a broken read and a genuinely untipped artist must not look identical.
+    let tips: { amount: bigint; masterTokenId: string; tipper: string }[] = [];
+    const radioAddress = process.env.NEXT_PUBLIC_LIVE_RADIO as Address | undefined;
+    if (!radioAddress) {
+      unavailable.push('tips (NEXT_PUBLIC_LIVE_RADIO unset)');
+    } else {
+      try {
+        const { readRadioQueue, tipsForMasters } = await import('@/lib/radio-queue');
+        const queue = await readRadioQueue(readClient as any, radioAddress);
+        if (queue.truncated) unavailable.push('tips (queue longer than the read cap)');
+        tips = tipsForMasters(queue, myTokenIds).map((e) => ({
+          amount: e.tipAmount,
+          masterTokenId: e.masterTokenId,
+          tipper: e.queuedBy,
+        }));
+      } catch (err: any) {
+        console.warn('[ArtistEarnings] queue read failed:', err.message?.slice(0, 80));
+        unavailable.push('tips');
+      }
+    }
 
     // artistPayout on the play events was always 0 — the real money comes from the subscription
     // contract's monthly distribution, read below.
@@ -187,7 +205,7 @@ export async function GET(req: NextRequest) {
     const supporterMap = new Map<string, { totalPaid: bigint; songsQueued: number }>();
 
     for (const tip of tips) {
-      const amount = BigInt(tip.amount || '0');
+      const amount = tip.amount;
       totalTipsWei += amount;
 
       const tokenId = tip.masterTokenId;
