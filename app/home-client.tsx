@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import DynamicCastFrame from './components/DynamicCastFrame';
+import DynamicCastFrame from "./components/DynamicCastFrame";
 
 export default function HomeClient() {
   return (
@@ -91,7 +91,9 @@ export default function HomeClient() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-8 text-center">
             <div>
-              <div className="text-4xl font-bold text-purple-400 mb-2">Live</div>
+              <div className="text-4xl font-bold text-purple-400 mb-2">
+                Live
+              </div>
               <div className="text-purple-300">On Mainnet</div>
             </div>
             <div>
@@ -102,9 +104,13 @@ export default function HomeClient() {
               <div className="text-4xl font-bold text-pink-400 mb-2">100%</div>
               <div className="text-pink-300">Gasless</div>
             </div>
+            {/* Was "Envio / Powered" — a public claim about an indexer the app no longer runs.
+                Reading straight from the contracts is the more accurate boast anyway. */}
             <div>
-              <div className="text-4xl font-bold text-green-400 mb-2">Envio</div>
-              <div className="text-green-300">Powered</div>
+              <div className="text-4xl font-bold text-green-400 mb-2">
+                On-chain
+              </div>
+              <div className="text-green-300">Read direct</div>
             </div>
           </div>
         </div>
@@ -117,10 +123,18 @@ export default function HomeClient() {
             Built with ❤️ for Monad & Farcaster
           </p>
           <div className="flex justify-center gap-6 text-sm text-purple-400">
-            <a href="/monad-sync" className="hover:text-yellow-300">👁️ Monad Sync</a>
-            <a href="/profile" className="hover:text-purple-300">Profile</a>
-            <a href="/market" className="hover:text-purple-300">Market</a>
-            <a href="/dashboard" className="hover:text-purple-300">Dashboard</a>
+            <a href="/monad-sync" className="hover:text-yellow-300">
+              👁️ Monad Sync
+            </a>
+            <a href="/profile" className="hover:text-purple-300">
+              Profile
+            </a>
+            <a href="/market" className="hover:text-purple-300">
+              Market
+            </a>
+            <a href="/dashboard" className="hover:text-purple-300">
+              Dashboard
+            </a>
           </div>
         </div>
       </footer>
@@ -128,13 +142,25 @@ export default function HomeClient() {
       {/* Animations */}
       <style jsx>{`
         @keyframes blob {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
+          0%,
+          100% {
+            transform: translate(0, 0) scale(1);
+          }
+          33% {
+            transform: translate(30px, -50px) scale(1.1);
+          }
+          66% {
+            transform: translate(-20px, 20px) scale(0.9);
+          }
         }
         @keyframes gradient {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
+          0%,
+          100% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
         }
         .animate-blob {
           animation: blob 7s infinite;
