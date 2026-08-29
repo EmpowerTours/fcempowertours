@@ -5,13 +5,14 @@ import { Redis } from '@upstash/redis';
 /**
  * Streaming Stats API
  *
- * Uses Envio indexer data:
- * 1. MusicLicense = purchases (artist payments at 70%)
- * 2. MusicNFT = song metadata
- * 3. RadioPlay = radio plays (falls back to Redis if Envio not indexed)
+ * Sources:
+ * 1. Licences and song metadata — read from the contracts. Licence ids come from a monotonic
+ *    counter offset by 1,000,000, so "most recent" is the top of that range.
+ * 2. Radio plays — the Redis ledger written by the live-radio route, trimmed to the last 100.
+ *    Plays are not contract state, and the events that carried them are unreachable with
+ *    eth_getLogs capped at 100 blocks on the public RPC and 10 on the current key.
  */
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -65,48 +66,62 @@ export async function GET(req: NextRequest) {
       topArtists: [],
     };
 
-    // Fetch all data from Envio (sales + NFTs + plays)
+    // Sales and catalogue from the contracts; plays from Redis, as before.
+    //
+    // Licence ids come from a monotonic counter offset by 1,000,000, so "the 50 most recent" is
+    // the top of that range rather than a query. Each is joined to its master here so the song
+    // name and artist on a sale are the same ones the catalogue shows — the indexer resolved
+    // that with a `masterToken` sub-selection, and doing it in one place keeps the two from
+    // drifting apart.
+    //
+    // txHash is gone: contract reads cannot know the minting transaction, and eth_getLogs is
+    // capped at 100 blocks on the public RPC and 10 on the current key.
     try {
-      // Query licenses and NFTs - RadioPlay has different schema, use Redis fallback
-      const salesQuery = `
-        query GetSalesData {
-          MusicLicense(limit: 50, order_by: {createdAt: desc}) {
-            id
-            licenseId
-            masterTokenId
-            licensee
-            createdAt
-            txHash
-            masterToken {
-              name
-              artist
-              price
-            }
-          }
-          MusicNFT(where: {isBurned: {_eq: false}}, limit: 100) {
-            tokenId
-            name
-            artist
-            price
-            totalSold
-          }
-        }
-      `;
+      const { getRecentLicenses } = await import('@/lib/user-holdings');
+      const { getResolvedCatalogue } = await import('@/lib/catalogue-resolved');
+      const { activeChain } = await import('@/app/chains');
+      const { createPublicClient, http } = await import('viem');
 
-      const salesResponse = await fetch(ENVIO_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: salesQuery }),
-      });
+      const client = createPublicClient({ chain: activeChain, transport: http() }) as any;
 
-      const salesData = await salesResponse.json();
+      const [recentLicences, catalogue] = await Promise.all([
+        getRecentLicenses(client, undefined, 50).catch(() => []),
+        getResolvedCatalogue({ client, limit: 1000 }).catch(() => null),
+      ]);
 
-      // Debug: Log what Envio returns
-      console.log('[StreamingStats] Envio response:', {
-        hasData: !!salesData.data,
-        licensesCount: salesData.data?.MusicLicense?.length || 0,
-        nftsCount: salesData.data?.MusicNFT?.length || 0,
-        errors: salesData.errors,
+      const byTokenId = new Map(
+        (catalogue?.tracks ?? []).map((t) => [t.tokenId, t]),
+      );
+
+      const salesData = {
+        data: {
+          MusicLicense: recentLicences.map((l) => {
+            const master = byTokenId.get(l.masterTokenId);
+            return {
+              id: l.licenseId,
+              licenseId: l.licenseId,
+              masterTokenId: l.masterTokenId,
+              licensee: l.licensee ?? '',
+              createdAt: String(l.mintedAt),
+              txHash: '',
+              masterToken: master
+                ? { name: master.name, artist: master.artist, price: master.price }
+                : undefined,
+            };
+          }),
+          MusicNFT: (catalogue?.tracks ?? []).map((t) => ({
+            tokenId: t.tokenId,
+            name: t.name,
+            artist: t.artist,
+            price: t.price,
+            totalSold: 0,
+          })),
+        },
+      };
+
+      console.log('[StreamingStats] chain reads:', {
+        licences: salesData.data.MusicLicense.length,
+        tracks: salesData.data.MusicNFT.length,
       });
 
       if (salesData.data) {
@@ -234,7 +249,7 @@ export async function GET(req: NextRequest) {
       success: true,
       stats,
       sources: {
-        sales: 'envio (MusicLicense, MusicNFT)',
+        sales: 'chain (LicenseRegistry)',
         plays: 'redis (live-radio)',
       },
     });

@@ -5,7 +5,6 @@ export const runtime = "edge";
 
 const PINATA_GATEWAY =
   process.env.PINATA_GATEWAY || "harlequin-used-hare-224.mypinata.cloud";
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const NEYNAR_API_KEY =
   process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
 const MONAD_RPC = process.env.MONAD_RPC_URL || "https://rpc.monad.xyz";
@@ -174,112 +173,22 @@ export async function GET(request: NextRequest) {
         console.log("✅ Using cached OG data");
         musicData = cached.data;
       } else {
-        console.log("🔍 Querying Envio for token:", tokenId);
+        // Read the contract. This route already had `getMetadataFromBlockchain` as the
+        // fallback for when the indexer did not know a token — which was every token minted
+        // after the indexer stopped, so the fallback was doing the work. Promoting it removes
+        // one network hop and the whole "found in the index but stale" failure mode.
+        console.log("🔗 Reading token from chain:", tokenId);
         try {
-          const query = `
-            query {
-              MusicNFT(where: { tokenId: { _eq: "${tokenId}" } }, limit: 1) {
-                tokenId
-                name
-                imageUrl
-                price
-                artist
-              }
-            }
-          `;
-
-          const response = await fetch(ENVIO_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query }),
-            cache: "no-store",
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            const nft = data.data?.MusicNFT?.[0];
-
-            if (nft) {
-              console.log("✅ Found in Envio:", nft);
-
-              const priceDisplay = convertPriceFromWei(nft.price || "0");
-
-              let artistDisplay = nft.artist || "Artist";
-              if (nft.artist && nft.artist.startsWith("0x")) {
-                const fid = await getFidFromWallet(nft.artist);
-                if (fid) {
-                  artistDisplay = `@${fid}`;
-                  console.log("✅ Converted wallet to FID:", fid);
-                }
-              }
-
-              musicData = {
-                tokenId: nft.tokenId,
-                name: nft.name || "New Release",
-                imageUrl: nft.imageUrl,
-                price: priceDisplay,
-                artist: artistDisplay,
-              };
-
-              ogCache.set(`music:${tokenId}`, {
-                data: musicData,
-                expiry: Date.now() + 5 * 60 * 1000,
-              });
-
-              console.log("✅ Got from Envio and cached");
-            } else {
-              console.log("⚠️ Token not found in Envio, trying blockchain...");
-
-              const blockchainData = await getMetadataFromBlockchain(tokenId);
-              if (blockchainData) {
-                const priceDisplay = convertPriceFromWei(
-                  blockchainData.price || "0",
-                );
-
-                let artistDisplay = blockchainData.artist || "Artist";
-                if (
-                  blockchainData.artist &&
-                  blockchainData.artist.startsWith("0x")
-                ) {
-                  const fid = await getFidFromWallet(blockchainData.artist);
-                  if (fid) {
-                    artistDisplay = `@${fid}`;
-                    console.log("✅ Converted wallet to FID:", fid);
-                  }
-                }
-
-                musicData = {
-                  ...blockchainData,
-                  price: priceDisplay,
-                  artist: artistDisplay,
-                };
-
-                ogCache.set(`music:${tokenId}`, {
-                  data: musicData,
-                  expiry: Date.now() + 5 * 60 * 1000,
-                });
-
-                console.log("✅ Got from blockchain");
-              }
-            }
-          }
-        } catch (err: any) {
-          console.error("❌ Envio query failed:", err.message);
-
           const blockchainData = await getMetadataFromBlockchain(tokenId);
           if (blockchainData) {
-            const priceDisplay = convertPriceFromWei(
-              blockchainData.price || "0",
-            );
+            const priceDisplay = convertPriceFromWei(blockchainData.price || "0");
+
             let artistDisplay = blockchainData.artist || "Artist";
-            if (
-              blockchainData.artist &&
-              blockchainData.artist.startsWith("0x")
-            ) {
+            if (blockchainData.artist && blockchainData.artist.startsWith("0x")) {
+              // `@handle` is reserved for a real Farcaster account. When there is none the
+              // address stands, rather than inventing a handle for a wallet-only artist.
               const fid = await getFidFromWallet(blockchainData.artist);
-              if (fid) {
-                artistDisplay = `@${fid}`;
-              }
+              if (fid) artistDisplay = `@${fid}`;
             }
 
             musicData = {
@@ -288,11 +197,15 @@ export async function GET(request: NextRequest) {
               artist: artistDisplay,
             };
 
-            ogCache.set(`music:${tokenId}`, {
+            ogCache.set(`art:${tokenId}`, {
               data: musicData,
               expiry: Date.now() + 5 * 60 * 1000,
             });
           }
+        } catch (err: any) {
+          // An OG image that fails to read still renders — the default card is better than a
+          // broken preview in a cast.
+          console.error("❌ Chain read failed:", err.message);
         }
       }
     }

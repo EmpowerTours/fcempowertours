@@ -39,7 +39,8 @@ const PLAY_HISTORY_KEY = "live-radio:play-history"; // Recent plays list
 const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
 const SONG_DURATIONS_KEY = "live-radio:song-durations"; // tokenId -> real seconds, reported by clients
 
-// Envio has no duration field, so the scheduler used a flat 600s slot per song
+// Neither the indexer nor the contract records a track duration, so the scheduler uses a
+// flat 600s slot per song
 // while real tracks run ~3-4 min. Clients report the true length off the audio
 // element the first time they load a track; the scheduler then schedules against
 // that instead of the fallback. Bounds guard against junk metadata (Infinity,
@@ -128,7 +129,6 @@ interface ListenerStats {
   lastRewardedSongId?: string; // Track last song rewarded to prevent duplicate rewards
 }
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 
 // Record plays on-chain for active radio listeners when a song finishes
 async function recordRadioPlays(tokenId: string, duration: number) {
@@ -222,53 +222,6 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action");
-
-    // Debug: Test Envio connection and fetch available songs
-    if (action === "debug-songs") {
-      try {
-        const query = `
-          query GetMusicNFTs {
-            MusicNFT(where: {isBurned: {_eq: false}}, limit: 50) {
-              tokenId
-              name
-              artist
-              artistFid
-              fullAudioUrl
-              imageUrl
-            }
-          }
-        `;
-
-        const response = await fetch(ENVIO_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
-        });
-
-        const data = await response.json();
-        const rawSongs = data.data?.MusicNFT || [];
-
-        // Map fullAudioUrl to audioUrl for compatibility
-        const songs = rawSongs.map((song: any) => ({
-          ...song,
-          audioUrl: song.fullAudioUrl || song.audioUrl,
-        }));
-
-        return NextResponse.json({
-          success: true,
-          envioEndpoint: ENVIO_ENDPOINT,
-          songsCount: songs.length,
-          songs: songs.slice(0, 10), // Return first 10 for debugging
-          rawResponse: data.errors ? { errors: data.errors } : undefined,
-        });
-      } catch (error: any) {
-        return NextResponse.json({
-          success: false,
-          envioEndpoint: ENVIO_ENDPOINT,
-          error: error.message,
-        });
-      }
-    }
 
     // Get queue
     if (action === "queue") {
@@ -1227,31 +1180,24 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Fetch random song from Envio (same source the scheduler uses)
-      const ENVIO = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
+      // Read the catalogue rather than the indexer. `getResolvedCatalogue` already resolves
+      // names, cover art and audio URLs through the shared metadata cache, so this gets the same
+      // fields the query asked for without a second source that can disagree with the one the
+      // rest of the app shows.
       let randomSong: any = null;
       try {
-        const query = `
-          query GetMusicNFTs {
-            MusicNFT(where: {isBurned: {_eq: false}, fullAudioUrl: {_is_null: false}}, limit: 100) {
-              tokenId
-              name
-              artist
-              artistFid
-              fullAudioUrl
-              imageUrl
-            }
-          }
-        `;
-        const envioRes = await fetch(ENVIO, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
-        });
-        const envioData = await envioRes.json();
-        const songs = (envioData.data?.MusicNFT || []).filter(
-          (s: any) => s.fullAudioUrl && s.fullAudioUrl.length > 0,
-        );
+        const { getResolvedCatalogue } = await import("@/lib/catalogue-resolved");
+        const { tracks } = await getResolvedCatalogue({ limit: 100 });
+        const songs = tracks
+          .filter((t) => t.audioUrl && t.audioUrl.length > 0)
+          .map((t) => ({
+            tokenId: t.tokenId,
+            name: t.name,
+            artist: t.artist,
+            artistFid: 0,
+            fullAudioUrl: t.audioUrl,
+            imageUrl: t.imageUrl,
+          }));
 
         if (songs.length === 0) {
           return NextResponse.json(
@@ -1271,10 +1217,10 @@ export async function POST(req: NextRequest) {
           songs.length > 1 &&
           attempts < 5
         );
-      } catch (envioErr: any) {
+      } catch (catalogueErr: any) {
         console.error(
-          "[LiveRadio] Envio fetch failed for skip:",
-          envioErr.message,
+          "[LiveRadio] catalogue read failed for skip:",
+          catalogueErr.message,
         );
         return NextResponse.json(
           { success: false, error: "Failed to fetch available songs" },

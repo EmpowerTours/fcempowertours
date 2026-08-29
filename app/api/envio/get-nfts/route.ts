@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { getCatalogue, type CatalogueRow } from "@/lib/catalogue-source";
+import { getCatalogue } from "@/lib/catalogue-source";
 
 // Force dynamic rendering - don't cache this route
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const ENVIO_ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_ENDPOINT!;
 const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY
   ? `https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}/ipfs/`
   : "https://gateway.pinata.cloud/ipfs/";
@@ -37,63 +36,12 @@ const resolveIPFS = (url: string, _thumbnail: boolean = false): string => {
 export async function GET() {
   try {
     // Experiences were removed with the travel features — this is a music platform.
-    const musicResponse = await fetch(ENVIO_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({
-          query: `
-            query GetMusicAndArt {
-              MusicNFT(
-                where: {
-                  isBurned: {_eq: false},
-                  owner: {_neq: "0x0000000000000000000000000000000000000000"}
-                },
-                order_by: {mintedAt: desc},
-                limit: 15
-              ) {
-                id
-                tokenId
-                tokenURI
-                isArt
-                artist
-                price
-              }
-            }
-          `,
-      }),
-    });
-
-    if (!musicResponse.ok) {
-      throw new Error("Failed to fetch NFTs from Envio");
-    }
-
-    const musicData = await musicResponse.json();
-
-    // The indexer is only trusted when it is close to the chain head. It stalled on 2026-08-13
-    // and kept answering 200 with stale rows for eight days, so "the request succeeded" is not
-    // evidence of anything. `getCatalogue` checks the lag and reads the contracts instead when
-    // the indexer is behind, unreachable, or unpaid — and goes back to using it automatically
-    // once it catches up.
-    const envioRows: CatalogueRow[] = (musicData.data?.MusicNFT || []).map(
-      (n: any) => ({
-        id: n.id,
-        tokenId: n.tokenId,
-        tokenURI: n.tokenURI,
-        isArt: n.isArt,
-        artist: n.artist,
-        price: String(n.price ?? "0"),
-      }),
-    );
-
-    const catalogue = await getCatalogue({
-      limit: 15,
-      fetchFromEnvio: async () => envioRows,
-    });
-
-    if (catalogue.source === "chain") {
-      console.warn(`[get-nfts] serving from chain — ${catalogue.reason}`);
-    }
+    //
+    // The indexer branch is gone. It stalled on 2026-08-13 and kept answering 200 with stale
+    // rows for eight days, so "the request succeeded" was never evidence of anything; every
+    // token minted after that was served by the chain fallback regardless. Reading the
+    // contracts directly removes the hop and the stale-but-successful failure mode with it.
+    const catalogue = await getCatalogue({ limit: 15 });
 
     const musicNFTs = catalogue.rows;
 
@@ -255,7 +203,7 @@ export async function GET() {
       },
     );
   } catch (error: any) {
-    console.error("Error fetching NFTs from Envio:", error);
+    console.error("[get-nfts] Error fetching NFTs:", error);
     return NextResponse.json(
       {
         success: false,
