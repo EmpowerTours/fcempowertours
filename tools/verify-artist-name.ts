@@ -15,10 +15,18 @@
  * 2. **Farcaster wins when both exist**, because it is the one a third party verified.
  * 3. **A failed lookup must never cost the caller a name.** A Farcaster 404 is the normal case
  *    for a wallet-only artist — that is the whole point of the v3 identity work — not an error.
+ * 4. **A name from the on-chain `artistFid` is a WEAKER claim than one from the address.**
+ *    `mintMaster` takes the fid as an argument and never checks it against `msg.sender`, so
+ *    minting with someone else's fid is a one-argument impersonation. The order is what makes it
+ *    safe: the address tier covers custody AND verified addresses, so reaching the fid tier at
+ *    all proves the address is not attested to that fid. Swapping the two tiers would silently
+ *    upgrade an unverified claim into a verified-looking handle, which is why the FID group
+ *    below checks the ORDER and not just the output.
  */
 
 import {
   resolveArtistName,
+  resolveArtistNames,
   shortenAddress,
   _resetArtistNameCache,
 } from "../lib/artist-name.ts";
@@ -38,6 +46,10 @@ const OTHER = "0x8dF64bACf6b70F7787f8d14429b258B3fF958ec1";
 
 const fc = (name: string | null) => async () => name;
 const pr = (name: string | null) => async () => name;
+const byFid = (name: string | null) => async () => name;
+
+/** The live case: FID 765994 is @unify34, and the artist address is the deployer key. */
+const FID = 765994;
 
 // ---------------------------------------------------------------- shortening
 
@@ -133,6 +145,150 @@ check("empty is safe", shortenAddress(""), "");
   check("no lookups configured is not a crash", r.source, "address");
 }
 
+// ------------------------------------------------------- the fid tier, and why it comes second
+
+{
+  // The case this whole tier exists for: the deployer key minted the masters, has no Farcaster
+  // account, and the contract recorded the artist's fid. Without this the track shows an address.
+  _resetArtistNameCache();
+  const r = await resolveArtistName(OTHER, {
+    fid: FID,
+    lookupFarcaster: fc(null),
+    lookupFarcasterByFid: byFid("unify34"),
+  });
+  check(
+    "a fid names an artist the address lookup could not",
+    r.display,
+    "@unify34",
+  );
+  check("...reported as the weaker source", r.source, "farcaster-fid");
+  check(
+    "...and REQUIRING the address be shown, because the fid is self-asserted",
+    r.needsAddressShown,
+    true,
+  );
+}
+
+{
+  // The order is the security property. If the address resolves, the fid must not be consulted
+  // at all — not merely lose the tie-break.
+  _resetArtistNameCache();
+  let fidCalls = 0;
+  const r = await resolveArtistName(ADDR, {
+    fid: FID,
+    lookupFarcaster: fc("realhandle"),
+    lookupFarcasterByFid: async () => {
+      fidCalls++;
+      return "impostor";
+    },
+  });
+  check("a verified address beats a claimed fid", r.display, "@realhandle");
+  check("...and is reported as verified", r.source, "farcaster");
+  check(
+    "...shown without an address, unlike the fid tier",
+    r.needsAddressShown,
+    false,
+  );
+  check("...and the fid lookup is not even attempted", fidCalls, 0);
+}
+
+{
+  _resetArtistNameCache();
+  const r = await resolveArtistName(OTHER, {
+    fid: FID,
+    lookupFarcaster: fc(null),
+    lookupFarcasterByFid: byFid("unify34"),
+    lookupProfile: pr("Somebody Else"),
+  });
+  check(
+    "a fid beats a self-registered ProfileRegistry name",
+    r.display,
+    "@unify34",
+  );
+}
+
+{
+  _resetArtistNameCache();
+  let fidCalls = 0;
+  const counting = async () => {
+    fidCalls++;
+    return "unify34";
+  };
+  const zero = await resolveArtistName(OTHER, {
+    fid: 0,
+    lookupFarcaster: fc(null),
+    lookupFarcasterByFid: counting,
+  });
+  check("fid 0 means no claim, so nothing is looked up", fidCalls, 0);
+  check("...and the artist falls back to the address", zero.source, "address");
+
+  _resetArtistNameCache();
+  const none = await resolveArtistName(OTHER, {
+    lookupFarcaster: fc(null),
+    lookupFarcasterByFid: counting,
+  });
+  check("an absent fid is the same as no claim", fidCalls, 0);
+  check("...still falling back to the address", none.source, "address");
+}
+
+{
+  // Two masters, same artist address, different claimed fids. Caching on the address alone would
+  // let whichever resolved first name the other one.
+  _resetArtistNameCache();
+  const first = await resolveArtistName(OTHER, {
+    fid: 765994,
+    lookupFarcaster: fc(null),
+    lookupFarcasterByFid: byFid("unify34"),
+  });
+  const second = await resolveArtistName(OTHER, {
+    fid: 111111,
+    lookupFarcaster: fc(null),
+    lookupFarcasterByFid: byFid("someoneelse"),
+  });
+  check(
+    "the cache is keyed by fid, not by address alone",
+    first.display,
+    "@unify34",
+  );
+  check(
+    "...so a different claimed fid resolves separately",
+    second.display,
+    "@someoneelse",
+  );
+}
+
+{
+  // A fid lookup that throws must degrade to the next tier, never propagate.
+  _resetArtistNameCache();
+  const r = await resolveArtistName(OTHER, {
+    fid: FID,
+    lookupFarcaster: fc(null),
+    lookupFarcasterByFid: async () => {
+      throw new Error("neynar down");
+    },
+    lookupProfile: pr("Earvin Gallardo"),
+  });
+  check(
+    "a failing fid lookup falls through instead of throwing",
+    r.display,
+    "Earvin Gallardo",
+  );
+}
+
+// ------------------------------------------------------------------ the batch entry point
+
+{
+  _resetArtistNameCache();
+  // Bare strings must keep working: /api/artist-name has addresses and no fids.
+  const names = await resolveArtistNames([ADDR, OTHER]);
+  check("a bare address list still resolves", names.size, 2);
+  check(
+    "...to addresses when nothing else is available",
+    names.get(ADDR.toLowerCase())?.source,
+    "address",
+  );
+}
+
 // ---------------------------------------------------------------- caching
 
 {
@@ -191,29 +347,46 @@ check("empty is safe", shortenAddress(""), "");
 // "Earvin Gallardo" is valid. A validator that rejected interior spaces would block the exact
 // name this control was built for, and would look like a contract limitation rather than a bug.
 
-import {
-  validateDisplayName,
-  byteLength,
-} from "../lib/profile-name.ts";
+import { validateDisplayName, byteLength } from "../lib/profile-name.ts";
 
 check("an ordinary name passes", validateDisplayName("unify34"), null);
-check("a name WITH A SPACE passes", validateDisplayName("Earvin Gallardo"), null);
+check(
+  "a name WITH A SPACE passes",
+  validateDisplayName("Earvin Gallardo"),
+  null,
+);
 check("empty is rejected", validateDisplayName("") !== null, true);
-check("a leading space is rejected", validateDisplayName(" Earvin") !== null, true);
-check("a trailing space is rejected", validateDisplayName("Earvin ") !== null, true);
+check(
+  "a leading space is rejected",
+  validateDisplayName(" Earvin") !== null,
+  true,
+);
+check(
+  "a trailing space is rejected",
+  validateDisplayName("Earvin ") !== null,
+  true,
+);
 check(
   "a control character is rejected",
   validateDisplayName("Earvin\u0007Gallardo") !== null,
   true,
 );
-check("a tab is rejected", validateDisplayName("Earvin\tGallardo") !== null, true);
+check(
+  "a tab is rejected",
+  validateDisplayName("Earvin\tGallardo") !== null,
+  true,
+);
 
 check("bytes, not characters: ascii", byteLength("Earvin Gallardo"), 15);
 check("an accent costs two bytes", byteLength("é"), 2);
 check("an emoji costs four", byteLength("🎵"), 4);
 
 check("32 bytes is allowed", validateDisplayName("a".repeat(32)), null);
-check("33 bytes is rejected", validateDisplayName("a".repeat(33)) !== null, true);
+check(
+  "33 bytes is rejected",
+  validateDisplayName("a".repeat(33)) !== null,
+  true,
+);
 check(
   "eight emoji are 32 bytes and allowed",
   validateDisplayName("🎵".repeat(8)),

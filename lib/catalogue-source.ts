@@ -71,6 +71,16 @@ export interface CatalogueRow {
   tokenURI: string;
   isArt: boolean;
   artist: string;
+  /**
+   * The Farcaster id the minter recorded for the artist, or 0 when none was given.
+   *
+   * Read but discarded until now, which is why every master rendered as a bare address: the
+   * artist address on all five live masters is the deployer key, which has no Farcaster account,
+   * so a by-address lookup could never answer. It is an unverified claim — `mintMaster` takes it
+   * as an argument and never checks it against `msg.sender` — so `lib/artist-name.ts` treats a
+   * name resolved from it as weaker than one resolved from the address.
+   */
+  artistFid: number;
   price: string;
   /**
    * Unix seconds from the registry's `createdAt`. Zero on the legacy contract, which stores no
@@ -207,7 +217,9 @@ export async function readCatalogueFromChain(opts: {
         artist: artist.toLowerCase(),
         price: (prices[i] ?? 0n).toString(),
         // getMaster returns MULTIPLE NAMED VALUES, which viem decodes as a positional tuple —
-        // unlike a named struct, which decodes as an object. Index 2 is `createdAt`.
+        // unlike a named struct, which decodes as an object. Index 1 is `artistFid`, index 2
+        // `createdAt`. Reading these off by one yields a plausible number, not an error.
+        artistFid: Number(master[1] ?? 0),
         createdAt: Number(master[2] ?? 0),
       });
     });
@@ -230,7 +242,8 @@ export async function readCatalogueFromChain(opts: {
     if (entry?.status !== "success") return;
     const m = entry.result as readonly unknown[];
     const artist = m[1] as string;
-    if (!artist || artist === "0x0000000000000000000000000000000000000000") return;
+    if (!artist || artist === "0x0000000000000000000000000000000000000000")
+      return;
     rows.push({
       id: `music-${activeChain.id}-${id}`,
       tokenId: id.toString(),
@@ -238,6 +251,9 @@ export async function readCatalogueFromChain(opts: {
       isArt: Number(m[11]) === 1,
       artist: artist.toLowerCase(),
       price: (m[4] as bigint).toString(),
+      // The legacy layout puts artistFid FIRST and the artist address second — the opposite of
+      // v3's. Swapping them here would name every track after a number.
+      artistFid: Number(m[0] ?? 0),
       // `masterTokens` has no timestamp field, so the legacy contract genuinely cannot say when
       // a master was minted. 0 means unknown here, not 1970.
       createdAt: 0,

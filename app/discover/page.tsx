@@ -1,20 +1,29 @@
-'use client';
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
-import PageTransition, { SlideIn, FadeIn } from '@/app/components/animations/PageTransition';
-import { MusicLoader, DotsLoader } from '@/app/components/animations/AnimatedLoader';
-import { MusicEmptyState } from '@/app/components/animations/EmptyState';
-import { AnimatedStatCard, MusicNFTCard } from '@/app/components/animations/AnimatedCard';
+"use client";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import PageTransition, {
+  SlideIn,
+  FadeIn,
+} from "@/app/components/animations/PageTransition";
+import {
+  MusicLoader,
+  DotsLoader,
+} from "@/app/components/animations/AnimatedLoader";
+import { MusicEmptyState } from "@/app/components/animations/EmptyState";
+import {
+  AnimatedStatCard,
+  MusicNFTCard,
+} from "@/app/components/animations/AnimatedCard";
 
 // Constants
-const PINATA_GATEWAY = 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/';
+const PINATA_GATEWAY = "https://harlequin-used-hare-224.mypinata.cloud/ipfs/";
 
 // Utility function to resolve IPFS URLs
 const resolveIPFS = (url: string): string => {
-  if (!url) return '';
-  if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', PINATA_GATEWAY);
+  if (!url) return "";
+  if (url.startsWith("ipfs://")) {
+    return url.replace("ipfs://", PINATA_GATEWAY);
   }
   return url;
 };
@@ -38,7 +47,7 @@ interface MusicNFT {
   isArt?: boolean;
   /** Resolved server-side: Farcaster username -> ProfileRegistry name -> shortened address. */
   artistName?: string;
-  artistNameSource?: "farcaster" | "profile" | "address";
+  artistNameSource?: "farcaster" | "farcaster-fid" | "profile" | "address";
   artistNeedsAddressShown?: boolean;
   metadata?: {
     name?: string;
@@ -51,16 +60,18 @@ interface MusicNFT {
 export default function MusicDiscoveryPage() {
   const [allMusic, setAllMusic] = useState<MusicNFT[]>([]);
   const [filteredMusic, setFilteredMusic] = useState<MusicNFT[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [artistInfoCache, setArtistInfoCache] = useState<Record<string, ArtistInfo>>({});
+  const [artistInfoCache, setArtistInfoCache] = useState<
+    Record<string, ArtistInfo>
+  >({});
 
   useEffect(() => {
     loadAllMusic();
   }, []);
 
   useEffect(() => {
-    if (searchQuery.trim() === '') {
+    if (searchQuery.trim() === "") {
       setFilteredMusic(allMusic);
     } else {
       const query = searchQuery.toLowerCase();
@@ -83,8 +94,8 @@ export default function MusicDiscoveryPage() {
       // /api/catalogue reads the contracts, using the indexer only while it is demonstrably
       // fresh. This page used to query the indexer straight from the browser, so when it went
       // stale on 2026-08-01 the page served a three-week-old catalogue with nothing to say so.
-      const response = await fetch('/api/catalogue');
-      if (!response.ok) throw new Error('Failed to load music');
+      const response = await fetch("/api/catalogue");
+      if (!response.ok) throw new Error("Failed to load music");
 
       const result = await response.json();
       const tracks: Array<{
@@ -97,7 +108,11 @@ export default function MusicDiscoveryPage() {
         imageUrl: string;
         audioUrl?: string;
         artistName?: string;
-        artistNameSource?: "farcaster" | "profile" | "address";
+        artistNameSource?:
+          | "farcaster"
+          | "farcaster-fid"
+          | "profile"
+          | "address";
         artistNeedsAddressShown?: boolean;
       }> = result.tracks || [];
 
@@ -112,8 +127,8 @@ export default function MusicDiscoveryPage() {
           artist: t.artist,
           owner: t.artist,
           tokenURI: t.tokenURI,
-          mintedAt: '',
-          txHash: '',
+          mintedAt: "",
+          txHash: "",
           isArt: t.isArt,
           artistName: t.artistName,
           artistNameSource: t.artistNameSource,
@@ -128,7 +143,7 @@ export default function MusicDiscoveryPage() {
           isLoadingMetadata: false,
         }));
 
-      console.log('✅ Loaded', music.length, 'music NFTs from', result.source);
+      console.log("✅ Loaded", music.length, "music NFTs from", result.source);
 
       setAllMusic(music);
       setFilteredMusic(music);
@@ -136,11 +151,13 @@ export default function MusicDiscoveryPage() {
       // Artist display names still come from Neynar — the contracts know an address, not a
       // Farcaster profile. Kept separate from the catalogue read on purpose: an artist without a
       // Farcaster account is normal since the v3 cutover, and must not blank the listing.
-      const uniqueArtists = [...new Set(music.map((m) => m.artist.toLowerCase()))];
+      const uniqueArtists = [
+        ...new Set(music.map((m) => m.artist.toLowerCase())),
+      ];
       uniqueArtists.forEach(async (artistAddress: string) => {
         try {
           const artistRes = await fetch(
-            `/api/neynar/v2/farcaster/user/by_verification?address=${artistAddress}`
+            `/api/neynar/v2/farcaster/user/by_verification?address=${artistAddress}`,
           );
           if (artistRes.ok) {
             const data = await artistRes.json();
@@ -158,12 +175,11 @@ export default function MusicDiscoveryPage() {
             }
           }
         } catch (error) {
-          console.error('Error loading artist info:', error);
+          console.error("Error loading artist info:", error);
         }
       });
-
     } catch (error) {
-      console.error('❌ Error loading music:', error);
+      console.error("❌ Error loading music:", error);
     } finally {
       setLoading(false);
     }
@@ -172,7 +188,10 @@ export default function MusicDiscoveryPage() {
   return (
     <PageTransition className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4">
       <div className="max-w-7xl mx-auto">
-        <SlideIn direction="down" className="bg-white rounded-2xl shadow-xl p-8 mb-8">
+        <SlideIn
+          direction="down"
+          className="bg-white rounded-2xl shadow-xl p-8 mb-8"
+        >
           <motion.h1
             className="text-4xl font-bold text-gray-900 mb-4 text-center"
             initial={{ opacity: 0, y: -20 }}
@@ -203,7 +222,7 @@ export default function MusicDiscoveryPage() {
                   <motion.button
                     initial={{ opacity: 0, scale: 0 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => setSearchQuery("")}
                     className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
@@ -233,7 +252,9 @@ export default function MusicDiscoveryPage() {
               delay={0.55}
             />
             <AnimatedStatCard
-              value={[...new Set(allMusic.map((m) => m.artist.toLowerCase()))].length}
+              value={
+                [...new Set(allMusic.map((m) => m.artist.toLowerCase()))].length
+              }
               label="Artists"
               color="purple"
               delay={0.6}
@@ -298,15 +319,15 @@ export default function MusicDiscoveryPage() {
                           className="text-7xl"
                           animate={{
                             scale: [1, 1.1, 1],
-                            rotate: [0, 5, -5, 0]
+                            rotate: [0, 5, -5, 0],
                           }}
                           transition={{
                             duration: 2,
                             repeat: Infinity,
-                            ease: 'easeInOut'
+                            ease: "easeInOut",
                           }}
                         >
-                          {music.isArt ? '🎨' : '🎵'}
+                          {music.isArt ? "🎨" : "🎵"}
                         </motion.span>
                       )}
                     </div>
@@ -316,7 +337,8 @@ export default function MusicDiscoveryPage() {
                     {/* NFT Title */}
                     <div>
                       <p className="font-bold text-gray-900 text-lg truncate">
-                        {music.metadata?.name || `${music.isArt ? 'Art' : 'Track'} #${music.tokenId}`}
+                        {music.metadata?.name ||
+                          `${music.isArt ? "Art" : "Track"} #${music.tokenId}`}
                       </p>
                       <p className="text-sm text-gray-600">
                         {new Date(music.mintedAt).toLocaleDateString()}
@@ -324,13 +346,16 @@ export default function MusicDiscoveryPage() {
                     </div>
 
                     {/* Artist Info */}
-                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <motion.div
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
                       <Link
                         href={`/artist/${music.artist}`}
                         className={`block p-3 rounded-lg transition-all ${
                           music.isArt
-                            ? 'bg-blue-50 hover:bg-blue-100'
-                            : 'bg-purple-50 hover:bg-purple-100'
+                            ? "bg-blue-50 hover:bg-blue-100"
+                            : "bg-purple-50 hover:bg-purple-100"
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -342,10 +367,12 @@ export default function MusicDiscoveryPage() {
                               whileHover={{ scale: 1.1, rotate: 5 }}
                             />
                           ) : (
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                              music.isArt ? 'bg-blue-400' : 'bg-purple-300'
-                            }`}>
-                              {music.isArt ? '🎨' : '🎵'}
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                                music.isArt ? "bg-blue-400" : "bg-purple-300"
+                              }`}
+                            >
+                              {music.isArt ? "🎨" : "🎵"}
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
@@ -377,16 +404,23 @@ export default function MusicDiscoveryPage() {
                     </motion.div>
 
                     {/* Audio Preview */}
-                    {music.metadata?.animation_url && !music.isLoadingMetadata ? (
+                    {music.metadata?.animation_url &&
+                    !music.isLoadingMetadata ? (
                       <div className="bg-gray-50 rounded-lg p-2 border border-gray-200">
                         <audio
                           controls
                           preload="metadata"
                           className="w-full"
-                          style={{ height: '40px' }}
+                          style={{ height: "40px" }}
                         >
-                          <source src={resolveIPFS(music.metadata.animation_url)} type="audio/mpeg" />
-                          <source src={resolveIPFS(music.metadata.animation_url)} type="audio/wav" />
+                          <source
+                            src={resolveIPFS(music.metadata.animation_url)}
+                            type="audio/mpeg"
+                          />
+                          <source
+                            src={resolveIPFS(music.metadata.animation_url)}
+                            type="audio/wav"
+                          />
                         </audio>
                         <p className="text-xs text-gray-500 text-center mt-1">
                           🎧 Preview
@@ -427,9 +461,11 @@ export default function MusicDiscoveryPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              {loading ? <DotsLoader /> : '🔄 Refresh'}
+              {loading ? <DotsLoader /> : "🔄 Refresh"}
             </motion.button>
-            <p className="text-xs text-gray-500 mt-2">Powered by Envio Indexer</p>
+            <p className="text-xs text-gray-500 mt-2">
+              Powered by Envio Indexer
+            </p>
           </div>
         </FadeIn>
       </div>

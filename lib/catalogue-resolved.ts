@@ -24,6 +24,9 @@
  * subsequent request pay the same timeout, but it should recover without a restart.
  */
 
+// Type-only: erased at compile time, so it does not pull `@/lib/artist-name` into the module
+// graph that `tools/verify-catalogue-resolved.ts` loads under --experimental-strip-types.
+import type { ArtistNameSource } from "@/lib/artist-name";
 import type { PublicClient } from "viem";
 import type { CatalogueRow } from "@/lib/catalogue-source";
 
@@ -56,7 +59,7 @@ export interface ResolvedTrack extends CatalogueRow {
   /** What to call the artist. See `lib/artist-name.ts` for the resolution order. */
   artistName: string;
   /** Where that name came from. `profile` names must be rendered with the address visible. */
-  artistNameSource: "farcaster" | "profile" | "address";
+  artistNameSource: ArtistNameSource;
   artistNeedsAddressShown: boolean;
   /** Metadata name, or a `Track #N` / `Art #N` placeholder when unresolved. */
   name: string;
@@ -145,7 +148,9 @@ export async function getResolvedCatalogue(opts?: {
   // Names resolved for the whole page at once: one Neynar request, then a registry read only for
   // the artists Farcaster did not answer for. Done here rather than per call site because the
   // per-route copies were the reason the same failed lookup repeated through the logs.
-  const { resolveArtistNames, profileLookup } = await import("@/lib/artist-name");
+  const { resolveArtistNames, profileLookup } = await import(
+    "@/lib/artist-name"
+  );
   const { createPublicClient, http } = await import("viem");
   const { activeChain } = await import("@/app/chains");
 
@@ -153,7 +158,10 @@ export async function getResolvedCatalogue(opts?: {
     opts?.client ??
     createPublicClient({ chain: activeChain, transport: http() });
   const names = await resolveArtistNames(
-    rows.map((r) => r.artist),
+    // Address AND the fid the contract recorded. Passing bare addresses is what left every
+    // master showing `0x8df6…8ec1`: the deployer key has no Farcaster account, so the by-address
+    // lookup had nothing to find and the answer sitting in `getMaster` went unused.
+    rows.map((r) => ({ address: r.artist, fid: r.artistFid })),
     profileLookup(
       client as Parameters<typeof profileLookup>[0],
       process.env.NEXT_PUBLIC_PROFILE_REGISTRY as `0x${string}` | undefined,
