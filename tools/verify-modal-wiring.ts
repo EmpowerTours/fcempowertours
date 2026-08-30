@@ -232,6 +232,86 @@ for (const file of files) {
   }
 }
 
+// ------------------------------------------ a migration offered for work already migrated
+//
+// `CatalogueMigration` matched "already in v3" on the artist ADDRESS. The v3 re-publish was run
+// from the deployer key, so every v3 master's artist is the deployer while the connected wallet
+// is the artist. Nothing matched, all five tracks read as pending, and the card offered to
+// migrate a catalogue that was already migrated — where accepting would have minted a second
+// copy of every track.
+
+{
+  const componentPath = join(
+    ROOT,
+    "app",
+    "components",
+    "oracle",
+    "CatalogueMigration.tsx",
+  );
+  const component = readFileSync(componentPath, "utf8");
+  const active = component
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ");
+
+  checks++;
+  if (!/sameFid|artistFid|hit\.fid/.test(active)) {
+    fail(
+      componentPath,
+      "decides 'already migrated' without consulting the fid, so a master minted by another key reads as pending and would be duplicated",
+    );
+  }
+
+  checks++;
+  // The address filter must not be applied while BUILDING the map of what is already in v3 —
+  // that is the specific shape of the bug. Filtering after, against each legacy row, is fine.
+  if (/alreadyThere\.set\(/.test(active)) {
+    const build = active.slice(
+      active.indexOf("const alreadyThere"),
+      active.indexOf("alreadyThere.set("),
+    );
+    if (/!==\s*walletAddress\.toLowerCase\(\)\s*\)?\s*continue/.test(build)) {
+      fail(
+        componentPath,
+        "skips v3 masters not owned by the connected wallet while building the already-migrated map, which is what made migrated tracks look pending",
+      );
+    }
+  }
+
+  checks++;
+  if (!/pending\.length === 0\)\s*return null/.test(active)) {
+    fail(
+      componentPath,
+      "does not hide itself when nothing is pending — the call site says it self-hides",
+    );
+  }
+}
+
+// ------------------------------------------------ the miniapp wallet provider actually exists
+//
+// sendTransaction looked for `sdk.ethereum`, which @farcaster/miniapp-sdk does not have. Its
+// wallet is `sdk.wallet.getEthereumProvider()` / `sdk.wallet.ethProvider` (0.2.1,
+// dist/types.d.ts:68). Every branch missed, window.ethereum is absent inside the Farcaster
+// webview, and every client-signed transaction threw "no transaction sending method available".
+// Gasless paths go through /api/execute-delegated, which is why this stayed hidden.
+
+{
+  const hookPath = join(ROOT, "app", "hooks", "useFarcasterContext.tsx");
+  const hook = readFileSync(hookPath, "utf8");
+
+  checks++;
+  if (!/wallet[?.]*\.getEthereumProvider|wallet[?.]*\.ethProvider/.test(hook)) {
+    fail(
+      hookPath,
+      "never asks the SDK for its wallet provider — sdk.wallet.getEthereumProvider() / .ethProvider is where it lives",
+    );
+  }
+
+  checks++;
+  if (/\(sdk as any\)\.ethereum\b/.test(hook)) {
+    fail(hookPath, "still reads sdk.ethereum, which the SDK does not define");
+  }
+}
+
 // ------------------------------------------------------------------------------------ report
 
 if (warnings.length > 0) {

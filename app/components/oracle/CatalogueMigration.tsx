@@ -5,6 +5,7 @@ import { createPublicClient, encodeFunctionData, http, parseAbi } from "viem";
 import { activeChain } from "@/app/chains";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { isV3Contracts } from "@/lib/contract-generation";
+import { migratedAs } from "@/lib/migration-status";
 
 /**
  * Re-publish an artist's existing masters into the v3 registry.
@@ -102,9 +103,22 @@ export const CatalogueMigration: React.FC<Props> = ({
         transport: http(),
       });
 
-      // What the artist already has in v3, keyed by tokenURI — the only field that survives
-      // both contracts unchanged, so it is what tells us a track has already been re-published.
-      const alreadyThere = new Map<string, number>();
+      // What is already in v3, keyed by tokenURI — the only field that survives both contracts
+      // unchanged, so it is what tells us a track has already been re-published.
+      //
+      // The artist ADDRESS is deliberately NOT the filter here. It was, and that made this card
+      // offer to migrate five tracks that had already been migrated: the v3 re-publish was run
+      // from the deployer key, so `getMaster().artist` is the deployer while the connected wallet
+      // is the artist. Nothing matched, everything looked pending, and re-running it would have
+      // minted a second copy of every track.
+      //
+      // Matching is on the fid the contract stores as well as the address, and the fid comparison
+      // happens against each legacy row's own fid below — so a track counts as migrated if the v3
+      // copy belongs to this wallet OR carries the same fid the legacy row does.
+      const alreadyThere = new Map<
+        string,
+        { id: number; artist: string; fid: bigint }
+      >();
       const total = Number(
         await client.readContract({
           address: registry,
@@ -122,15 +136,15 @@ export const CatalogueMigration: React.FC<Props> = ({
             args: [BigInt(id)],
           })) as readonly unknown[];
           const owner = m[0] as string;
-          if (!owner || owner.toLowerCase() !== walletAddress.toLowerCase())
-            continue;
+          const fid = (m[1] ?? 0n) as bigint;
+          if (!owner) continue;
           const uri = (await client.readContract({
             address: registry,
             abi: V3_ABI,
             functionName: "tokenURI",
             args: [BigInt(id)],
           })) as string;
-          if (uri) alreadyThere.set(uri, id);
+          if (uri) alreadyThere.set(uri, { id, artist: owner, fid });
         } catch {
           // A purged or missing id — skip it rather than abandoning the scan.
         }
@@ -160,7 +174,13 @@ export const CatalogueMigration: React.FC<Props> = ({
             nftType: Number(r[11]),
             price: r[4] as bigint,
             collectorPrice: r[5] as bigint,
-            migratedAs: alreadyThere.get(uri),
+            // Already in v3 if the copy at this URI is owned by this wallet, or carries the same
+            // fid this legacy row does. Either is proof it has been re-published.
+            migratedAs: migratedAs(
+              alreadyThere.get(uri),
+              { fid: r[0] as bigint },
+              walletAddress,
+            ),
           });
         } catch {
           // Past the end of the catalogue.
@@ -234,6 +254,14 @@ export const CatalogueMigration: React.FC<Props> = ({
   }
 
   const pending = masters.filter((m) => !m.migratedAs);
+
+  // Nothing to move: hide, which is what the call site already says this does. Showing a
+  // migration card to somebody whose catalogue is fully migrated is how the wrong impression
+  // started — that the migration had not happened, when it had, under a different key.
+  //
+  // Gated on `status.kind !== "loading"` so it does not flash away mid-read, and on there being
+  // legacy tracks at all: a wallet with none has nothing to be told about either.
+  if (status.kind !== "loading" && pending.length === 0) return null;
   const card = isDarkMode
     ? "bg-gray-800/50 border-gray-700"
     : "bg-gray-50 border-gray-200";
