@@ -683,14 +683,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 />
               </div>
 
-              {/* Catalogue migration — self-hides unless the v3 contracts are live and this
-                  wallet still has tracks on the old one. Placed above earnings because an
-                  unmigrated catalogue is why earnings would read as zero. */}
+              {/* Self-hides for anyone on Farcaster who has not already claimed a name: their
+                  handle always wins in `resolveArtistName`, so a name claimed here would never
+                  be shown to them. */}
               <DisplayNameSetting
                 walletAddress={walletAddress}
                 isDarkMode={isDarkMode}
+                // This block only renders for your own profile — TS narrows searchedUser to
+                // null here — so the viewer's own handle is the right signal.
+                farcasterUsername={username}
               />
 
+              {/* Catalogue migration — self-hides unless the v3 contracts are live and this
+                  wallet still has tracks on the old one. Placed above earnings because an
+                  unmigrated catalogue is why earnings would read as zero. */}
               <CatalogueMigration
                 walletAddress={walletAddress}
                 isDarkMode={isDarkMode}

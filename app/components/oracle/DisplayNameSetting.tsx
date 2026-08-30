@@ -52,9 +52,22 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 interface Props {
   walletAddress: string | null | undefined;
   isDarkMode: boolean;
+  /**
+   * The viewer's Farcaster username, when they have one.
+   *
+   * This form was rendered unconditionally, so a Farcaster user was invited to claim a name that
+   * `resolveArtistName` would never show them — the address tier wins, and reaching the registry
+   * tier at all means the address lookup found nothing. Offering a control that cannot change
+   * what the user sees is worse than not offering it.
+   */
+  farcasterUsername?: string | null;
 }
 
-export function DisplayNameSetting({ walletAddress, isDarkMode }: Props) {
+export function DisplayNameSetting({
+  walletAddress,
+  isDarkMode,
+  farcasterUsername,
+}: Props) {
   const { sendTransaction, isConnected } = useWalletContext();
 
   const [current, setCurrent] = useState<string | null>(null);
@@ -156,6 +169,15 @@ export function DisplayNameSetting({ walletAddress, isDarkMode }: Props) {
   if (!isV3Contracts()) return null;
   if (!registry) return null;
 
+  // On Farcaster with nothing registered: there is nothing useful to do here, because a name
+  // claimed now would sit below the Farcaster handle forever. Hidden rather than disabled — a
+  // greyed-out field still reads as "something you are missing out on".
+  //
+  // Still shown to a Farcaster user who ALREADY has a name, because otherwise there would be no
+  // way to change or see it. The copy below says plainly that it is not in use.
+  const onFarcaster = Boolean(farcasterUsername);
+  if (onFarcaster && !loading && !current) return null;
+
   const card = isDarkMode
     ? "bg-gray-800/50 border-gray-700"
     : "bg-gray-50 border-gray-200";
@@ -166,10 +188,19 @@ export function DisplayNameSetting({ walletAddress, isDarkMode }: Props) {
     <div className={`p-4 rounded-xl border ${card} space-y-3`}>
       <div>
         <h3 className="text-sm font-bold">Artist name</h3>
-        <p className={`text-xs ${muted}`}>
-          Shown on your tracks when you have no Farcaster account. Anyone can
-          register a name, so it is always displayed next to your address.
-        </p>
+        {onFarcaster ? (
+          <p className={`text-xs ${muted}`}>
+            Not in use — your tracks show{" "}
+            <span className="font-mono">@{farcasterUsername}</span>, which
+            Farcaster verified. This registry name only appears for artists with
+            no Farcaster account.
+          </p>
+        ) : (
+          <p className={`text-xs ${muted}`}>
+            Shown on your tracks when you have no Farcaster account. Anyone can
+            register a name, so it is always displayed next to your address.
+          </p>
+        )}
       </div>
 
       {loading ? (

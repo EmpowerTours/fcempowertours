@@ -175,6 +175,63 @@ for (const file of files) {
   }
 }
 
+// ------------------------------------------- a control that cannot change what the user sees
+//
+// `DisplayNameSetting` claims a ProfileRegistry name. `resolveArtistName` only reaches the
+// registry tier when the address lookup found nothing, so for anyone on Farcaster a name claimed
+// here is invisible to them forever. It was rendered unconditionally, and a Farcaster user
+// reported being shown a "Claim name" form on their own profile with copy telling them it is for
+// people who have no Farcaster account.
+//
+// Offering a control that cannot change what the user sees is worse than not offering it: they
+// spend gas to find out.
+
+{
+  const componentPath = join(
+    ROOT,
+    "app",
+    "components",
+    "oracle",
+    "DisplayNameSetting.tsx",
+  );
+  const component = readFileSync(componentPath, "utf8");
+
+  checks++;
+  if (!/farcasterUsername/.test(component)) {
+    fail(
+      componentPath,
+      "takes no farcasterUsername, so it cannot know to hide itself",
+    );
+  }
+
+  checks++;
+  // The guard must let an EXISTING name through — hiding that would leave a Farcaster user who
+  // already claimed one with no way to see or change it.
+  if (
+    !/onFarcaster\s*&&\s*!loading\s*&&\s*!current[\s\S]{0,20}return null/.test(
+      component,
+    )
+  ) {
+    fail(
+      componentPath,
+      "must return null for a Farcaster user with NO registered name, and only then — an existing name still needs a way to be changed",
+    );
+  }
+
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    if (!/<DisplayNameSetting/.test(source)) continue;
+    checks++;
+    const usage = source.slice(source.indexOf("<DisplayNameSetting"));
+    if (!/farcasterUsername=/.test(usage.slice(0, 400))) {
+      fail(
+        file,
+        "renders <DisplayNameSetting> without farcasterUsername, so it cannot hide itself",
+      );
+    }
+  }
+}
+
 // ------------------------------------------------------------------------------------ report
 
 if (warnings.length > 0) {
