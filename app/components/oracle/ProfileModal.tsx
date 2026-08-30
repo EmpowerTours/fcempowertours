@@ -293,9 +293,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       // contract read: passports come from a 195-country Multicall3 batch (the contract has no
       // enumerator), created masters from the catalogue filtered by artist, purchases from
       // walking the licence range.
-      const response = await fetch(`/api/user-stats?address=${address}`, {
-        headers: { ...(await authHeaders()) },
-      });
+      // fid as well as address: the five live masters carry the artist's fid but were
+      // minted by the deployer key, so an address-only lookup reports zero tracks and the
+      // Press Kit button disappears.
+      const response = await fetch(
+        `/api/user-stats?address=${address}${userFid ? `&fid=${userFid}` : ""}`,
+        {
+          headers: { ...(await authHeaders()) },
+        },
+      );
       const result = await response.json();
 
       if (!result.success) {

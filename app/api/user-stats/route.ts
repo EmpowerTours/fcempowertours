@@ -32,6 +32,22 @@ import { getResolvedCatalogue } from "@/lib/catalogue-resolved";
  *   licence range asking `ownerOf`. Bounded, and linear in licences ever minted rather than in
  *   licences held.
  *
+ * ## Why a FID is accepted alongside addresses
+ *
+ * "Created" was the catalogue filtered by artist ADDRESS, and that reported 0 for the account
+ * that made every track on the platform. The five live masters were minted by the deployer key
+ * during the v3 migration, so `artist` is the deployer while `artistFid` is the artist's. The
+ * profile's Press Kit button is gated on `musicCreated > 0`, so it vanished.
+ *
+ * A master therefore counts as yours if its artist address is one of yours OR its `artistFid`
+ * matches the FID you passed. The FID is a claim the minter wrote and nobody checked, so it is
+ * only trusted here because a miniapp session's FID comes from authenticated Farcaster context —
+ * and because this endpoint only reads public chain state either way.
+ *
+ * `createdViaFid` is reported separately rather than folded in silently: those tracks pay and
+ * accrue plays to the deployer, not to the wallet reading this, and a caller that wants to say
+ * so needs to know which ones they are.
+ *
  * ## Accepting several addresses
  *
  * `public-profile` passes a wallet AND its Safe, because a user's holdings are split across both.
@@ -43,6 +59,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const raw = searchParams.get("address") || "";
+  const fidParam = Number(searchParams.get("fid") || "0");
+  const fid = Number.isInteger(fidParam) && fidParam > 0 ? fidParam : 0;
 
   const addresses = [
     ...new Set(
@@ -132,9 +150,18 @@ export async function GET(req: NextRequest) {
     }
 
     const tracks = catalogueRes?.tracks ?? [];
-    const created = tracks.filter((t) =>
+    const byAddress = tracks.filter((t) =>
       addresses.includes(t.artist.toLowerCase()),
     );
+    // Matched on the fid the contract stores, for masters minted by a different key. Excludes
+    // anything already matched by address so a track is never counted twice.
+    const byFid = fid
+      ? tracks.filter(
+          (t) =>
+            t.artistFid === fid && !addresses.includes(t.artist.toLowerCase()),
+        )
+      : [];
+    const created = [...byAddress, ...byFid];
 
     // Licences reference a master by id; joining here saves each consumer doing it, and means
     // the name shown on a purchase is the same one shown in the catalogue.
@@ -166,6 +193,12 @@ export async function GET(req: NextRequest) {
           passports: passports.length,
           musicCreated: created.filter((t) => !t.isArt).length,
           artCreated: created.filter((t) => t.isArt).length,
+          /**
+           * How many of `created` were matched by FID rather than by address. These are the
+           * artist's work, but the contract pays and credits plays to the address that minted
+           * them — which is not the address that asked. Non-zero means the two have diverged.
+           */
+          createdViaFid: byFid.length,
           musicPurchased: purchased.length,
           countries: [
             ...new Set(
