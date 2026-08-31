@@ -19,7 +19,7 @@ export default function PassportPage() {
   // Linked from the landing page's "Get Your Passport" button, so browser-wallet visitors land
   // here first. useFarcasterContext gave them a permanently null walletAddress and a Connect
   // Wallet button that did nothing.
-  const { user, fid, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useWalletContext();
+  const { user, fid, walletAddress, isFarcaster, isLoading: contextLoading, error: contextError, requestWallet } = useWalletContext();
   const { location, loading: geoLoading, error: geoError } = useGeolocation();
 
   const farcasterFid = fid ?? user?.fid;
@@ -39,20 +39,27 @@ export default function PassportPage() {
   const [setupComplete, setSetupComplete] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
 
-  // Check setup status on mount
+  // "Add the mini app and enable notifications" is a Farcaster-client flow: nothing outside
+  // Warpcast can ever set these two localStorage flags. Gating the whole page on them left a
+  // browser visitor stuck on the setup screen with no way past it, so it only applies in a
+  // Farcaster client now.
   useEffect(() => {
-    const checkSetupStatus = () => {
-      const appAdded = localStorage.getItem('fc_app_added') === 'true';
-      const notificationsEnabled = localStorage.getItem('fc_notifications_enabled') === 'true';
+    if (contextLoading) return;
 
-      if (appAdded && notificationsEnabled) {
-        setSetupComplete(true);
-      }
+    if (!isFarcaster) {
+      setSetupComplete(true);
       setCheckingSetup(false);
-    };
+      return;
+    }
 
-    checkSetupStatus();
-  }, []);
+    const appAdded = localStorage.getItem('fc_app_added') === 'true';
+    const notificationsEnabled = localStorage.getItem('fc_notifications_enabled') === 'true';
+
+    if (appAdded && notificationsEnabled) {
+      setSetupComplete(true);
+    }
+    setCheckingSetup(false);
+  }, [isFarcaster, contextLoading]);
 
   // Auto-select country once geolocation loads
   useEffect(() => {
@@ -267,37 +274,56 @@ Token #${tokenId || 'pending'}`);
     return <FarcasterAppSetup onComplete={() => setSetupComplete(true)} />;
   }
 
-  if (contextLoading || geoLoading) {
+  if (contextLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900">
         <div className="text-center">
           <div className="animate-spin text-4xl mb-4">⏳</div>
-          <p className="text-white">
-            {contextLoading ? 'Loading Farcaster...' : 'Detecting your location...'}
+          <p className="text-white">Loading your wallet...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // A wallet is the identity here, not a Farcaster account. This used to demand a Farcaster
+  // `user` and told every browser visitor to "open this in Warpcast" — with no way to connect.
+  if (!walletAddress) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900 p-4">
+        <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 max-w-md">
+          <div className="text-6xl mb-4">👛</div>
+          <h1 className="text-3xl font-bold text-white mb-4">Connect your wallet</h1>
+          <p className="text-gray-400 mb-6">
+            Your passports are held by your wallet. Connect one to mint and to see the ones you
+            already own.
           </p>
-          <p className="text-gray-400 text-sm mt-2">
-            {geoLoading && 'Please allow location access when prompted'}
+          <button
+            onClick={requestWallet}
+            className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-all"
+          >
+            👛 Connect Wallet
+          </button>
+          {contextError && (
+            <p className="text-xs text-gray-500 mt-4">{contextError.message}</p>
+          )}
+          <p className="text-xs text-gray-500 mt-4">
+            Works in any browser wallet, and in Warpcast
           </p>
         </div>
       </div>
     );
   }
 
-  if (contextError || !user) {
+  // Geolocation is only needed once we know who is minting, so it no longer blocks the
+  // connect screen behind a spinner that can sit there for the browser's full 10s timeout.
+  if (geoLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900 p-4">
-        <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 max-w-md">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h1 className="text-3xl font-bold text-white mb-4">Connection Issue</h1>
-          <p className="text-gray-400 mb-6">{contextError?.message || 'Not connected to Farcaster'}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-all"
-          >
-            🔄 Refresh Page
-          </button>
-          <p className="text-xs text-gray-500 mt-4">
-            Make sure you're opening this in Warpcast
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900">
+        <div className="text-center">
+          <div className="animate-spin text-4xl mb-4">⏳</div>
+          <p className="text-white">Detecting your location...</p>
+          <p className="text-gray-400 text-sm mt-2">
+            Please allow location access when prompted
           </p>
         </div>
       </div>
@@ -327,7 +353,9 @@ Token #${tokenId || 'pending'}`);
             />
           )}
           <h1 className="text-3xl font-bold text-white mb-1">🌍 Travel Passport NFT</h1>
-          <p className="text-gray-400 text-sm">@{user?.username || 'User'}</p>
+          <p className="text-gray-400 text-sm font-mono">
+            {user?.username ? `@${user.username}` : `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}
+          </p>
         </div>
 
         {/* Collection Progress */}

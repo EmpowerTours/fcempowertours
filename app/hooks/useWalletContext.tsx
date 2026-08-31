@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAccount, useConnect, useDisconnect, useSendTransaction, useSignTypedData } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useFarcasterContext } from "./useFarcasterContext";
 
@@ -63,6 +63,7 @@ export function useWalletContext(): WalletContextReturn {
   const { disconnect: wagmiDisconnect } = useDisconnect();
   const { sendTransactionAsync } = useSendTransaction();
   const { signTypedDataAsync } = useSignTypedData();
+  const { switchChainAsync } = useSwitchChain();
   const { openConnectModal } = useConnectModal();
 
   const [isFarcaster, setIsFarcaster] = useState(false);
@@ -155,6 +156,16 @@ export function useWalletContext(): WalletContextReturn {
       if (!walletAddress) throw new Error("Wallet not connected");
 
       if (!isFarcaster) {
+        // MetaMask refuses eth_signTypedData_v4 when domain.chainId differs from the active
+        // chain, and the wagmi config allows Ethereum mainnet too. Without this, a browser user
+        // sitting on chain 1 gets a rejected signature instead of a mint.
+        const domainChainId = Number(
+          (params.domain as { chainId?: number | bigint }).chainId ?? 0,
+        );
+        if (domainChainId && wagmiAccount.chainId !== domainChainId) {
+          await switchChainAsync({ chainId: domainChainId });
+        }
+
         return (await signTypedDataAsync({
           domain: params.domain as any,
           types: params.types as any,
@@ -189,7 +200,14 @@ export function useWalletContext(): WalletContextReturn {
         params: [walletAddress, payload],
       })) as `0x${string}`;
     },
-    [isFarcaster, walletAddress, signTypedDataAsync, farcaster.sdk],
+    [
+      isFarcaster,
+      walletAddress,
+      signTypedDataAsync,
+      switchChainAsync,
+      wagmiAccount.chainId,
+      farcaster.sdk,
+    ],
   );
 
   // Connect wallet (standalone only)

@@ -517,12 +517,17 @@ export default function MusicPage() {
     }
   };
 
+  // This used to `return null` while the Farcaster SDK retried, which is a blank white page for
+  // every browser visitor. Minting only needs a wallet, so show the page and say what's loading.
   if (contextLoading) {
-    return null;
-  }
-
-  if (!user && !contextLoading) {
-    console.warn("⚠️ No Farcaster user detected");
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading your wallet...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -559,6 +564,21 @@ export default function MusicPage() {
                   ✨ FREE Mint! We pay all gas fees
                 </p>
               </div>
+
+              {/* The only connect button used to sit at step 5, so a browser visitor had to
+                  upload a whole track before discovering they weren't connected. */}
+              {walletAddress ? (
+                <p className="mt-4 text-xs font-mono text-gray-500">
+                  👛 {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </p>
+              ) : (
+                <button
+                  onClick={requestWallet}
+                  className="mt-4 px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-all shadow-lg"
+                >
+                  👛 Connect Wallet
+                </button>
+              )}
             </div>
 
             {/* Progress Stepper */}
