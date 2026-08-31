@@ -56,30 +56,15 @@ token-less internal callers, watch for `[QuickAuth] … unauthenticated` in the 
 Note `radio_mark_played` is documented as the expected token-less server caller and **has no
 caller anywhere in the repo** — worth resolving before anyone plans around it.
 
-### 3. The Envio indexer has been dead since 2026-08-01 — but consider leaving instead
+### 3. ~~The Envio indexer~~ — **DONE 2026-08-29: deleted**
 
-**Scoped 2026-08-24: see `ENVIO_EXIT.md`.** Dropping Envio is now the recommended path rather
-than restarting it, which makes this item a migration instead of a repair. The short version:
-Multicall3 is on Monad, `licensesHeld` is keyed owner→master so licences need 5 reads not
-enumeration, and the passport lookup resolves in one 195-call multicall (measured: 1202ms cold,
-returns the right three passports). The only real loss is per-play radio history.
+Every surface reads the contracts. 8,524 lines and 527MB removed, `empowertours-envio/` gone,
+`/api/envio/get-nfts` renamed `/api/nfts`. Closes #16 and #18 with it.
 
-Note the licences view is broken for a second reason a healthy indexer would not fix — the
-cutover split licence data across the legacy and v3 contracts.
-
-If restarting the indexer is faster in the moment, that is still fine; the exit work is not
-wasted either way.
-
-**The current state.** `lastUpdated: 2026-08-01T17:09:19`, roughly **2.98M blocks behind** a head
-of ~98.62M. The chain fallback from `7134adb` is why the catalogue still loads, and why this went
-unnoticed for three weeks. What it is breaking meanwhile:
-
-- `get-user-licenses` queries Envio and logs `Licenses matching query address: 0` — the licences
-  view serves empty data.
-- `[StreamingStats]` and the dashboard read the same stale rows.
-
-It is **not** why #4 is blocked. Enumerating V5 subscribers needs `eth_getLogs` and the Alchemy
-key regardless of the indexer, because the public RPC caps at a 100-block range.
+Lost and reported rather than faked: `uniqueListeners` (no contract keeps a roster — `null`,
+renders "—"), `txHash` on feeds, and per-song play splits (Redis window, flagged
+`totalPlaysIsFloor` when full). Gained: a deactivated EPK now 404s instead of rendering, which
+the event-based read could never detect.
 
 ### 4. ~~V5 subscribers~~ — **RESOLVED 2026-08-25: nobody is stranded**
 
@@ -230,38 +215,35 @@ The reward is **1 TOURS/month**, meaningless against 100B. Half-built reward pat
 
 ## Found 2026-08-24/25, not previously listed
 
-### A. The five masters are attributed to the deployer, not the artist
+### A. The five masters are attributed to the deployer — **DISPLAY FIXED, MONEY NOT**
 
-`LicenseRegistry.getMaster(1..5).artist` returns `0x8dF64bAC…` (deployer), while the legacy
-contract records `0x33fFCcb1…` (unify34). So `artistMasterCount(unify34) = 0` and
-`artistLifetimePlays(unify34) = 0`, while the deployer shows 5 and 5.
+`getMaster(1..5).artist` is `0x8dF64bAC…` (deployer); `artistFid` is `765994` (@unify34), which
+is correct. The v3 re-publish ran from the deployer key and `mintMaster` sets the artist to
+`msg.sender`, so the address is wrong and immutable — there is no `setArtist`.
 
-Money follows the chain, not the display: `SalesController._settle` pays `m.artist` directly per
-sale, ERC-2981 resale royalties use the same field, and `claimArtistPayout` is `msg.sender`-keyed.
+**Fixed (display only), 2026-08-29:** names resolve via the on-chain fid, and `/api/user-stats`
+counts a master as yours if the address matches OR the fid does, reporting `createdViaFid`
+separately so the divergence stays visible. That restored the Press Kit button, which is gated on
+`musicCreated > 0` and had disappeared.
 
-**Both wallets belong to the same person, so nothing is mis-paid.** The cost is that the public
-record attributes the catalogue to the platform, artist-facing surfaces read zero, and the Neynar
-lookup 404s on the platform wallet.
+**NOT fixed, and not fixable without a re-mint:** every contract path keys on the artist ADDRESS.
+`SalesController._settle` pays `m.artist`; `MusicSubscriptionV6.recordPlay` credits
+`artistMonthlyPlays[month][artist]` and `artistLifetimePlays[artist]`; LiveRadioV3 pays the
+registry's artist. So sales, plays and radio all accrue to the deployer.
 
-This was deliberate, not a slip. `tools/build-migration-manifest.ts:130` says so:
+Nothing has been lost: `artistFirstSaleAt(deployer) = 0` — no sale has ever settled — and the
+deployer key is the owner's own. TOURS artist eligibility needs 10 masters / 100 plays and both
+addresses sit at 5/5, so that harm is future rather than present.
 
-> Minted BY the deployer, so the deployer is the artist of record and receives every payout.
-> That was the deliberate choice: the Farcaster wallet is Warpcast-managed with no key export.
+**The decision, still open.** Burn and re-mint via `mintMasterFor` signed by the artist wallet.
+Masters 1, 2, 4 and 5 have no licence holders. Master 3 (MARINA) does:
+`0xd6B624F524E554e478bd3B9dC5d1b5d44158630F` holds licence 1000001, a real collector — they can be
+made whole with `migrateLegacy`, which is governance-only, still unsealed, and preserves their
+original `mintedAt`. Costs: token ids become 6–10, `/nft/1..5` and shared casts break, `createdAt`
+resets to today, and `artistLifetimePlays` does not transfer.
 
-The failure was recording that consequence **only there** — not in `DEPLOYMENT_PLAN.md`, not in
-`V3_DESIGN.md`'s identity section. A deliberate trade nobody writes down is indistinguishable
-from a bug three days later, which is how it was found: by accident, checking an endpoint.
-
-**The constraint no longer holds.** `SalesController.mintMaster` sets `artist = msg.sender` and a
-Warpcast wallet can send from the browser — simulated live from `0x33fFCcb1…`, returns master id
-6. But a naive re-mint doubles the catalogue: there is no on-chain URI index, and
-`findDuplicateMaster` is artist-scoped so it cannot see the deployer's copies. Any fix needs
-sequencing against licence ids, which reference masters 1–5 — including the outstanding
-`migrateLegacy` for licence 1000004, which targets master 3.
-
-New artists are unaffected: the app mints via `mintMasterFor` with the artist's EIP-712
-signature, so the signer is the artist of record. Only a manifest that calls `mintMaster` has
-this problem.
+Cheaper alternative: leave these five and mint everything future from the artist wallet, so the
+problem stops growing. Sunk cost today is 5 plays and 1 sale.
 
 ### B. Two surfaces still resolve artist names themselves
 
@@ -298,6 +280,42 @@ The better argument is correctness, not speed: passing the values means the card
 title, price and cover even when the catalogue read is stale or fails — and a track minted
 seconds ago is precisely the case a stale indexer does not have yet.
 
+### E. The published EPK still says "AI-generated music"
+
+Item 14 fixed the source. The live press kit is an **immutable IPFS document** —
+`QmZzaviA2WwWCAn1tN4cJJyB4c4z5Wpg6E3QX6PN9npV1u`, pinned 2026-02-02 — so `/epk/earvin-gallardo`
+still renders the old bio and the `AI Music` genre. Nothing in the codebase can change that.
+
+Needs a re-pin and an on-chain `updateEPK(newCid)`. Worth doing in the same pass as item F, since
+both are EPK writes.
+
+Effort: minutes, plus one transaction.
+
+### F. The EPK reports zero plays and zero sales
+
+`/api/epk/[identifier]` resolves the slug to `0x33fFCcb1…82b0` and calls
+`getArtistStreamingStats(artistAddress)`, which is address-keyed. The masters are under the
+deployer, so the press kit shows an empty catalogue and no figures — the same split as item A,
+in the one surface where it is most visible to an outsider.
+
+`/api/user-stats` already takes a `fid` for exactly this; `getArtistStreamingStats` does not.
+Either give it one, or resolve the slug to the deployer address, or fix item A properly and
+neither is needed.
+
+### G. Every client-signed transaction was failing — **FIXED 2026-08-29, watch for fallout**
+
+`sendTransaction` looked for `sdk.ethereum`, which `@farcaster/miniapp-sdk@0.2.1` does not define
+(its wallet is `sdk.wallet.getEthereumProvider()` / `.ethProvider`). Every branch missed,
+`window.ethereum` is absent in the Farcaster webview, and anything the user signed threw "no
+transaction sending method available". Gasless paths go through `/api/execute-delegated`, which is
+why it went unnoticed.
+
+Fixed and covered by `tools/verify-wallet-and-migration.ts`, but **nothing signed by a user has
+been exercised end to end since** — display-name claims and catalogue migration were both dead
+for an unknown period. Worth one real transaction to confirm.
+
+---
+
 ## Tier 4 — hygiene, real but not urgent
 
 ### 13. Disable the leaked Google Maps keys in the Console
@@ -305,15 +323,15 @@ seconds ago is precisely the case a stale indexer does not have yet.
 Nothing reads them since `bc3292b`, so this is not a vulnerability any more. But a key that
 leaked into a public bundle stays live until someone turns it off, and billing stays enabled.
 
-### 14. The "AI Music" labelling
+### 14. The "AI Music" labelling — **SOURCE FIXED 2026-08-29; the LIVE page is item E**
 
-Four sites: the EPK bio and genre in `lib/epk/constants.ts:35-36`, and
-`app/api/epk/generate/route.ts:323,388` — where `['AI Music']` is the **fallback for any artist**
-with no genre set, asserting something about other people's work.
+Bio and genre corrected in `lib/epk/constants.ts`; the `['AI Music']` fallback in
+`epk/generate` is now an empty list, so it no longer asserts anything about other artists' work.
+`tools/verify-catalogue-claims.ts` guards it, and deliberately still passes the accurate credits —
+the "(AI Music Video)" video credit, the Nano Banana stamp images, and EPKModal's "AI-generated
+draft", which describes Gemini-written text.
 
-`'Money Making Machine (AI Music Video)'` describes a *video* and `EPKModal.tsx:307`'s
-"AI-generated draft" describes Gemini-written text; both may be accurate. Needs an owner
-decision on the bio wording — it is a personal biography, not a bug.
+**This does not change what is published.** See item E.
 
 ### 15. Three unreachable modals
 
@@ -323,46 +341,13 @@ subscription modal, which is the one users actually see. Strip or wire up.
 
 `tools/verify-modal-wiring.ts` reports these as non-fatal warnings.
 
-### 16. `empowertours-envio/` is lint-gated but not type-gated
-
-The pre-commit hook runs the **root** `tsc` only, and that subproject has its own tsconfig. This
-already let a break through once (`d50e015`). It also carries one pre-existing error:
-`event.transaction.from` on `DailyLottery_TicketPurchased`.
+### 16. ~~`empowertours-envio/` type gate~~ — **MOOT 2026-08-29, directory deleted**
 
 ### 17. Standalone radio bot: deploy or retire
 
 `DEPLOYMENT_PLAN.md` task #10, marked ready, awaiting a Discord token.
 
-### 18. Envio config cleanup — **scoped 2026-08-27; blocked on the Envio decision**
-
-Bigger than "lottery", and possibly throwaway. Measured:
-
-**10 of 18 indexed contracts feed nothing.** `ItineraryNFTV2`, `ClimbingLocationsV2`,
-`DailyLottery`, `EmpowerToursDevStudio`, `DeploymentNFT`, `VotingTOURS`,
-`EmpowerToursGovernor`, `EmpowerToursTimelock`, `DAOContractFactory`, `ToursRewardManager` —
-every remaining mention of these in the app is in `app/investor-deck/page.tsx`, a static pitch
-page listing contract names, not a consumer of indexed data.
-
-They carry **53 handlers** between them, plus config blocks and schema entities. Config entries
-cannot be removed alone: envio codegen derives the handler types from them, so the config,
-handlers and schema have to move together. Call it one to two hours.
-
-**A separate finding, and the one that matters:** the entry named `PassportNFTV2` points at
-`0x93126e59…`, which its own comment calls **PassportNFTV3**, while the live contract is
-**PassportNFTV4** at `0x4D5533e2…`. The indexer is two generations behind on passports. Even
-fully caught up it would miss every passport minted since the cutover, including the three
-migrated ones. This is why Group B of the exit is necessary rather than optional — the indexer
-cannot serve passports correctly at all today.
-
-**The fork.** If Envio is kept, this cleanup is required and the passport address must be fixed.
-If Envio goes, `ENVIO_EXIT.md` step 6 deletes `empowertours-envio/` outright and this item
-dissolves — doing it first is wasted.
-
-Evidence for going: the indexer has been dead since 2026-08-01 and nobody has restarted it in
-26 days; the app has run on the chain fallback throughout; Group A is 13/14 done. Nothing has
-needed it.
-
-**Recommendation: do not do this item. Finish the exit instead.**
+### 18. ~~Envio config cleanup~~ — **MOOT 2026-08-29, deleted with the indexer**
 
 ### 19. Rate limits and CSP
 
