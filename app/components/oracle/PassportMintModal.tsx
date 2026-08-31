@@ -4,7 +4,7 @@ import { authHeaders } from '@/lib/quick-auth-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, MapPin, Check } from 'lucide-react';
-import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useWalletContext } from '@/app/hooks/useWalletContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 import { getCountryByCode } from '@/lib/passport/countries';
 
@@ -14,7 +14,11 @@ interface PassportMintModalProps {
 }
 
 export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintModalProps) {
-  const { user, walletAddress, requestWallet } = useFarcasterContext();
+  // Was useFarcasterContext, which only ever resolves an address inside a Farcaster client.
+  // In a browser wallet it returned null, so this modal showed "Connect Wallet First" to people
+  // who were already connected, and its Mint button stayed disabled.
+  const { user, fid, walletAddress, isFarcaster, requestWallet } =
+    useWalletContext();
   const { location, loading: geoLoading } = useGeolocation();
 
   const [mounted, setMounted] = useState(false);
@@ -77,7 +81,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
           body: JSON.stringify({
             userAddress: walletAddress,
             authMethod: 'farcaster',
-            fid: user?.fid,
+            fid,
             durationHours: 24,
             maxTransactions: 100,
             permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
@@ -102,7 +106,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
             countryName: selectedCountry.name,
             region: selectedCountry.region,
             continent: selectedCountry.continent,
-            fid: user?.fid
+            fid
           }
         }),
       });
@@ -144,7 +148,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
               countryName: selectedCountry.name,
               region: selectedCountry.region,
               continent: selectedCountry.continent,
-              fid: user?.fid
+              fid
             }
           }),
         });
@@ -231,11 +235,13 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
               </div>
 
               {/* User Info */}
-              {user && (
+              {(walletAddress || user) && (
                 <div className="mb-4 p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
-                  <p className="text-sm text-cyan-400">
-                    <strong>Farcaster:</strong> @{user.username || 'User'}
-                  </p>
+                  {isFarcaster && user && (
+                    <p className="text-sm text-cyan-400">
+                      <strong>Farcaster:</strong> @{user.username || 'User'}
+                    </p>
+                  )}
                   {walletAddress && (
                     <p className="text-sm text-cyan-400 mt-1 font-mono text-xs">
                       <strong>Wallet:</strong> {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAccount, useConnect, useDisconnect, useSendTransaction, useSignTypedData } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useFarcasterContext } from "./useFarcasterContext";
 
 interface WalletContextReturn {
@@ -62,6 +63,7 @@ export function useWalletContext(): WalletContextReturn {
   const { disconnect: wagmiDisconnect } = useDisconnect();
   const { sendTransactionAsync } = useSendTransaction();
   const { signTypedDataAsync } = useSignTypedData();
+  const { openConnectModal } = useConnectModal();
 
   const [isFarcaster, setIsFarcaster] = useState(false);
 
@@ -209,6 +211,39 @@ export function useWalletContext(): WalletContextReturn {
     wagmiDisconnect();
   }, [isFarcaster, wagmiDisconnect]);
 
+  /**
+   * "Connect wallet" for callers that came from the Farcaster-only era.
+   *
+   * `farcaster.requestWallet` resolves the address the Farcaster client already granted; in a
+   * plain browser there is no client, so it logged "No user context" and returned null. Every
+   * screen wired to it — the passport modal, /nft, /passport — therefore showed a Connect Wallet
+   * button that did nothing, including to people whose wallet was already connected through
+   * wagmi. Outside Farcaster this opens the same RainbowKit modal the header uses, and resolves
+   * to the already-connected address when there is one.
+   */
+  const requestWallet = useCallback(async () => {
+    if (isFarcaster) return farcaster.requestWallet();
+
+    if (wagmiAccount.isConnected && wagmiAccount.address) {
+      return { address: wagmiAccount.address };
+    }
+
+    if (openConnectModal) {
+      openConnectModal();
+      return null;
+    }
+
+    connectWallet();
+    return null;
+  }, [
+    isFarcaster,
+    farcaster,
+    wagmiAccount.isConnected,
+    wagmiAccount.address,
+    openConnectModal,
+    connectWallet,
+  ]);
+
   return {
     walletAddress,
     isConnected,
@@ -229,7 +264,7 @@ export function useWalletContext(): WalletContextReturn {
     custodyAddress: farcaster.custodyAddress,
     walletConnected: isConnected,
     isMobile: farcaster.isMobile,
-    requestWallet: farcaster.requestWallet,
+    requestWallet,
     switchChain: farcaster.switchChain,
     error: farcaster.error,
     isLoading: loading,

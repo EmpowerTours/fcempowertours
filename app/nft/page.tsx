@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { useBotCommand } from "@/app/hooks/useBotCommand";
+import { isV3Contracts } from "@/lib/contract-generation";
+import { signMintRequest } from "@/lib/sign-mint-request";
 
 // Add animation styles
 const styles = `
@@ -19,13 +21,20 @@ const styles = `
 const _MUSIC_NFT_ADDRESS = process.env.NEXT_PUBLIC_NFT_CONTRACT || "";
 
 export default function MusicPage() {
+  // This page is linked straight off the landing page ("Mint Music"), so it is the first thing a
+  // browser-wallet visitor hits. It used to read useFarcasterContext, which resolves an address
+  // only inside a Farcaster client — outside one, walletAddress was null, the mint bailed at the
+  // `!walletAddress` guard and `requestWallet()` was a no-op that logged and returned null. That
+  // is the "connected the wallet, then nothing happened" report.
   const {
     user,
+    fid,
     walletAddress,
     isLoading: contextLoading,
     error: _contextError,
     requestWallet,
-  } = useFarcasterContext();
+    signTypedData,
+  } = useWalletContext();
   const {
     executeCommand,
     loading: botLoading,
@@ -60,7 +69,8 @@ export default function MusicPage() {
   const [collectorPrice, setCollectorPrice] = useState("500");
   const [maxEditions, setMaxEditions] = useState("100");
 
-  const farcasterFid = user?.fid || 0;
+  // 0 when the artist has no Farcaster account — v3 treats that as valid, not an error.
+  const farcasterFid = fid || user?.fid || 0;
 
   const steps = [
     { number: 1, title: "Choose Type", icon: "🎨" },
@@ -447,11 +457,31 @@ export default function MusicPage() {
         const command = `mint_music ${title.slice(0, 50)} ${tokenURI} ${price}`;
         console.log("Executing mint command with cover URL:", coverUrl);
 
+        // v3 will not mint on the platform's say-so: SalesController.mintMasterFor needs the
+        // artist's EIP-712 signature. Without it execute-delegated refuses with "This mint needs
+        // your signature", so this page could not mint at all once the v3 flag went on.
+        let signed: {
+          mintRequest?: Record<string, string | number>;
+          mintSignature?: `0x${string}`;
+        } = {};
+
+        if (isV3Contracts()) {
+          signed = await signMintRequest({
+            artist: walletAddress as `0x${string}`,
+            artistFid: farcasterFid,
+            uri: tokenURI,
+            price,
+            nftType: nftType === "art" ? 1 : 0,
+            signTypedData,
+          });
+        }
+
         mintData = await executeCommand(command, {
           imageUrl: coverUrl,
           title,
           tokenURI,
           is_art: nftType === "art",
+          ...signed,
         });
       }
 

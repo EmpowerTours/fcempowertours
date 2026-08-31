@@ -3,7 +3,7 @@ import { authHeaders } from "@/lib/quick-auth-client";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import { useWalletContext } from "@/app/hooks/useWalletContext";
 
 import Link from "next/link";
 import PageTransition, {
@@ -90,14 +90,17 @@ async function fetchPassportCountryCode(
 }
 
 export default function ProfilePage() {
+  // Identity here is the wallet, not the Farcaster account: this page is reachable from a plain
+  // browser and used to refuse everyone who was not in a Farcaster client.
   const {
     user,
     walletAddress,
+    isFarcaster,
     isMobile,
     isLoading: contextLoading,
     error: contextError,
-    requestWallet: _requestWallet,
-  } = useFarcasterContext();
+    requestWallet,
+  } = useWalletContext();
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [createdArt, setCreatedArt] = useState<MusicNFTWithMetadata[]>([]);
@@ -905,21 +908,31 @@ export default function ProfilePage() {
     );
   }
 
-  if (contextError || !user) {
+  // A wallet is enough. This used to require a Farcaster `user` and turned every browser visitor
+  // away with "Not in Farcaster", including one with a wallet already connected.
+  if (!walletAddress) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-          <div className="text-6xl mb-4">⚠️</div>
+          <div className="text-6xl mb-4">👛</div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Not in Farcaster
+            Connect your wallet
           </h1>
           <p className="text-gray-600 mb-6">
-            This Mini App must be opened in Warpcast or another Farcaster
-            client.
+            Your profile is keyed to your wallet address. Connect one to see
+            your passports, music and balances.
           </p>
-          <p className="text-sm text-gray-500">
-            Error: {contextError?.message || "Unknown error"}
-          </p>
+          <button
+            onClick={requestWallet}
+            className="w-full px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors"
+          >
+            Connect Wallet
+          </button>
+          {contextError && (
+            <p className="text-sm text-gray-500 mt-4">
+              {contextError.message}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -951,7 +964,7 @@ export default function ProfilePage() {
                   whileHover={{ scale: 1.1, rotate: 5 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
-                  {user.username?.charAt(0).toUpperCase() || "U"}
+                  {user?.username?.charAt(0).toUpperCase() || "U"}
                 </motion.div>
               )}
             </ScaleIn>
@@ -961,13 +974,13 @@ export default function ProfilePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
             >
-              {user.username ? `@${user.username}` : "Your Profile"}
+              {user?.username ? `@${user.username}` : "Your Profile"}
             </motion.h1>
             <FadeIn delay={0.4}>
               <p className="text-gray-600 font-mono text-sm">
                 {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
               </p>
-              {user.fid && (
+              {isFarcaster && user?.fid && (
                 <p className="text-gray-500 text-sm mt-1">
                   Farcaster FID: {user.fid}
                 </p>

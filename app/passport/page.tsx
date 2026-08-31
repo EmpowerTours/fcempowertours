@@ -2,7 +2,7 @@
 
 import { authHeaders } from '@/lib/quick-auth-client';
 import { useState, useEffect } from 'react';
-import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
+import { useWalletContext } from '@/app/hooks/useWalletContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
 import FarcasterAppSetup from '@/app/components/FarcasterAppSetup';
@@ -16,10 +16,13 @@ interface UserPassport {
 }
 
 export default function PassportPage() {
-  const { user, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useFarcasterContext();
+  // Linked from the landing page's "Get Your Passport" button, so browser-wallet visitors land
+  // here first. useFarcasterContext gave them a permanently null walletAddress and a Connect
+  // Wallet button that did nothing.
+  const { user, fid, walletAddress, isLoading: contextLoading, error: contextError, requestWallet } = useWalletContext();
   const { location, loading: geoLoading, error: geoError } = useGeolocation();
 
-  const farcasterFid = user?.fid;
+  const farcasterFid = fid ?? user?.fid;
 
   const [selectedCountryCode, setSelectedCountryCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -400,7 +403,7 @@ Token #${tokenId || 'pending'}`);
         {walletAddress ? (
           <div className="mb-6 bg-green-500/20 border border-green-500/50 rounded-lg p-3">
             <p className="text-green-300 text-sm font-mono">
-              ✅ FID: {user.fid} | Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              ✅ {farcasterFid ? `FID: ${farcasterFid} | ` : ''}Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
             </p>
           </div>
         ) : (
