@@ -1,7 +1,9 @@
 'use client';
 
 import { authHeaders } from '@/lib/quick-auth-client';
-import { useState, useEffect } from 'react';
+import { walletAuthHeaders } from '@/lib/wallet-auth-client';
+import { useState, useEffect, useCallback } from 'react';
+import { useSignMessage } from 'wagmi';
 import { useWalletContext } from '@/app/hooks/useWalletContext';
 import { useGeolocation } from '@/lib/useGeolocation';
 import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
@@ -21,6 +23,30 @@ export default function PassportPage() {
   // Wallet button that did nothing.
   const { user, fid, walletAddress, isFarcaster, isLoading: contextLoading, error: contextError, requestWallet } = useWalletContext();
   const { location, loading: geoLoading, error: geoError } = useGeolocation();
+  const { signMessageAsync } = useSignMessage();
+
+  /**
+   * `mint_passport` is a fund-moving action: execute-delegated demands PROVEN ownership of
+   * userAddress and ignores ENFORCE_QUICK_AUTH when doing so. This page only sent authHeaders()
+   * — a Farcaster Quick Auth token, which does not exist in a browser — so every browser mint
+   * came back 401 "This action requires proof you own this address."
+   *
+   * Outside Farcaster the proof is a wallet signature. The signed message is bound to the
+   * server's `context` string, so each route needs its own. Quick Auth is not attempted there:
+   * sdk.quickAuth.getToken() has no host to answer it and only resolves on its 3s timeout.
+   */
+  const authFor = useCallback(
+    async (context: string): Promise<Record<string, string>> => {
+      if (isFarcaster) return authHeaders();
+      if (!walletAddress) return {};
+      return walletAuthHeaders({
+        address: walletAddress,
+        signMessage: signMessageAsync,
+        context,
+      });
+    },
+    [isFarcaster, walletAddress, signMessageAsync],
+  );
 
   const farcasterFid = fid ?? user?.fid;
 
@@ -81,7 +107,7 @@ export default function PassportPage() {
         // about every country in one Multicall3 batch. ~1.2s cold for all 195.
         const response = await fetch(
           `/api/passports?address=${walletAddress}`,
-          { headers: { ...(await authHeaders()) } },
+          { headers: { ...(isFarcaster ? await authHeaders() : {}) } },
         );
 
         const data = await response.json();
@@ -142,7 +168,10 @@ export default function PassportPage() {
 
         const createRes = await fetch('/api/create-delegation', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(await authFor('create-delegation')),
+          },
           body: JSON.stringify({
             userAddress: walletAddress,
             authMethod: 'farcaster',
@@ -165,7 +194,10 @@ export default function PassportPage() {
       // ✅ Execute mint via delegation API - with auto-wrap if needed
       let response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(await authFor('execute-delegated:mint_passport')),
+        },
         body: JSON.stringify({
           userAddress: walletAddress,
           action: 'mint_passport',
@@ -188,7 +220,10 @@ export default function PassportPage() {
 
         const wrapRes = await fetch('/api/execute-delegated', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(await authFor('execute-delegated:wrap_mon')),
+          },
           body: JSON.stringify({
             userAddress: walletAddress,
             action: 'wrap_mon',
@@ -207,7 +242,10 @@ export default function PassportPage() {
         // Retry mint
         response = await fetch('/api/execute-delegated', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(await authFor('execute-delegated:mint_passport')),
+          },
           body: JSON.stringify({
             userAddress: walletAddress,
             action: 'mint_passport',

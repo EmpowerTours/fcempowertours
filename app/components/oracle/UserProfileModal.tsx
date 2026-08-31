@@ -1,6 +1,7 @@
 'use client';
 
 import { authHeaders } from '@/lib/quick-auth-client';
+import { useActionAuth } from '@/app/hooks/useActionAuth';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ArrowLeft, User, ExternalLink, ShoppingCart, Loader2, Crown } from 'lucide-react';
@@ -79,6 +80,10 @@ const resolveIPFS = (url: string): string => {
 };
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddress, onClose, onBack, buyerAddress, buyerFid, isDarkMode = true }) => {
+  // buy_resale spends the buyer's Safe, so execute-delegated demands proven ownership of
+  // buyerAddress; a bare Quick Auth token is a Farcaster-only proof and 401s in a browser.
+  const authFor = useActionAuth();
+
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -236,7 +241,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
     try {
       const response = await fetch('/api/execute-delegated', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(await authFor('execute-delegated:buy_resale', buyerAddress)),
+        },
         body: JSON.stringify({
           action: 'buy_resale',
           userAddress: buyerAddress,

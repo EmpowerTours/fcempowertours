@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorizeUserAddress, forwardAuthHeader } from "@/lib/quick-auth";
+import {
+  forwardOwnershipAttestation,
+  issueOwnershipAttestation,
+} from "@/lib/ownership-attestation";
 import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
 import { getResolvedCatalogue, getResolvedTrack } from "@/lib/catalogue-resolved";
 import { createPublicClient, http, type Address, type PublicClient } from "viem";
@@ -68,6 +72,15 @@ export async function POST(req: NextRequest) {
 
     // 🔐 Prove the caller controls userAddress before acting on their behalf.
     // Allowed through with a warning until ENFORCE_QUICK_AUTH=true.
+    //
+    // A browser user proves ownership with a wallet signature rather than a Quick
+    // Auth token. That signature cannot be forwarded downstream — it is bound to
+    // this route's context and its nonce is single-use, while a single command can
+    // fan out to three calls (mint → wrap → retry). So when the signature checks
+    // out, mint a short-lived attestation for the internal hop instead. Without it
+    // execute-delegated refused every fund-moving action from a browser with
+    // "This action requires proof you own this address."
+    let attestationHeader: Record<string, string> = {};
     if (userAddress) {
       const authz = await authorizeUserAddress(req, userAddress, "bot-command");
       if (!authz.allowed) {
@@ -76,6 +89,9 @@ export async function POST(req: NextRequest) {
           { status: 401 },
         );
       }
+      if (authz.ownsAddress && authz.mode === "wallet") {
+        attestationHeader = await issueOwnershipAttestation(userAddress);
+      }
     }
 
     // Internal service calls carry the caller's token so downstream routes can
@@ -83,6 +99,10 @@ export async function POST(req: NextRequest) {
     const internalHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       ...forwardAuthHeader(req),
+      // Pass an inbound attestation through as well, so a chain more than one hop
+      // deep does not silently lose the caller's identity.
+      ...forwardOwnershipAttestation(req),
+      ...attestationHeader,
     };
 
     console.log("Bot command received:", {

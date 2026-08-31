@@ -4,7 +4,9 @@ import { authHeaders } from "@/lib/quick-auth-client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, Radio, Music2, Mic, Play, Pause, SkipForward, Volume2, VolumeX, Loader2, Coins, Gift, Clock, TrendingUp, Flame, Plus, Check, Minus, Trophy, History, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
-import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import { useWalletContext } from "@/app/hooks/useWalletContext";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
+import { RADIO_SESSION_CONTEXT } from "@/lib/radio-session-context";
 import { useRadioStream } from "@/app/hooks/useRadioStream";
 import { MusicSubscriptionModal } from "./MusicSubscriptionModal";
 import ListenerRewardsClaim from "@/components/radio/ListenerRewardsClaim";
@@ -103,7 +105,12 @@ export function LiveRadioModal({
   onAudioPlay,
   registerPauseAudio,
 }: LiveRadioModalProps) {
-  const { user, walletAddress } = useFarcasterContext();
+  // This read the Farcaster-only context hook, which resolves an address only inside a Farcaster
+  // client — the whole radio was unreachable from a browser wallet. The queue/voice-note/skip
+  // actions also spend the user's Safe, so execute-delegated demands proven ownership, which a
+  // Quick Auth token cannot supply outside Warpcast.
+  const { user, walletAddress } = useWalletContext();
+  const authFor = useActionAuth();
 
   // Real-time SSE stream (replaces 2s polling for radioState, queue, voiceNotes)
   const {
@@ -464,7 +471,7 @@ export function LiveRadioModal({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(await authHeaders()),
+            ...(await authFor(RADIO_SESSION_CONTEXT)),
           },
           body: JSON.stringify({ userAddress: walletAddress }),
         });
@@ -938,7 +945,7 @@ export function LiveRadioModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("execute-delegated:radio_queue_song")),
         },
         body: JSON.stringify({
           userAddress: walletAddress,
@@ -1117,7 +1124,7 @@ export function LiveRadioModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("execute-delegated:radio_voice_note")),
         },
         body: JSON.stringify({
           userAddress: walletAddress,
@@ -1235,7 +1242,7 @@ export function LiveRadioModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("execute-delegated:radio_claim_rewards")),
         },
         body: JSON.stringify({
           userAddress: walletAddress,
@@ -1301,7 +1308,7 @@ export function LiveRadioModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("execute-delegated:radio_skip_random")),
         },
         body: JSON.stringify({
           userAddress: walletAddress,

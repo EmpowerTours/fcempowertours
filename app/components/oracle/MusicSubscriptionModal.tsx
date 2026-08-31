@@ -1,6 +1,6 @@
 "use client";
 
-import { authHeaders } from "@/lib/quick-auth-client";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
 import {
   isV3Contracts,
   walletOnlySubscribeBlockedReason,
@@ -96,6 +96,10 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   userFid,
   onClose,
 }) => {
+  // music-subscribe spends the user's Safe, so execute-delegated demands proven ownership of
+  // userAddress; a bare Quick Auth token is a Farcaster-only proof and 401s in a browser.
+  const authFor = useActionAuth();
+
   const [subscriptionStatus, setSubscriptionStatus] =
     useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(false);
@@ -296,7 +300,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("execute-delegated:music-subscribe", userAddress)),
         },
         body: JSON.stringify({
           action: "music-subscribe",

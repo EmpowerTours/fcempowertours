@@ -34,13 +34,9 @@ const redis = new Redis({
 /** Header the client carries the session token in. */
 export const RADIO_SESSION_HEADER = "x-radio-session";
 
-/**
- * The `context` string bound into the signed message. Must match on both sides
- * — the client passes it to walletAuthHeaders(), the server to
- * authorizeUserAddress() — or the signature recovers against a different
- * message and verification fails opaquely.
- */
-export const RADIO_SESSION_CONTEXT = "radio-listen";
+// Re-exported from the dependency-free module so browser callers can import the constant
+// without dragging Redis and node:crypto into the client bundle.
+export { RADIO_SESSION_CONTEXT } from "./radio-session-context";
 
 /**
  * One hour. Long enough that a listener signs at most once per sitting, short

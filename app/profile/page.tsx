@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
 
 import Link from "next/link";
 import PageTransition, {
@@ -101,6 +102,10 @@ export default function ProfilePage() {
     error: contextError,
     requestWallet,
   } = useWalletContext();
+
+  // stake_music / unstake_music spend the user's Safe, so execute-delegated demands proven
+  // ownership. authHeaders() alone is a Farcaster-only proof and 401s in a browser.
+  const authFor = useActionAuth();
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [createdArt, setCreatedArt] = useState<MusicNFTWithMetadata[]>([]);
@@ -414,7 +419,7 @@ export default function ProfilePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("execute-delegated:stake_music")),
         },
         body: JSON.stringify({
           userAddress: walletAddress,
@@ -461,7 +466,7 @@ export default function ProfilePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("execute-delegated:unstake_music")),
         },
         body: JSON.stringify({
           userAddress: walletAddress,

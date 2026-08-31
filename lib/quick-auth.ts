@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createClient, Errors } from "@farcaster/quick-auth";
 
 import { verifyWalletAuth } from "./wallet-auth";
+import { verifyOwnershipAttestation } from "./ownership-attestation";
 
 /**
  * 🔐 FARCASTER QUICK AUTH (server-side verification)
@@ -233,6 +234,24 @@ export async function authorizeUserAddress(
   }
   if (wallet.attempted) {
     console.warn(`[WalletAuth] ${context}: ✗ ${wallet.reason}`);
+  }
+
+  // ---- Internal attestation, for a route reached via another route that already
+  // verified the caller (bot-command → execute-delegated). A per-action signature
+  // cannot survive that hop: it is bound to the fronting route's context and its
+  // nonce is single-use, while one command can fan out to several internal calls.
+  // Only reachable after both checks above have failed, so it can never downgrade
+  // a request that was already passing.
+  if (await verifyOwnershipAttestation(req, target)) {
+    console.log(
+      `[OwnershipAttestation] ${context}: ✅ ${target} verified by the fronting route`,
+    );
+    return {
+      allowed: true,
+      mode: "wallet",
+      wouldRejectWhenEnforced: false,
+      ownsAddress: true,
+    };
   }
 
   // ---- Original failure results, unchanged. A failed or absent wallet attempt

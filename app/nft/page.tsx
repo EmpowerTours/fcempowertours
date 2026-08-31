@@ -443,6 +443,9 @@ export default function MusicPage() {
           coverUrl,
         );
 
+        // mint_collector spends the user's Safe, so execute-delegated demands proven
+        // ownership of the address. In a browser that proof is a wallet signature, which
+        // useBotCommand only produces when asked for it.
         mintData = await executeCommand(command, {
           imageUrl: coverUrl,
           title,
@@ -451,6 +454,7 @@ export default function MusicPage() {
           collectorPrice,
           maxEditions,
           is_art: nftType === "art",
+          requireWalletAuth: true,
         });
       } else {
         // Standard mint
@@ -481,6 +485,7 @@ export default function MusicPage() {
           title,
           tokenURI,
           is_art: nftType === "art",
+          requireWalletAuth: true,
           ...signed,
         });
       }
