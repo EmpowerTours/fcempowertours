@@ -12,6 +12,20 @@ export interface Delegation {
   config: DelegationConfig;
   transactionsExecuted: number;
   createdAt: number;
+  /**
+   * Whether the creator PROVED they own `user` — a Quick Auth token or a
+   * verified wallet signature — rather than merely asserting the address.
+   *
+   * This is what lets execute-delegated stop demanding a fresh signature for
+   * every fund-moving action. The whole point of a delegation is that the user
+   * authorises once and the platform acts for them afterwards; re-prompting per
+   * action gives back exactly the friction the delegation exists to remove.
+   *
+   * Optional because delegations created before this field existed are still in
+   * Redis under their original TTL. Absent is treated as NOT proven, so an old
+   * record can never widen access — it just falls back to a signature prompt.
+   */
+  ownershipProven?: boolean;
 }
 
 /**

@@ -42,6 +42,11 @@ export async function GET(req: NextRequest) {
         transactionsLeft: Math.max(0, transactionsLeft),
         maxTransactions: delegation.config.maxTransactions,
         permissions: delegation.config.permissions,
+        // The client needs this to tell a delegation that can actually
+        // authorise a fund-moving action from one that merely exists. An
+        // unproven delegation looks valid here but is rejected by
+        // execute-delegated, which would strand the user with no prompt.
+        ownershipProven: delegation.ownershipProven === true,
         createdAt: new Date(delegation.createdAt).toISOString(),
         expiresAt: new Date(delegation.expiresAt).toISOString(),
       },
@@ -96,6 +101,11 @@ export async function POST(req: NextRequest) {
         transactionsLeft: Math.max(0, transactionsLeft),
         maxTransactions: delegation.config.maxTransactions,
         permissions: delegation.config.permissions,
+        // The client needs this to tell a delegation that can actually
+        // authorise a fund-moving action from one that merely exists. An
+        // unproven delegation looks valid here but is rejected by
+        // execute-delegated, which would strand the user with no prompt.
+        ownershipProven: delegation.ownershipProven === true,
         createdAt: new Date(delegation.createdAt).toISOString(),
         expiresAt: new Date(delegation.expiresAt).toISOString(),
       },

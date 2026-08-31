@@ -224,6 +224,11 @@ export async function POST(req: NextRequest) {
     // copying their FID and verified address off the network. It now requires
     // a Quick Auth JWT, which is only issued after the user signs a Sign In
     // with Farcaster credential — i.e. proof of possession, not a lookup.
+    // Did the caller PROVE they own userAddress? Recorded on the delegation so
+    // execute-delegated can accept the delegation itself as proof and stop
+    // prompting for a signature on every single action.
+    let ownershipProven = false;
+
     if (authMethod === "farcaster") {
       const authz = await authorizeUserAddress(
         req,
@@ -242,6 +247,8 @@ export async function POST(req: NextRequest) {
           { status: 403 },
         );
       }
+
+      ownershipProven = authz.ownsAddress === true;
 
       if (authz.mode === "quickauth") {
         console.log(
@@ -308,6 +315,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      ownershipProven = true;
       console.log(`[Delegation] ✅ Verified signature for ${userAddress}`);
     }
 
@@ -341,6 +349,9 @@ export async function POST(req: NextRequest) {
         maxTransactions,
         permissions: finalPermissions,
       },
+      // SECURITY: whether ownership was PROVEN, not merely claimed. Consumed by
+      // execute-delegated's fund-moving gate.
+      ownershipProven,
       // SECURITY: Track auth metadata
       authMetadata: {
         method: authMethod === "farcaster" ? "farcaster" : "signature",

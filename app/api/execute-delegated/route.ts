@@ -209,9 +209,35 @@ export async function POST(req: NextRequest) {
         `execute-delegated:${action}`,
       );
 
+      // A delegation the user PROVED they owned the address for is itself the
+      // proof — that is what a delegation is. Requiring a fresh signature per
+      // action gave back exactly the friction the delegation exists to remove:
+      // the user authorises once, then the platform acts for them.
+      //
+      // This grants nothing the delegation did not already grant. It must be
+      // unexpired, it must list this action, it is consumed against
+      // maxTransactions, and ownershipProven is only ever set by a verified
+      // Quick Auth token or a verified wallet signature. A delegation created
+      // without proof (or predating the field) leaves it false and still
+      // requires the signature.
+      let delegatedOwnership = false;
+      if (fundMovingActions.has(action) && !authz.ownsAddress) {
+        const existing = await getDelegation(userAddress);
+        delegatedOwnership =
+          existing?.ownershipProven === true &&
+          existing.expiresAt > Date.now() &&
+          Array.isArray(existing.config?.permissions) &&
+          existing.config.permissions.includes(action);
+        if (delegatedOwnership) {
+          console.log(
+            `✅ execute-delegated: '${action}' authorised by a proven delegation for ${userAddress}`,
+          );
+        }
+      }
+
       // Fund-moving: hard fail-closed. Ignore `allowed` (which honors the
       // rollout flag) and require proven ownership of the address.
-      if (fundMovingActions.has(action) && !authz.ownsAddress) {
+      if (fundMovingActions.has(action) && !authz.ownsAddress && !delegatedOwnership) {
         console.error(
           `🚫 execute-delegated: fund-moving action '${action}' denied — ` +
             `caller did not prove ownership of ${userAddress} (${authz.reason || authz.mode})`,

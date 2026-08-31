@@ -1,5 +1,6 @@
 'use client';
 
+import { delegationCovers } from '@/lib/delegation-covered';
 import { ensureSafeRegistered } from '@/lib/ensure-safe-registered';
 import { describeMintFailure } from '@/lib/mint-failure';
 import { authHeaders } from '@/lib/quick-auth-client';
@@ -41,6 +42,11 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
     async (context: string): Promise<Record<string, string>> => {
       if (isFarcaster) return authHeaders();
       if (!walletAddress) return {};
+      // A proven delegation already authorises these, so prompting again is the
+      // friction the delegation was created to remove. The server accepts the
+      // delegation as proof; if it is missing or unproven the caller recreates
+      // it, which is the one signature the user actually owes.
+      if (delegationCovers(context)) return {};
       return walletAuthHeaders({
         address: walletAddress,
         signMessage: signMessageAsync,
@@ -96,7 +102,8 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
       const hasValidDelegation = delegationData.success &&
                                 delegationData.delegation &&
                                 Array.isArray(delegationData.delegation.permissions) &&
-                                delegationData.delegation.permissions.includes('mint_passport');
+                                delegationData.delegation.permissions.includes('mint_passport') &&
+                                delegationData.delegation.ownershipProven === true;
 
       if (!hasValidDelegation) {
         const createRes = await fetch('/api/create-delegation', {
