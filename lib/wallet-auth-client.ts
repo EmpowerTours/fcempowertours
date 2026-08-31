@@ -1,5 +1,6 @@
 "use client";
 
+import { awaitForeground } from "./foreground";
 import { authHeaders } from "./quick-auth-client";
 // From the dependency-free constants module, NOT lib/wallet-auth.ts — importing
 // the server verifier here would pull Redis and node:crypto into the browser bundle.
@@ -57,6 +58,12 @@ export async function walletAuthHeaders({
     }
 
     const signature = await signMessage({ message: data.message });
+
+    // A mobile wallet signs in its own app, which backgrounds this page. The
+    // caller fires its real request the moment we return, and a fetch from a
+    // backgrounded iOS web view is killed outright — surfacing as the bare
+    // string "Load failed". Hand back control only once we are visible again.
+    await awaitForeground();
 
     return {
       [WALLET_AUTH_HEADERS.address]: address,

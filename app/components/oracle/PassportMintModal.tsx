@@ -1,5 +1,7 @@
 'use client';
 
+import { ensureSafeRegistered } from '@/lib/ensure-safe-registered';
+import { describeMintFailure } from '@/lib/mint-failure';
 import { authHeaders } from '@/lib/quick-auth-client';
 import { walletAuthHeaders } from '@/lib/wallet-auth-client';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -81,19 +83,11 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
     setError('');
 
     try {
-      // Register User Safe on V2 contracts if needed
-      try {
-        await fetch('/api/register-user-safe', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(isFarcaster ? await authHeaders() : {}),
-          },
-          body: JSON.stringify({ userAddress: walletAddress }),
-        });
-      } catch (regError) {
-        console.warn('User Safe registration check failed, proceeding:', regError);
-      }
+      // Register the Safe as a minter first, in its own request. Bundling it
+      // into the mint made a first-time mint two chain operations deep and it
+      // timed out. Throws rather than warns: proceeding unregistered is the
+      // failure we are fixing.
+      await ensureSafeRegistered(walletAddress, authFor);
 
       // Check for existing delegation
       const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
@@ -211,7 +205,7 @@ export function PassportMintModal({ onClose, isDarkMode = true }: PassportMintMo
       });
     } catch (err: any) {
       console.error('Passport mint error:', err);
-      setError(err.message || 'Failed to mint passport');
+      setError(describeMintFailure(err));
     } finally {
       setIsLoading(false);
     }

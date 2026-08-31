@@ -140,6 +140,52 @@ if (!quickAuth.includes("verifyOwnershipAttestation")) {
   );
 }
 
+// ---- Safe registration must not ride inside the mint request ----------------
+// execute-delegated registers the Safe inline (ensureUserSafeRegistered), so a
+// first-time mint becomes registration + mint: two sequential user-operation
+// receipts in one HTTP request. The browser gives up first and fetch rejects
+// with a bare TypeError — "Load failed" on WebKit. Every passport surface must
+// therefore register in its own request, BEFORE the mint.
+for (const surface of [
+  "app/passport/page.tsx",
+  "app/components/oracle/PassportMintModal.tsx",
+]) {
+  const src = strip(readFileSync(join(root, surface), "utf8"));
+  checks++;
+  // Match the CALL, not the identifier: an unused import still contains the
+  // name, so includes() alone passes on code that never registers anything.
+  if (!/ensureSafeRegistered\s*\(/.test(src)) {
+    failures.push(
+      `${surface} does not call ensureSafeRegistered; its first mint will do ` +
+        "registration and the mint in one request and time out",
+    );
+  }
+  // Registration spends platform gas and is fail-closed on proven ownership, so
+  // a Farcaster-only header expression 401s for every browser user — and when
+  // that failure is swallowed, registration silently never happens.
+  checks++;
+  if (/register-user-safe[\s\S]{0,300}isFarcaster \?/.test(src)) {
+    failures.push(
+      `${surface} guards its register-user-safe auth behind isFarcaster; a ` +
+        "browser user sends no proof of ownership and the route returns 401",
+    );
+  }
+}
+
+// The client decides whether to spend a signature on registration by reading
+// this flag, so it has to keep being served.
+const userSafeRoute = strip(
+  readFileSync(join(root, "app/api/user-safe/route.ts"), "utf8"),
+);
+checks++;
+// Word-boundary, not substring: isRegisteredAsMinterX contains the name.
+if (!/\bisRegisteredAsMinter\b/.test(userSafeRoute)) {
+  failures.push(
+    "GET /api/user-safe no longer reports isRegisteredAsMinter; the client " +
+      "cannot tell whether registration is needed and will prompt every mint",
+  );
+}
+
 // ---- Report -----------------------------------------------------------------
 if (failures.length > 0) {
   console.error(`✗ ${failures.length} failure(s) across ${checks} checks:\n`);

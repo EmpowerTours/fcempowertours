@@ -1,5 +1,7 @@
 'use client';
 
+import { ensureSafeRegistered } from '@/lib/ensure-safe-registered';
+import { describeMintFailure } from '@/lib/mint-failure';
 import { authHeaders } from '@/lib/quick-auth-client';
 import { walletAuthHeaders } from '@/lib/wallet-auth-client';
 import { useState, useEffect, useCallback } from 'react';
@@ -153,6 +155,12 @@ export default function PassportPage() {
     try {
       console.log('🎫 Minting passport via delegation API (gasless)...');
 
+      // Register the Safe as a minter first, in its own request. This page never
+      // did — only the modal path called it — so a mint from here always fell
+      // through to execute-delegated doing it inline, two chain operations deep
+      // in one request, which is what timed out as "Load failed".
+      await ensureSafeRegistered(walletAddress, authFor);
+
       // ✅ Check for existing delegation
       const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
       const delegationData = await delegationRes.json();
@@ -290,7 +298,7 @@ Token #${tokenId || 'pending'}`);
       setSelectedCountryCode('');
     } catch (err: any) {
       console.error('❌ Error:', err);
-      setError(err.message || 'Failed to mint passport');
+      setError(describeMintFailure(err));
     } finally {
       setIsLoading(false);
     }

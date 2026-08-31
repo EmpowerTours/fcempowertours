@@ -35,10 +35,34 @@ export async function GET(req: NextRequest) {
     let toursWalletBalance = '0';
     let toursWalletBalanceWei = '0';
 
+    // Is the Safe already an authorised minter on the passport? The client needs
+    // this to decide whether calling /api/register-user-safe is worth a wallet
+    // signature: registration is a one-time on-chain write, and re-requesting a
+    // signature on every later mint just to be told "already_registered" is pure
+    // friction. Read-only and unauthenticated, like the balances beside it.
+    let isRegisteredAsMinter = false;
+    const PASSPORT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
+
     const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const erc20BalanceAbi = parseAbi(['function balanceOf(address) view returns (uint256)']);
 
     const balancePromises: Promise<void>[] = [];
+
+    if (PASSPORT_ADDRESS) {
+      balancePromises.push(
+        publicClient.readContract({
+          address: PASSPORT_ADDRESS,
+          abi: parseAbi(['function authorizedMinters(address) view returns (bool)']),
+          functionName: 'authorizedMinters',
+          args: [safeInfo.safeAddress],
+        }).then((ok) => {
+          isRegisteredAsMinter = ok as boolean;
+        }).catch(() => {
+          // Leave it false. A failed read must not claim the Safe is registered
+          // when it is not — that would skip registration and revert the mint.
+        })
+      );
+    }
 
     if (WMON_ADDRESS) {
       balancePromises.push(
@@ -98,6 +122,7 @@ export async function GET(req: NextRequest) {
       userSafesEnabled: isUserSafeMode(),
       safeAddress: safeInfo.safeAddress,
       isDeployed: safeInfo.isDeployed,
+      isRegisteredAsMinter,
       balance: safeInfo.balance,
       balanceWei: safeInfo.balanceWei.toString(),
       wmonBalance,
