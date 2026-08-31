@@ -525,41 +525,41 @@ Token #${tokenId || 'pending'}`);
         )}
 
         <div className="space-y-4 mb-5">
+          {/* The country is where you ARE, not one you choose. A passport you
+              could pick off a list of 195 is not a record of travel, so this
+              mirrors PassportMintModal: GPS decides, and no location means no
+              mint. NOTE: the server does not yet enforce this — see
+              validateCountryCode in the mint path, which checks format only. */}
           <div>
             <label className="block text-white text-sm font-medium mb-2">
-              {location
-                ? `Country (Auto-detected: ${location.country} 🎯)`
-                : 'Select Your Country'
-              }
+              Your Location
             </label>
-            <select
-              value={selectedCountryCode}
-              onChange={(e) => setSelectedCountryCode(e.target.value)}
-              className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 text-base"
-              style={{ minHeight: '48px' }}
-            >
-              <option value="">Choose a country...</option>
-              {ALL_COUNTRIES.map((country) => {
-                const alreadyHas = hasPassportForCountry(country.code);
-                return (
-                  <option key={country.code} value={country.code}>
-                    {country.flag} {country.name} {alreadyHas ? '✅' : ''}
-                  </option>
-                );
-              })}
-            </select>
+            {geoLoading ? (
+              <div className="w-full bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-3 text-blue-400 text-sm">
+                Detecting your location...
+              </div>
+            ) : selectedCountryCode ? (
+              <div className="w-full bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-3 text-center">
+                <p className="text-gray-400 text-xs mb-1">Minting passport for</p>
+                <p className="text-2xl font-bold text-white">
+                  {getCountryByCode(selectedCountryCode)?.flag}{' '}
+                  {getCountryByCode(selectedCountryCode)?.name}
+                </p>
+              </div>
+            ) : (
+              <div className="w-full bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm text-center">
+                Could not detect your location. Please enable location services and try again.
+              </div>
+            )}
             {selectedAlreadyMinted ? (
               <p className="text-green-400 text-xs mt-2">
                 ✅ You already have a passport for this country!
               </p>
-            ) : (
+            ) : location ? (
               <p className="text-gray-400 text-xs mt-2">
-                📍 {location
-                  ? `Based on your GPS location (${location.countryName})`
-                  : 'Select from all 195 countries'
-                }
+                📍 Based on your GPS location ({location.countryName})
               </p>
-            )}
+            ) : null}
           </div>
         </div>
 
