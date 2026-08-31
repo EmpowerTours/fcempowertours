@@ -7,7 +7,8 @@ import { getCountryByCode } from "@/lib/passport/countries";
 import { redis } from "@/lib/redis";
 import { encodeFunctionData, type Address, type Hex, type PublicClient } from 'viem';
 import { findAllPassports } from '@/lib/passport-lookup';
-import { sendSafeTransaction, publicClient } from '@/lib/pimlico-safe-aa';
+import { sendSafeTransaction, publicClient, safeAddress } from '@/lib/pimlico-safe-aa';
+import { preflightPassportMint, buildPassportMintCalls } from '@/lib/passport-mint';
 
 const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as string;
 const IPINFO_TOKEN = process.env.IPINFO_TOKEN;
@@ -397,13 +398,42 @@ export async function POST(req: NextRequest) {
       ],
     });
 
-    const txHash = await sendSafeTransaction([
+    // Two reverts sat between this route and a working mint, and both looked identical from the
+    // outside: an opaque "Mint transaction reverted" after the gas was spent.
+    //
+    //   1. The Safe was never added to `authorizedMinters`, so `mintFor` failed its modifier.
+    //   2. `_mintPassport` does `wmonToken.safeTransferFrom(msg.sender, platformWallet,
+    //      MINT_PRICE)` and the Safe's allowance to the passport contract was 0.
+    //
+    // Checked BEFORE sending, so a misconfigured deployment says which one it is instead of
+    // charging for the discovery. Everything read from the contract — MINT_PRICE included,
+    // because a hard-coded 150 is a number that silently goes stale.
+    const preflight = await preflightPassportMint(
+      publicClient as unknown as PublicClient,
       {
-        to: PASSPORT_NFT_ADDRESS as Address,
-        value: 0n,
-        data: mintData as Hex,
-      }
-    ]);
+        passport: PASSPORT_NFT_ADDRESS as Address,
+        sender: safeAddress,
+      },
+    );
+
+    if (!preflight.ok) {
+      await redis.del(lockKey);
+      console.error('❌ Passport mint preflight failed:', preflight.reason);
+      return NextResponse.json(
+        { error: preflight.reason, fix: preflight.fix },
+        { status: 503 },
+      );
+    }
+
+    const txHash = await sendSafeTransaction(
+      buildPassportMintCalls({
+        passport: PASSPORT_NFT_ADDRESS as Address,
+        wmon: preflight.wmon,
+        mintPrice: preflight.mintPrice,
+        allowance: preflight.allowance,
+        mintData: mintData as Hex,
+      }),
+    );
 
     console.log(`📤 Mint tx sent: ${txHash}`);
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
