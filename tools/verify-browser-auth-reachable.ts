@@ -105,6 +105,38 @@ for (const file of clientFiles) {
   }
 }
 
+// ---- bot-command callers must ASK for the signature -------------------------
+// The scan above only sees files that POST to /api/execute-delegated. A client
+// that mints through /api/bot-command instead is invisible to it — which is
+// exactly how CreateNFTModal shipped calling executeCommand with no
+// requireWalletAuth, sending no auth at all outside Farcaster and being refused
+// with "caller did not prove ownership (No Bearer token)".
+//
+// useBotCommand only signs when asked: without requireWalletAuth it sends {}.
+for (const file of clientFiles) {
+  const raw = readFileSync(file, "utf8");
+  if (!raw.includes('"use client"') && !raw.includes("'use client'")) continue;
+  const code = strip(raw);
+  if (!code.includes("executeCommand(")) continue;
+
+  // Only the ones issuing a fund-moving command.
+  const commands = [...code.matchAll(/`(mint_[a-z_]+|buy_[a-z_]+)\s/g)].map(
+    (m) => m[1],
+  );
+  if (!commands.some((c) => fundMoving.has(c))) continue;
+
+  checks++;
+  const calls = (code.match(/executeCommand\(/g) || []).length;
+  const asks = (code.match(/requireWalletAuth:\s*true/g) || []).length;
+  if (asks < calls) {
+    failures.push(
+      `${relative(root, file)} calls executeCommand ${calls} time(s) with a ` +
+        `fund-moving command but only ${asks} pass requireWalletAuth — ` +
+        "useBotCommand sends no auth outside Farcaster and the mint is denied",
+    );
+  }
+}
+
 // ---- bot-command fans out; its browser callers need the same reachability ----
 const botHook = strip(
   readFileSync(join(root, "app/hooks/useBotCommand.ts"), "utf8"),

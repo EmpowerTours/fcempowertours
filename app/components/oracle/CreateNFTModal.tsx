@@ -596,6 +596,12 @@ export function CreateNFTModal({
         // Collector edition mint
         const command = `mint_collector ${title.slice(0, 50)} ${tokenURI} ${price}`;
         mintData = await executeCommand(command, {
+          // Without this the hook sends no auth at all outside Farcaster, and
+          // execute-delegated refuses the mint: "caller did not prove ownership
+          // (No Bearer token)". mint_collector and mint_music are fund-moving,
+          // and no delegation covers mint_collector, so a signature is the only
+          // proof available. /nft passed this; this modal never did.
+          requireWalletAuth: true,
           imageUrl: coverUrl,
           title,
           tokenURI,
@@ -630,6 +636,12 @@ export function CreateNFTModal({
         }
 
         mintData = await executeCommand(command, {
+          // Without this the hook sends no auth at all outside Farcaster, and
+          // execute-delegated refuses the mint: "caller did not prove ownership
+          // (No Bearer token)". mint_collector and mint_music are fund-moving,
+          // and no delegation covers mint_collector, so a signature is the only
+          // proof available. /nft passed this; this modal never did.
+          requireWalletAuth: true,
           imageUrl: coverUrl,
           title,
           tokenURI,
