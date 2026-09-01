@@ -186,6 +186,55 @@ if (!/\bisRegisteredAsMinter\b/.test(userSafeRoute)) {
   );
 }
 
+// ---- Registration must be best-effort, not all-or-nothing --------------------
+// The three V2 registrations are independent, but a batch is atomic. The
+// deployed ItineraryNFT is V1 and has no registerUserSafeAsPurchaser, so that
+// call reverted and discarded the passport registration with it — every time,
+// for every user, which is why no Safe was ever an authorised minter and no
+// passport was ever minted through payment. Each call must be simulated and
+// dropped on revert so one stale contract cannot block minting.
+const userSafeLib = strip(readFileSync(join(root, "lib/user-safe.ts"), "utf8"));
+checks++;
+if (!/publicClient\.call\(\{[\s\S]{0,120}to: call\.to/.test(userSafeLib)) {
+  failures.push(
+    "lib/user-safe.ts no longer simulates each registration call before " +
+      "batching; one reverting contract silently blocks passport minting for " +
+      "every user",
+  );
+}
+checks++;
+if (!/sendSafeTransaction\(viable\)/.test(userSafeLib)) {
+  failures.push(
+    "lib/user-safe.ts sends the unfiltered call list; the batch is atomic " +
+      "again and a single stale contract takes the others down with it",
+  );
+}
+
+// ---- A failed registration must not report success ---------------------------
+// register-user-safe answered 200 carrying success:false, and
+// registerUserSafeOnV2Contracts swallows every error into exactly that. A
+// caller checking only res.ok therefore treated a failed registration as a
+// successful one, minted anyway, and reverted with "Not authorized to mint" —
+// the real failure reported nowhere. Both halves are pinned.
+const regRoute = strip(
+  readFileSync(join(root, "app/api/register-user-safe/route.ts"), "utf8"),
+);
+checks++;
+if (!/if\s*\(!result\.success\)/.test(regRoute)) {
+  failures.push(
+    "register-user-safe no longer branches on result.success; it answers 200 " +
+      "for a registration that failed and the caller mints into a revert",
+  );
+}
+const ensureLib = strip(readFileSync(join(root, "lib/ensure-safe-registered.ts"), "utf8"));
+checks++;
+if (!/body\?\.success\s*!==\s*true/.test(ensureLib)) {
+  failures.push(
+    "ensure-safe-registered trusts the HTTP status alone; a 200 carrying " +
+      "success:false passes for a registered Safe",
+  );
+}
+
 // ---- Report -----------------------------------------------------------------
 if (failures.length > 0) {
   console.error(`✗ ${failures.length} failure(s) across ${checks} checks:\n`);

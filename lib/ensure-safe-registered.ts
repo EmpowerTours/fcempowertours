@@ -46,11 +46,15 @@ export async function ensureSafeRegistered(
     body: JSON.stringify({ userAddress: walletAddress }),
   });
 
-  if (!res.ok) {
+  // res.ok is not enough. The route used to answer 200 with success:false, and
+  // trusting the status alone is what let a failed registration pass for a
+  // successful one right up until the mint reverted. Check the body too.
+  const body = await res.json().catch(() => null);
+  if (!res.ok || body?.success !== true) {
     // Do NOT swallow this. Proceeding lands in the bundled slow path that this
     // whole function exists to avoid, and the user gets a timeout instead of a
     // sentence telling them what happened.
-    const detail = await res.json().catch(() => null);
+    const detail = body;
     if (res.status === 401) {
       throw new Error(
         "Could not verify you own this wallet. Approve the signature request to set up your account, then try again.",

@@ -419,25 +419,29 @@ export async function registerUserSafeOnV2Contracts(
   userAddress: string
 ): Promise<{ success: boolean; txHash?: string; status: string }> {
   const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
-  const ITINERARY_NFT = process.env.NEXT_PUBLIC_ITINERARY_NFT as Address;
   const PLAY_ORACLE = process.env.NEXT_PUBLIC_PLAY_ORACLE as Address;
+  // No ITINERARY_NFT here on purpose.
+  //
+  // The contract is fine — ItineraryNFTV2 is deployed on mainnet with
+  // platformOperator correctly set to the Platform Safe, and the registration
+  // call simulates clean. What is missing is the feature: execute-delegated has
+  // no buy_itinerary case, only two orphaned comment banners where the handlers
+  // used to be, and authorizedPurchasers is read by nothing in the app.
+  //
+  // So registering every new user's Safe as a purchaser spends platform gas to
+  // buy a capability no code can use. Re-add this call in the same batch when
+  // the itinerary feature lands; until then it is pure cost.
 
   try {
     const safeAddress = await getUserSafeAddress(userAddress);
     console.log('[UserSafe] Registering Safe on V2 contracts:', safeAddress);
 
     // Check registration state on each contract
-    const [isRegisteredPassport, isRegisteredPurchaser, isRegisteredOperator] = await Promise.all([
+    const [isRegisteredPassport, isRegisteredOperator] = await Promise.all([
       PASSPORT_NFT ? publicClient.readContract({
         address: PASSPORT_NFT,
         abi: parseAbi(['function authorizedMinters(address) view returns (bool)']),
         functionName: 'authorizedMinters',
-        args: [safeAddress],
-      }).catch(() => false) : Promise.resolve(true),
-      ITINERARY_NFT ? publicClient.readContract({
-        address: ITINERARY_NFT,
-        abi: parseAbi(['function authorizedPurchasers(address) view returns (bool)']),
-        functionName: 'authorizedPurchasers',
         args: [safeAddress],
       }).catch(() => false) : Promise.resolve(true),
       PLAY_ORACLE ? publicClient.readContract({
@@ -463,18 +467,6 @@ export async function registerUserSafeOnV2Contracts(
       });
     }
 
-    if (!isRegisteredPurchaser && ITINERARY_NFT) {
-      calls.push({
-        to: ITINERARY_NFT,
-        value: 0n,
-        data: encodeFunctionData({
-          abi: parseAbi(['function registerUserSafeAsPurchaser(address) external']),
-          functionName: 'registerUserSafeAsPurchaser',
-          args: [safeAddress],
-        }) as Hex,
-      });
-    }
-
     if (!isRegisteredOperator && PLAY_ORACLE) {
       calls.push({
         to: PLAY_ORACLE,
@@ -495,11 +487,49 @@ export async function registerUserSafeOnV2Contracts(
     console.log(`[UserSafe] Registering on ${calls.length} contract(s)...`);
 
     // Send registration via Platform Safe
-    const { sendSafeTransaction } = await import('@/lib/pimlico-safe-aa');
-    const txHash = await sendSafeTransaction(calls);
+    const { sendSafeTransaction, safeAddress: platformSafe } = await import('@/lib/pimlico-safe-aa');
 
-    console.log('[UserSafe] Registration TX:', txHash);
-    return { success: true, txHash, status: 'registered' };
+    // Drop calls that would revert BEFORE batching them.
+    //
+    // These three registrations are independent, but a batch is atomic: one
+    // revert discards the other two, and ensureUserSafeRegistered only warns,
+    // so the caller carries on to a mint that cannot succeed. Whichever call
+    // broke, the visible symptom would be an unregistered Safe and a mint that
+    // reverts for a reason nothing reports.
+    //
+    // Simulating each call is a plain eth_call and costs no gas, so the batch
+    // degrades to best-effort instead of failing whole. All three currently
+    // simulate clean against mainnet; this is a guard against a contract being
+    // repointed, redeployed or left a version behind, not a fix for a specific
+    // known break.
+    const viable: typeof calls = [];
+    for (const call of calls) {
+      try {
+        await publicClient.call({ account: platformSafe, to: call.to, data: call.data });
+        viable.push(call);
+      } catch (simErr: any) {
+        console.warn(
+          `[UserSafe] Skipping registration on ${call.to} — it reverts in simulation ` +
+            `(${simErr?.shortMessage || simErr?.message}). The other registrations proceed.`,
+        );
+      }
+    }
+
+    if (viable.length === 0) {
+      console.error('[UserSafe] Every registration call reverts; nothing to send');
+      return { success: false, status: 'all_calls_revert' };
+    }
+
+    const txHash = await sendSafeTransaction(viable);
+
+    console.log(
+      `[UserSafe] Registration TX: ${txHash} (${viable.length}/${calls.length} contracts)`,
+    );
+    return {
+      success: true,
+      txHash,
+      status: viable.length === calls.length ? 'registered' : 'registered_partial',
+    };
   } catch (error: any) {
     console.error('[UserSafe] V2 registration error:', error.message);
     return { success: false, status: 'error' };

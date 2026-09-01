@@ -92,8 +92,30 @@ export async function POST(req: NextRequest) {
 
     const result = await registerUserSafeOnV2Contracts(userAddress);
 
+    // Answer 200 only when the Safe is actually registered. This used to return
+    // 200 carrying success:false, and registerUserSafeOnV2Contracts swallows
+    // every error into exactly that — so a caller checking res.ok believed the
+    // Safe was registered, went on to mint, and reverted with "Not authorized
+    // to mint". The failure that mattered was reported nowhere, and the error
+    // the user saw named nothing.
+    if (!result.success) {
+      console.error(
+        `[RegisterUserSafe] FAILED for ${userAddress}: ${result.status}`,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          status: result.status,
+          error:
+            "Could not register your account for minting. This is a platform-side " +
+            "failure, not something you can fix by retrying — please report it.",
+        },
+        { status: 502 },
+      );
+    }
+
     return NextResponse.json({
-      success: result.success,
+      success: true,
       status: result.status,
       txHash: result.txHash || null,
     });
