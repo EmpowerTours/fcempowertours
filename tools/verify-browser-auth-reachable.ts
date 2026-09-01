@@ -186,27 +186,47 @@ if (!/\bisRegisteredAsMinter\b/.test(userSafeRoute)) {
   );
 }
 
-// ---- Registration must be best-effort, not all-or-nothing --------------------
-// The three V2 registrations are independent, but a batch is atomic. The
-// deployed ItineraryNFT is V1 and has no registerUserSafeAsPurchaser, so that
-// call reverted and discarded the passport registration with it — every time,
-// for every user, which is why no Safe was ever an authorised minter and no
-// passport was ever minted through payment. Each call must be simulated and
-// dropped on revert so one stale contract cannot block minting.
+// ---- Registration must not depend on the Platform Safe -----------------------
+// The Platform Safe is a 2-of-3 multisig and the server holds one key, so
+// Safe4337Module.validateUserOp can never satisfy checkSignatures. Its
+// EntryPoint nonce is 0: it has never executed a user operation, and every
+// registration sent through it failed at submission. Registration is a plain
+// administrative write and goes directly from the bot signer, which is already
+// owner() of these contracts and so strictly outranks platformOperator.
+//
+// The registrations are also independent of each other, so a stale or repointed
+// contract must cost a warning rather than the passport registration that gates
+// minting — hence simulate-then-send over the filtered list.
 const userSafeLib = strip(readFileSync(join(root, "lib/user-safe.ts"), "utf8"));
 checks++;
 if (!/publicClient\.call\(\{[\s\S]{0,120}to: call\.to/.test(userSafeLib)) {
   failures.push(
     "lib/user-safe.ts no longer simulates each registration call before " +
-      "batching; one reverting contract silently blocks passport minting for " +
+      "sending; one reverting contract silently blocks passport minting for " +
       "every user",
   );
 }
 checks++;
-if (!/sendSafeTransaction\(viable\)/.test(userSafeLib)) {
+if (!/for\s*\(const call of viable\)/.test(userSafeLib)) {
   failures.push(
-    "lib/user-safe.ts sends the unfiltered call list; the batch is atomic " +
-      "again and a single stale contract takes the others down with it",
+    "lib/user-safe.ts no longer sends only the simulated-viable calls; a " +
+      "reverting contract is back in the send path",
+  );
+}
+// Scoped to registerUserSafeOnV2Contracts. Other functions in this file still
+// send through the Platform Safe (registerUserSafeAsBurner does) and carry the
+// same latent defect, but they are not on the passport-mint path and are not
+// this check's business to police.
+checks++;
+const v2Fn = userSafeLib.slice(
+  userSafeLib.indexOf("export async function registerUserSafeOnV2Contracts"),
+);
+const v2Body = v2Fn.slice(0, v2Fn.indexOf("\nexport ") + 1 || undefined);
+if (/sendSafeTransaction\(/.test(v2Body)) {
+  failures.push(
+    "registerUserSafeOnV2Contracts routes registration through the Platform " +
+      "Safe again; that Safe is 2-of-3, the server has one key, and no user " +
+      "operation from it has ever validated",
   );
 }
 

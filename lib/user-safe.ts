@@ -9,6 +9,7 @@
 import { createSmartAccountClient, SmartAccountClient } from "permissionless";
 import {
   createPublicClient,
+  createWalletClient,
   http,
   Address,
   Hex,
@@ -545,52 +546,83 @@ export async function registerUserSafeOnV2Contracts(
 
     console.log(`[UserSafe] Registering on ${calls.length} contract(s)...`);
 
-    // Send registration via Platform Safe
-    const { sendSafeTransaction, safeAddress: platformSafe } = await import(
-      "@/lib/pimlico-safe-aa"
-    );
+    // Register directly from the bot signer EOA, not through the Platform Safe.
+    //
+    // The Platform Safe is a 2-of-3 multisig and the server holds exactly one of
+    // those keys, so Safe4337Module.validateUserOp could never satisfy
+    // checkSignatures. Its EntryPoint nonce is 0 — it has never executed a
+    // single user operation — while its internal nonce is 4, all direct
+    // execTransaction calls signed by two humans. Every registration failed at
+    // submission, and the error was discarded, so the user saw a revert from a
+    // mint three steps downstream instead.
+    //
+    // The bot signer is already owner() of these contracts, which strictly
+    // dominates platformOperator: owner can appoint operators and grant minters
+    // outright. Operating from it therefore grants no privilege it does not
+    // already hold, and it takes the bundler, the paymaster and account
+    // abstraction out of what is a plain administrative write — removing the
+    // entire class of failure that caused this.
+    //
+    // Requires platformOperator to point at the bot signer. Until it does, the
+    // simulation below refuses every call and names the fix, rather than
+    // spending gas on a transaction that reverts.
+    const botSigner = getBotSignerAccount();
 
-    // Drop calls that would revert BEFORE batching them.
-    //
-    // These three registrations are independent, but a batch is atomic: one
-    // revert discards the other two, and ensureUserSafeRegistered only warns,
-    // so the caller carries on to a mint that cannot succeed. Whichever call
-    // broke, the visible symptom would be an unregistered Safe and a mint that
-    // reverts for a reason nothing reports.
-    //
-    // Simulating each call is a plain eth_call and costs no gas, so the batch
-    // degrades to best-effort instead of failing whole. All three currently
-    // simulate clean against mainnet; this is a guard against a contract being
-    // repointed, redeployed or left a version behind, not a fix for a specific
-    // known break.
+    // Simulate before sending. These calls are independent and a failure on one
+    // contract must not stop the others — a stale or repointed contract should
+    // cost a warning, not the passport registration that gates minting.
     const viable: typeof calls = [];
+    let lastSimError = "";
     for (const call of calls) {
       try {
         await publicClient.call({
-          account: platformSafe,
+          account: botSigner.address,
           to: call.to,
           data: call.data,
         });
         viable.push(call);
       } catch (simErr: any) {
+        lastSimError = redactString(
+          String(simErr?.shortMessage || simErr?.message || simErr),
+        );
         console.warn(
-          `[UserSafe] Skipping registration on ${call.to} — it reverts in simulation ` +
-            `(${simErr?.shortMessage || simErr?.message}). The other registrations proceed.`,
+          `[UserSafe] Skipping registration on ${call.to} — reverts in simulation ` +
+            `(${lastSimError}). Remaining registrations proceed.`,
         );
       }
     }
 
     if (viable.length === 0) {
-      console.error(
-        "[UserSafe] Every registration call reverts; nothing to send",
-      );
-      return { success: false, status: "all_calls_revert" };
+      // Overwhelmingly the "Only platform operator" case, so name the fix here
+      // rather than leaving the next person to rediscover it from a revert.
+      const detail =
+        `no registration call is permitted from ${botSigner.address} ` +
+        `(${lastSimError || "all calls revert"}). If platformOperator still points ` +
+        `at the old Safe, call setPlatformOperator(${botSigner.address}) as owner().`;
+      console.error(`[UserSafe] ${detail}`);
+      return { success: false, status: "not_platform_operator", detail };
     }
 
-    const txHash = await sendSafeTransaction(viable);
+    // Sequential: an EOA has no multicall, and consecutive writes need ordered
+    // nonces. These are two small administrative transactions.
+    const walletClient = createWalletClient({
+      account: botSigner,
+      chain: activeChain,
+      transport: http(),
+    });
+
+    let txHash = "";
+    for (const call of viable) {
+      const hash = await walletClient.sendTransaction({
+        to: call.to,
+        data: call.data,
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      txHash = hash;
+    }
 
     console.log(
-      `[UserSafe] Registration TX: ${txHash} (${viable.length}/${calls.length} contracts)`,
+      `[UserSafe] Registered via ${botSigner.address}: ${txHash} (${viable.length}/${calls.length} contracts)`,
     );
     return {
       success: true,
