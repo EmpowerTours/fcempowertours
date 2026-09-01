@@ -549,7 +549,7 @@ export default function TweaksPage() {
                 Music NFTs
               </Link>
               <Link
-                href="/oracle?modal=create-nft"
+                href="/nft"
                 className="text-purple-400 hover:text-purple-300"
               >
                 Create NFT

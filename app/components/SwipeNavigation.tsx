@@ -30,11 +30,12 @@ export default function SwipeNavigation({ children }: SwipeNavigationProps) {
     // / = Home (same as discover)
     // /dashboard = User Dashboard
     // /passport = Passport Minting
-    // /nft is gone — it was a duplicate of the Oracle's CreateNFTModal that
-    // skipped the rights declaration. Creating an NFT now lives at
-    // /oracle?modal=create-nft, and swipe navigation is disabled on /oracle, so
-    // it is not a swipe destination.
-    const basePages = ['/', '/dashboard', '/passport'];
+    // /nft = Create NFT. A real route rather than /oracle?modal=create-nft,
+    // because pageOrder matches on pathname alone — a query string never
+    // matches — and swipe is disabled on /oracle, so routing there would strand
+    // the user on a page they cannot swipe out of. /nft is now a thin wrapper
+    // over the same CreateNFTModal, not a second implementation.
+    const basePages = ['/', '/nft', '/dashboard', '/passport'];
     if (user) {
       return [...basePages, '/profile'];
     }

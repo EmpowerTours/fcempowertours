@@ -233,9 +233,10 @@ if (/sendSafeTransaction\(/.test(userSafeLib)) {
 // therefore painted a message the user never saw and the button read as doing
 // nothing at all. The error has to render at the point of action.
 //
-// There were two of these once: app/nft/page.tsx was a parallel implementation
-// that captured no rights declaration, and it has been deleted. The loop stays a
-// loop so that a second mint surface reappearing has to satisfy this too.
+// There were two of these once. app/nft/page.tsx was a parallel implementation
+// that captured no rights declaration, no ISRC and no instrumental licence; it
+// is now a thin wrapper over this modal, checked separately below. The loop
+// stays a loop so a second mint surface reappearing has to satisfy this too.
 for (const surface of ["app/components/oracle/CreateNFTModal.tsx"]) {
   const src = readFileSync(join(root, surface), "utf8");
   const mintBtnAt = src.indexOf("onClick={uploadAndMint}");
@@ -263,6 +264,27 @@ for (const surface of ["app/components/oracle/CreateNFTModal.tsx"]) {
         "a mint in progress looks identical to a click that did nothing",
     );
   }
+}
+
+// ---- /nft must stay a wrapper, never a second implementation -----------------
+// It was one once: 1,454 lines duplicating the create flow, minus the rights
+// declaration. Every bug in that flow then had to be found and fixed twice, and
+// one of them was fixed in the copy nobody used. The route is kept because swipe
+// navigation needs a real path, but it must delegate.
+const nftRoute = readFileSync(join(root, "app/nft/page.tsx"), "utf8");
+checks++;
+if (!/CreateNFTModal/.test(nftRoute)) {
+  failures.push(
+    "app/nft/page.tsx no longer renders CreateNFTModal; the create flow has a " +
+      "second implementation again",
+  );
+}
+checks++;
+if (/uploadAndMint|execute-delegated|mint_music/.test(nftRoute)) {
+  failures.push(
+    "app/nft/page.tsx has grown its own mint logic; it must delegate to " +
+      "CreateNFTModal so the rights declaration cannot be bypassed",
+  );
 }
 
 // ---- A failed registration must not report success ---------------------------
