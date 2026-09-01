@@ -96,12 +96,11 @@ export function PassportMintModal({
     setError("");
 
     try {
-      // Register the Safe as a minter first, in its own request. Bundling it
-      // into the mint made a first-time mint two chain operations deep and it
-      // timed out. Throws rather than warns: proceeding unregistered is the
-      // failure we are fixing.
-      await ensureSafeRegistered(walletAddress, authFor);
-
+      // Delegation FIRST, then registration. Both need proof of ownership, and
+      // the delegation carries that proof once created — so this order costs one
+      // wallet signature for the whole first mint instead of asking the user to
+      // prove the same fact twice.
+      //
       // Check for existing delegation
       const delegationRes = await fetch(
         `/api/delegation-status?address=${walletAddress}`,
@@ -144,6 +143,12 @@ export function PassportMintModal({
           throw new Error("Failed to create delegation: " + createData.error);
         }
       }
+
+      // Register the Safe, authorised by the delegation above rather than by a
+      // second signature. Still its own request: bundled into the mint it made a
+      // first-time mint two chain operations deep in one HTTP call, which is
+      // what dropped the connection.
+      await ensureSafeRegistered(walletAddress, authFor);
 
       // Try to mint - if WMON insufficient, wrap first
       let response = await fetch("/api/execute-delegated", {

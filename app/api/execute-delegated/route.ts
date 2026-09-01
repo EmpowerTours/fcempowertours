@@ -17,6 +17,7 @@ import {
   incrementTransactionCount,
 } from "@/lib/delegation-system";
 import { sendSafeTransaction } from "@/lib/pimlico-safe-aa";
+import { delegationProvesOwnership } from "@/lib/delegation-proof";
 import {
   sendUserSafeTransaction,
   getUserSafeAddress,
@@ -230,12 +231,10 @@ export async function POST(req: NextRequest) {
       // requires the signature.
       let delegatedOwnership = false;
       if (fundMovingActions.has(action) && !authz.ownsAddress) {
-        const existing = await getDelegation(userAddress);
-        delegatedOwnership =
-          existing?.ownershipProven === true &&
-          existing.expiresAt > Date.now() &&
-          Array.isArray(existing.config?.permissions) &&
-          existing.config.permissions.includes(action);
+        delegatedOwnership = await delegationProvesOwnership(
+          userAddress,
+          action,
+        );
         if (delegatedOwnership) {
           console.log(
             `✅ execute-delegated: '${action}' authorised by a proven delegation for ${userAddress}`,

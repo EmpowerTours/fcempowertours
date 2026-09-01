@@ -173,12 +173,12 @@ export default function PassportPage() {
     try {
       console.log("🎫 Minting passport via delegation API (gasless)...");
 
-      // Register the Safe as a minter first, in its own request. This page never
-      // did — only the modal path called it — so a mint from here always fell
-      // through to execute-delegated doing it inline, two chain operations deep
-      // in one request, which is what timed out as "Load failed".
-      await ensureSafeRegistered(walletAddress, authFor);
-
+      // Delegation FIRST, then registration. Both need proof of ownership, and
+      // the delegation carries that proof once created — so doing it in this
+      // order costs one wallet signature for the whole first mint instead of
+      // one for registration and another for the delegation, which asked the
+      // user to prove the same fact twice.
+      //
       // ✅ Check for existing delegation
       const delegationRes = await fetch(
         `/api/delegation-status?address=${walletAddress}`,
@@ -225,6 +225,12 @@ export default function PassportPage() {
         }
         console.log("✅ Delegation created");
       }
+
+      // Now register the Safe, authorised by the delegation above rather than by
+      // a second signature. Still its own request: execute-delegated would
+      // otherwise register inline, making a first mint two chain operations deep
+      // in one HTTP call, which is what dropped the connection as "Load failed".
+      await ensureSafeRegistered(walletAddress, authFor);
 
       setSuccess("⏳ Minting passport (FREE - we pay gas)...");
 

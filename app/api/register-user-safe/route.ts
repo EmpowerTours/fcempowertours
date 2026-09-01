@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registerUserSafeOnV2Contracts } from "@/lib/user-safe";
 import { authorizeUserAddress } from "@/lib/quick-auth";
+import { delegationProvesOwnership } from "@/lib/delegation-proof";
 import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
 import {
   reservePlatformGas,
@@ -36,7 +37,22 @@ export async function POST(req: NextRequest) {
       userAddress,
       "register-user-safe",
     );
-    if (!authz.ownsAddress) {
+    // A proven delegation is accepted here for the same reason execute-delegated
+    // accepts one: it was created only after ownership was proven, so demanding
+    // a second signature re-establishes a fact already established and costs the
+    // user a second wallet prompt on their very first mint.
+    //
+    // No action name is passed. Registering the Safe is a prerequisite of using
+    // the delegation at all rather than one of its listed permissions — an
+    // unregistered Safe cannot mint, so every permission it holds is inert
+    // until this runs.
+    //
+    // The gas exposure this route worried about is bounded elsewhere and still
+    // is: reservePlatformGas caps total daily spend across all callers, and the
+    // rate limit below caps one caller. Neither depends on the signature, and an
+    // attacker's cost is unchanged — a delegation itself requires proving
+    // ownership once, which is exactly what the second signature asked for.
+    if (!authz.ownsAddress && !(await delegationProvesOwnership(userAddress))) {
       return NextResponse.json(
         {
           success: false,
@@ -70,7 +86,9 @@ export async function POST(req: NextRequest) {
     // PassportNFTV4.platformOperator was set (9d2e660), the registration batch reverted during
     // gas estimation and no transaction was ever sent. Fixing the feature turned a route that
     // spent nothing into one that spends.
-    const budget = await reservePlatformGas(PlatformGasBudgets.registerUserSafe);
+    const budget = await reservePlatformGas(
+      PlatformGasBudgets.registerUserSafe,
+    );
     if (!budget.allowed) {
       console.warn(
         `[RegisterUserSafe] refused: platform gas budget ${budget.degraded ? "unavailable" : "exhausted"}`,

@@ -23,7 +23,22 @@ export const DELEGATION_PERMISSIONS = [
  * does not cover it, and silently sending nothing would fail closed with no
  * way for the user to recover.
  */
+/**
+ * Contexts a proven delegation authorises without naming one of its listed
+ * permissions.
+ *
+ * Registering the Safe is a prerequisite of using a delegation at all — an
+ * unregistered Safe cannot mint, so every permission the delegation holds is
+ * inert until it runs. Asking for a second signature to do it re-proves the
+ * fact the delegation already carries, which is why a first mint cost two
+ * wallet prompts instead of one.
+ */
+const DELEGATION_COVERED_CONTEXTS = ["register-user-safe"] as const;
+
 export function delegationCovers(context: string): boolean {
+  if ((DELEGATION_COVERED_CONTEXTS as readonly string[]).includes(context)) {
+    return true;
+  }
   const match = /^execute-delegated:(.+)$/.exec(context);
   if (!match) return false;
   return (DELEGATION_PERMISSIONS as readonly string[]).includes(match[1]);

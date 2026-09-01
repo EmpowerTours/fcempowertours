@@ -40,24 +40,73 @@ if (!/\bownershipProven,/.test(create)) {
   );
 }
 
-// 2. The gate must accept a proven delegation, and must still check it is
-//    unexpired and actually lists the action.
+// 2. The gate must accept a proven delegation. Both routes that do so share one
+//    helper, so the substance of the check lives in lib/delegation-proof.ts and
+//    the routes are checked only for calling it.
 const exec = strip(read("app/api/execute-delegated/route.ts"));
 checks++;
-if (!/ownershipProven\s*===\s*true/.test(exec)) {
+if (!/delegationProvesOwnership\(\s*userAddress,\s*action/.test(exec)) {
   failures.push(
-    "execute-delegated does not accept a proven delegation as proof of " +
-      "ownership; every fund-moving action costs the user a wallet signature",
+    "execute-delegated does not accept a proven delegation for the action it " +
+      "was asked to perform; every fund-moving action costs a wallet signature",
+  );
+}
+
+// register-user-safe must accept it too, or a first mint costs two signatures:
+// one to register and one to delegate, proving the same fact twice.
+const regRoute = strip(read("app/api/register-user-safe/route.ts"));
+checks++;
+if (!/delegationProvesOwnership\(/.test(regRoute)) {
+  failures.push(
+    "register-user-safe does not accept a proven delegation; a first mint " +
+      "costs the user two wallet signatures instead of one",
+  );
+}
+
+// Order is load-bearing. Registration is authorised BY the delegation, so it has
+// to run after it. Register first and there is no delegation to lean on yet, the
+// route falls back to demanding a signature, and the first mint costs two again
+// — with nothing failing, which is why this is checked rather than trusted.
+for (const surface of [
+  "app/passport/page.tsx",
+  "app/components/oracle/PassportMintModal.tsx",
+]) {
+  const src = strip(read(surface));
+  const delegationAt = src.indexOf("/api/create-delegation");
+  const registerAt = src.search(/ensureSafeRegistered\s*\(/);
+  checks++;
+  if (delegationAt < 0 || registerAt < 0) {
+    failures.push(
+      `${surface} no longer both creates a delegation and registers the Safe`,
+    );
+  } else if (registerAt < delegationAt) {
+    failures.push(
+      `${surface} registers the Safe before creating the delegation; there is ` +
+        "no delegation to authorise it yet, so the user pays a second signature",
+    );
+  }
+}
+
+// The helper is where a delegation could be silently widened, so pin its guards.
+const proof = strip(read("lib/delegation-proof.ts"));
+checks++;
+if (!/ownershipProven\s*!==\s*true/.test(proof)) {
+  failures.push(
+    "delegation-proof no longer requires ownershipProven; an unproven " +
+      "delegation would authorise fund-moving actions",
   );
 }
 for (const [needle, what] of [
   [/expiresAt\s*>\s*Date\.now\(\)/, "expiry"],
-  [/permissions\.includes\(action\)/, "the action's presence in the permission list"],
+  [
+    /permissions\.includes\(action\)/,
+    "the action's presence in the permission list",
+  ],
 ] as const) {
   checks++;
-  if (!needle.test(exec)) {
+  if (!needle.test(proof)) {
     failures.push(
-      `execute-delegated accepts a delegation without checking ${what}; that ` +
+      `delegation-proof accepts a delegation without checking ${what}; that ` +
         "widens a delegation beyond what the user agreed to",
     );
   }
