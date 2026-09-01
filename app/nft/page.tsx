@@ -155,6 +155,27 @@ export default function MusicPage() {
           }
         }
 
+        // Say it now, not four steps later. These limits were only enforced in
+        // uploadAndMint, at the very bottom of the form, so an oversized track
+        // was accepted here, carried through trimming, pricing and review, and
+        // then rejected by a message rendered off-screen — which read as the
+        // mint button doing nothing at all.
+        const limit =
+          setter === setCoverFile
+            ? { bytes: 3 * 1024 * 1024, label: "Cover art", max: "3MB" }
+            : setter === setFullFile
+              ? { bytes: 15 * 1024 * 1024, label: "Full track", max: "15MB" }
+              : { bytes: 600 * 1024, label: "Preview audio", max: "600KB" };
+        if (file.size > limit.bytes) {
+          setError(
+            `${limit.label} is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is ${limit.max}. Please choose a smaller file.`,
+          );
+          setter(null);
+          e.target.value = "";
+          return;
+        }
+        setError(null);
+
         setter(file);
 
         // If it's the full track, load it for trimming
@@ -1366,6 +1387,20 @@ export default function MusicPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* The same error also renders near the top of the page, which
+                      is off-screen from here: this button sits at the bottom of
+                      a five-step form, so a validation failure painted a message
+                      the user never saw and the click looked completely inert.
+                      A file over the size limit is the usual cause. Report it at
+                      the point of action. */}
+                  {(error || botError) && (
+                    <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                      <p className="text-red-700 font-medium">
+                        ❌ {error || botError}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Mint Button */}
                   <button

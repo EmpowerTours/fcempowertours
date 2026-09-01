@@ -230,6 +230,27 @@ if (/sendSafeTransaction\(/.test(v2Body)) {
   );
 }
 
+// ---- A rejected mint must say so where the user is looking -------------------
+// The NFT page is a five-step form. Its mint button sits at the bottom; the
+// error banner sits near the top, off-screen from there. So a validation failure
+// — an oversized track is the usual one — painted a message the user never saw,
+// and the button read as doing nothing at all. The error has to render at the
+// point of action, not only at the top of the page.
+const nftPage = readFileSync(join(root, "app/nft/page.tsx"), "utf8");
+checks++;
+const mintBtnAt = nftPage.indexOf("onClick={uploadAndMint}");
+const errorNearBtn =
+  mintBtnAt > 0 &&
+  /\{\(error \|\| botError\) && \(/.test(
+    nftPage.slice(Math.max(0, mintBtnAt - 900), mintBtnAt),
+  );
+if (!errorNearBtn) {
+  failures.push(
+    "app/nft/page.tsx renders no error beside the mint button; a rejected " +
+      "mint reports itself off-screen and the button looks inert",
+  );
+}
+
 // ---- A failed registration must not report success ---------------------------
 // register-user-safe answered 200 carrying success:false, and
 // registerUserSafeOnV2Contracts swallows every error into exactly that. A
