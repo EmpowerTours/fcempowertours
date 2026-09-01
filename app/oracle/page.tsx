@@ -1,14 +1,22 @@
 "use client";
 
 import { authHeaders } from "@/lib/quick-auth-client";
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-} from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Send, Sparkles, X, Globe, Loader2, User, BarChart3, Radio, ExternalLink, Plus, Sun, Moon } from "lucide-react";
+import {
+  Send,
+  Sparkles,
+  X,
+  Globe,
+  Loader2,
+  User,
+  BarChart3,
+  Radio,
+  ExternalLink,
+  Plus,
+  Sun,
+  Moon,
+} from "lucide-react";
 import { CrystalBall, OracleState } from "@/app/components/oracle/CrystalBall";
 import { CreateNFTModal } from "@/app/components/oracle/CreateNFTModal";
 import { PassportMintModal } from "@/app/components/oracle/PassportMintModal";
@@ -109,6 +117,13 @@ export default function OraclePage() {
       setShowRadioModal(true);
     } else if (modal === "epk") {
       setShowEPKModal(true);
+    } else if (modal === "create-nft") {
+      // The /nft route used to be a second, parallel implementation of this
+      // modal. It was deleted because the two had drifted: that one captured no
+      // rights declaration, no ISRC and no instrumental licence, so a song
+      // minted through it carried none of the paperwork this one records. The
+      // links that pointed at it now deep-link here.
+      setShowCreateNFTModal(true);
     }
   }, [searchParams]);
 
@@ -220,7 +235,6 @@ export default function OraclePage() {
       });
     }
   }, [geoLocation, geoLoading]);
-
 
   // Check subscription status and owned music
   useEffect(() => {
@@ -1241,7 +1255,6 @@ export default function OraclePage() {
           userFid={fid || undefined}
         />
       )}
-
 
       {/* Dashboard Modal */}
       {showDashboardModal && (

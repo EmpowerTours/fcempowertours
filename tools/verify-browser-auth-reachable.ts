@@ -228,18 +228,15 @@ if (/sendSafeTransaction\(/.test(userSafeLib)) {
 }
 
 // ---- A rejected mint must say so where the user is looking -------------------
-// The NFT page is a five-step form. Its mint button sits at the bottom; the
-// error banner sits near the top, off-screen from there. So a validation failure
-// — an oversized track is the usual one — painted a message the user never saw,
-// and the button read as doing nothing at all. The error has to render at the
-// point of action, not only at the top of the page.
-// BOTH mint surfaces. Only /nft was fixed first, and the user was on the other
-// one — where the button sits ~1200 lines below the error banner inside a
-// scrolling modal — so the symptom survived the fix entirely.
-for (const surface of [
-  "app/nft/page.tsx",
-  "app/components/oracle/CreateNFTModal.tsx",
-]) {
+// The mint form is long and its button sits at the bottom, while the error
+// banner sits near the top — off-screen from there. A validation failure
+// therefore painted a message the user never saw and the button read as doing
+// nothing at all. The error has to render at the point of action.
+//
+// There were two of these once: app/nft/page.tsx was a parallel implementation
+// that captured no rights declaration, and it has been deleted. The loop stays a
+// loop so that a second mint surface reappearing has to satisfy this too.
+for (const surface of ["app/components/oracle/CreateNFTModal.tsx"]) {
   const src = readFileSync(join(root, surface), "utf8");
   const mintBtnAt = src.indexOf("onClick={uploadAndMint}");
 
