@@ -287,6 +287,44 @@ if (/uploadAndMint|execute-delegated|mint_music/.test(nftRoute)) {
   );
 }
 
+// ---- A rejected mint must land on the step that owns the problem ------------
+// Validation runs at Review, but the field it complains about lives two or
+// three steps back — a bad collector price is set on Set Details. Reporting it
+// at Review left the user reading a rule they could not act on, with the only
+// route back a button rendered far above the mint, which for music lands on
+// Rights rather than pricing.
+const createModal = strip(
+  readFileSync(join(root, "app/components/oracle/CreateNFTModal.tsx"), "utf8"),
+);
+checks++;
+if (!/const rejectAt = \(step: number/.test(createModal)) {
+  failures.push(
+    "CreateNFTModal has no rejectAt; a validation failure reports a field the " +
+      "user is several steps away from and cannot navigate to",
+  );
+}
+// Named messages rather than a setError/rejectAt count: a count breaks the day
+// someone adds a legitimate setError(null), and a check that cries wolf gets
+// ignored. These are the field-specific rejections, and each must route.
+for (const msg of [
+  "Collector price must be between",
+  "Price must be between",
+  "Max editions must be between",
+]) {
+  checks++;
+  const at = createModal.indexOf(msg);
+  if (at < 0) continue;
+  const before = createModal.slice(Math.max(0, at - 160), at);
+  if (!/rejectAt\(\s*\d+\s*,\s*$/.test(before.replace(/\s+$/, "") + "\n")) {
+    if (!/rejectAt\(/.test(before)) {
+      failures.push(
+        `CreateNFTModal reports "${msg}..." without routing to its step; the ` +
+          "user is left on Review unable to reach the field",
+      );
+    }
+  }
+}
+
 // ---- A failed registration must not report success ---------------------------
 // register-user-safe answered 200 carrying success:false, and
 // registerUserSafeOnV2Contracts swallows every error into exactly that. A

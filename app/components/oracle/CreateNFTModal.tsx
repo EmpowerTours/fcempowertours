@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, ArrowLeft } from "lucide-react";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
@@ -394,21 +394,51 @@ export function CreateNFTModal({
     }
   };
 
+  /**
+   * Reject the mint and send the user to the step that owns the problem.
+   *
+   * Validation runs at Review, but the field being complained about lives two
+   * or three steps back — a bad collector price is set on Set Details. Reporting
+   * it here left the user reading a rule they could not act on: the only way
+   * back was a "Back" button rendered far above the mint button, and for music
+   * it lands on Rights rather than pricing, so it took two more taps to reach
+   * the field.
+   *
+   * Jumping straight there is better than a back button, because the error names
+   * a field and we know which step holds it.
+   */
+  // The modal body is what scrolls, not the window, so moving the view means
+  // scrolling this element.
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const rejectAt = (step: number, message: string) => {
+    setError(message);
+    setCurrentStep(step);
+    // Changing step does not move the scroll position, and the error banner sits
+    // at the top of the modal — so without this the user lands on the right step
+    // still scrolled to where the mint button was, with the explanation above
+    // them and out of view. Which is the bug this whole sequence started as.
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const uploadAndMint = async () => {
     if (previewFile && previewFile.size > 600 * 1024) {
-      setError(
+      rejectAt(
+        2,
         `Preview audio too large: ${(previewFile.size / 1024).toFixed(0)}KB (max 600KB)`,
       );
       return;
     }
     if (fullFile && fullFile.size > 15 * 1024 * 1024) {
-      setError(
+      rejectAt(
+        2,
         `Full track too large: ${(fullFile.size / 1024 / 1024).toFixed(1)}MB (max 15MB)`,
       );
       return;
     }
     if (coverFile && coverFile.size > 3 * 1024 * 1024) {
-      setError(
+      rejectAt(
+        2,
         `Cover art too large: ${(coverFile.size / 1024 / 1024).toFixed(1)}MB (max 3MB)`,
       );
       return;
@@ -420,29 +450,34 @@ export function CreateNFTModal({
       const missing = [];
       if (!coverFile) missing.push("Cover Art");
       if (!title) missing.push("Title");
-      setError(`Please fill required fields: ${missing.join(", ")}`);
+      // Cover art is uploaded on step 2, the title is typed on step 3. Send the
+      // user to whichever is actually missing, preferring the earlier one.
+      rejectAt(
+        !coverFile ? 2 : 3,
+        `Please fill required fields: ${missing.join(", ")}`,
+      );
       return;
     }
 
     if (previewFile && !fullFile) {
-      setError("If providing a preview, please also provide the full track");
+      rejectAt(2, "If providing a preview, please also provide the full track");
       return;
     }
     const priceNum = parseFloat(price);
     if (isNaN(priceNum) || priceNum < 1 || priceNum > 100_000_000) {
-      setError("Price must be between 1 and 100,000,000 WMON");
+      rejectAt(3, "Price must be between 1 and 100,000,000 WMON");
       return;
     }
     // Collector edition validations
     if (isCollectorEdition) {
       const cPrice = parseFloat(collectorPrice);
       if (isNaN(cPrice) || cPrice < 500 || cPrice > 100_000_000) {
-        setError("Collector price must be between 500 and 100,000,000 WMON");
+        rejectAt(3, "Collector price must be between 500 and 100,000,000 WMON");
         return;
       }
       const editions = parseInt(maxEditions);
       if (isNaN(editions) || editions < 1 || editions > 1000) {
-        setError("Max editions must be between 1 and 1,000");
+        rejectAt(3, "Max editions must be between 1 and 1,000");
         return;
       }
     }
@@ -450,7 +485,8 @@ export function CreateNFTModal({
     // none. But a malformed one that reaches the pinned declaration is worse than none at all:
     // it looks authoritative and matches no recording anywhere.
     if (isrcInvalid) {
-      setError(
+      rejectAt(
+        nftType === "music" ? 4 : 3,
         "That ISRC does not look right. It should be 12 characters like GX-F97-26-52851 — or leave it blank if you haven't distributed this recording yet.",
       );
       return;
@@ -653,6 +689,7 @@ export function CreateNFTModal({
 
   const modalContent = (
     <div
+      ref={scrollRef}
       className={`fixed inset-0 z-[9999] flex items-center justify-center p-2 overflow-y-auto ${isDarkMode ? "dark" : ""}`}
       style={{
         position: "fixed",
