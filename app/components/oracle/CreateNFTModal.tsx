@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, ArrowLeft } from "lucide-react";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
-import { isV3Contracts } from "@/lib/contract-generation";
+import { serverUsesV3 } from "@/lib/contracts-v3-client";
 import {
   isValidIsrc,
   normalizeIsrc,
@@ -611,7 +611,7 @@ export function CreateNFTModal({
           mintSignature?: `0x${string}`;
         } = {};
 
-        if (isV3Contracts()) {
+        if (await serverUsesV3()) {
           setProgressStage("Approve the mint in your wallet...");
           collectorSigned = await signMintRequest({
             artist: walletAddress as `0x${string}`,
@@ -624,6 +624,15 @@ export function CreateNFTModal({
             signTypedData,
           });
           setProgressStage("Sending to blockchain...");
+
+          // v3 cannot mint without this. Saying so here names the cause; the
+          // relayer's "mintRequest must be an object" is three hops away from
+          // the wallet approval that actually failed.
+          if (!collectorSigned.mintRequest || !collectorSigned.mintSignature) {
+            throw new Error(
+              "The mint approval was not signed, so it cannot be submitted. Approve the signature request in your wallet and try again.",
+            );
+          }
         }
 
         mintData = await executeCommand(command, {
@@ -654,7 +663,7 @@ export function CreateNFTModal({
           mintSignature?: `0x${string}`;
         } = {};
 
-        if (isV3Contracts()) {
+        if (await serverUsesV3()) {
           setProgressStage("Approve the mint in your wallet...");
           signed = await signMintRequest({
             artist: walletAddress as `0x${string}`,
@@ -665,6 +674,15 @@ export function CreateNFTModal({
             signTypedData,
           });
           setProgressStage("Sending to blockchain...");
+
+          // v3 cannot mint without this. Saying so here names the cause; the
+          // relayer's "mintRequest must be an object" is three hops away from
+          // the wallet approval that actually failed.
+          if (!signed.mintRequest || !signed.mintSignature) {
+            throw new Error(
+              "The mint approval was not signed, so it cannot be submitted. Approve the signature request in your wallet and try again.",
+            );
+          }
         }
 
         mintData = await executeCommand(command, {

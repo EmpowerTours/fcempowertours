@@ -134,6 +134,33 @@ if (mintCommands > 0 && spreads < mintCommands) {
   );
 }
 
+// ---- the mint gate must ask the SERVER, not a build-time flag ---------------
+// isV3Contracts() reads NEXT_PUBLIC_CONTRACTS_V3, which Next inlines into the
+// client bundle at BUILD time while the server reads it at RUNTIME. When the
+// build environment lacks it those disagree — config-check reported v3 true
+// while the browser skipped signing the MintRequest, and every collector mint
+// was refused with "mintRequest must be an object". Both sides were correct
+// about their own value and wrong about each other's.
+const mintModalRaw = readFileSync(
+  join(root, "app/components/oracle/CreateNFTModal.tsx"),
+  "utf8",
+);
+checks++;
+if (/isV3Contracts\(\)/.test(strip(mintModalRaw))) {
+  failures.push(
+    "CreateNFTModal decides whether to sign from the build-time " +
+      "NEXT_PUBLIC_CONTRACTS_V3 rather than asking the server; the two can " +
+      "disagree and the mint is then refused for a missing signature",
+  );
+}
+checks++;
+if (!/serverUsesV3\(\)/.test(strip(mintModalRaw))) {
+  failures.push(
+    "CreateNFTModal no longer asks the server which contracts are live before " +
+      "deciding to sign the MintRequest",
+  );
+}
+
 // ---- bot-command callers must ASK for the signature -------------------------
 // The scan above only sees files that POST to /api/execute-delegated. A client
 // that mints through /api/bot-command instead is invisible to it — which is
