@@ -66,6 +66,20 @@ export async function GET() {
       | Address
       | undefined,
     safeAccount: process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address | undefined,
+
+    // Which mint path is live. This decides whether a music mint goes through
+    // SalesController/LicenseRegistry (v3, where artistFid is optional and 0
+    // means "no Farcaster account") or the old EmpowerToursNFT, which reverts
+    // "Invalid FID" for every wallet-only user.
+    //
+    // Reported here because it is the difference between a working mint and an
+    // impossible one, and it was previously only knowable by reading .env on the
+    // server — so diagnosing it meant guessing which contract was in play.
+    contractsV3: process.env.NEXT_PUBLIC_CONTRACTS_V3 === "true",
+    nftContract: process.env.NEXT_PUBLIC_NFT_CONTRACT as Address | undefined,
+    salesController: process.env.NEXT_PUBLIC_SALES_CONTROLLER as
+      | Address
+      | undefined,
   };
 
   const checks: Check[] = [];
