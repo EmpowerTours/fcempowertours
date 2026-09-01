@@ -603,6 +603,20 @@ export function CreateNFTModal({
         // produced one, so mintRequest arrived undefined and the server refused
         // with "mintRequest must be an object".
         //
+        // THIS PROMPT IS DELIBERATE — do not remove it to save a wallet popup.
+        // It was questioned on 2026-09-01 and kept, on purpose.
+        //
+        // SalesController offers a zero-prompt path: mintMaster(), where the
+        // artist is msg.sender. Using it would mean minting from the user's
+        // Safe, making the SAFE the artist of record — and that Safe is owned by
+        // the platform's bot signer. Artists would no longer hold their own
+        // masters, on a token that carries a rights declaration.
+        //
+        // mintMasterFor exists precisely so a relayer cannot substitute a
+        // different uri, price or royalty and mint it under someone's name. The
+        // signature is the artist stating their own terms. One approval per NFT
+        // created is the accepted cost of the artist owning the master.
+        //
         // The collector fields go INTO the signed payload: they are part of the
         // MintRequest struct, so the platform cannot alter the edition count or
         // collector price after the artist has approved them.
