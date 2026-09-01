@@ -6,16 +6,23 @@
  * Gas is paid from user's Safe balance, NOT the bot's funds.
  */
 
+import { createSmartAccountClient, SmartAccountClient } from "permissionless";
 import {
-  createSmartAccountClient,
-  SmartAccountClient,
-} from 'permissionless';
-import { createPublicClient, http, Address, Hex, keccak256, encodePacked, parseEther, parseAbi, encodeFunctionData } from 'viem';
-import { activeChain } from '@/app/chains';
-import { privateKeyToAccount } from 'viem/accounts';
-import { toSafeSmartAccount } from 'permissionless/accounts';
-import { env } from '@/lib/env';
-import { redactString } from '@/lib/redact';
+  createPublicClient,
+  http,
+  Address,
+  Hex,
+  keccak256,
+  encodePacked,
+  parseEther,
+  parseAbi,
+  encodeFunctionData,
+} from "viem";
+import { activeChain } from "@/app/chains";
+import { privateKeyToAccount } from "viem/accounts";
+import { toSafeSmartAccount } from "permissionless/accounts";
+import { env } from "@/lib/env";
+import { redactString } from "@/lib/redact";
 
 const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
 const ENTRYPOINT_ADDRESS = env.ENTRYPOINT_ADDRESS as Address;
@@ -31,9 +38,10 @@ let _botSignerAccount: ReturnType<typeof privateKeyToAccount> | null = null;
 
 function getBotSignerAccount() {
   if (!_botSignerAccount) {
-    const SAFE_OWNER_PRIVATE_KEY = process.env.SAFE_OWNER_PRIVATE_KEY as `0x${string}`;
+    const SAFE_OWNER_PRIVATE_KEY = process.env
+      .SAFE_OWNER_PRIVATE_KEY as `0x${string}`;
     if (!SAFE_OWNER_PRIVATE_KEY) {
-      throw new Error('SAFE_OWNER_PRIVATE_KEY is not set');
+      throw new Error("SAFE_OWNER_PRIVATE_KEY is not set");
     }
     _botSignerAccount = privateKeyToAccount(SAFE_OWNER_PRIVATE_KEY);
   }
@@ -45,13 +53,22 @@ function getBotSignerAccount() {
  */
 function getUserSaltNonce(userAddress: string): bigint {
   const normalized = userAddress.toLowerCase();
-  return BigInt(keccak256(encodePacked(['string', 'address'], ['empowertours-safe-v1', normalized as Address])));
+  return BigInt(
+    keccak256(
+      encodePacked(
+        ["string", "address"],
+        ["empowertours-safe-v1", normalized as Address],
+      ),
+    ),
+  );
 }
 
 /**
  * Get user's Safe address (lightweight - doesn't create client)
  */
-export async function getUserSafeAddress(userAddress: string): Promise<Address> {
+export async function getUserSafeAddress(
+  userAddress: string,
+): Promise<Address> {
   const normalizedUser = userAddress.toLowerCase();
 
   // Compute deterministic Safe address
@@ -63,9 +80,9 @@ export async function getUserSafeAddress(userAddress: string): Promise<Address> 
     owners: [botSigner],
     entryPoint: {
       address: ENTRYPOINT_ADDRESS,
-      version: '0.7',
+      version: "0.7",
     },
-    version: '1.4.1',
+    version: "1.4.1",
     saltNonce,
   });
 
@@ -91,11 +108,11 @@ export async function getUserSafeInfo(userAddress: string): Promise<{
     publicClient.getBalance({ address: safeAddress }),
   ]);
 
-  const isDeployed = !!(code && code !== '0x');
+  const isDeployed = !!(code && code !== "0x");
   const balanceFormatted = (Number(balance) / 1e18).toFixed(4);
 
   // Minimum 0.1 MON recommended for gas
-  const MIN_FUNDED = parseEther('0.1');
+  const MIN_FUNDED = parseEther("0.1");
   const isFunded = balance >= MIN_FUNDED;
 
   return {
@@ -104,7 +121,7 @@ export async function getUserSafeInfo(userAddress: string): Promise<{
     balance: balanceFormatted,
     balanceWei: balance,
     isFunded,
-    minRequired: '0.1',
+    minRequired: "0.1",
   };
 }
 
@@ -120,18 +137,18 @@ export async function createUserSafeClient(userAddress: string): Promise<{
   const botSigner = getBotSignerAccount();
   const saltNonce = getUserSaltNonce(normalizedUser);
 
-  console.log('📝 Creating User Safe Client...');
-  console.log('   User:', normalizedUser);
-  console.log('   Bot Signer:', botSigner.address);
+  console.log("📝 Creating User Safe Client...");
+  console.log("   User:", normalizedUser);
+  console.log("   Bot Signer:", botSigner.address);
 
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
     owners: [botSigner],
     entryPoint: {
       address: ENTRYPOINT_ADDRESS,
-      version: '0.7',
+      version: "0.7",
     },
-    version: '1.4.1',
+    version: "1.4.1",
     saltNonce,
   });
 
@@ -143,11 +160,13 @@ export async function createUserSafeClient(userAddress: string): Promise<{
   });
 
   // Get balance
-  const balance = await publicClient.getBalance({ address: safeAccount.address });
+  const balance = await publicClient.getBalance({
+    address: safeAccount.address,
+  });
 
-  console.log('✅ User Safe Client created');
-  console.log('   Safe Address:', safeAccount.address);
-  console.log('   Balance:', (Number(balance) / 1e18).toFixed(4), 'MON');
+  console.log("✅ User Safe Client created");
+  console.log("   Safe Address:", safeAccount.address);
+  console.log("   Balance:", (Number(balance) / 1e18).toFixed(4), "MON");
 
   return {
     client,
@@ -165,12 +184,12 @@ async function getPimlicoGasPrices(): Promise<{
 }> {
   try {
     const response = await fetch(PIMLICO_BUNDLER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        jsonrpc: '2.0',
+        jsonrpc: "2.0",
         id: 1,
-        method: 'pimlico_getUserOperationGasPrice',
+        method: "pimlico_getUserOperationGasPrice",
         params: [],
       }),
     });
@@ -184,7 +203,7 @@ async function getPimlicoGasPrices(): Promise<{
       maxPriorityFeePerGas: BigInt(fast.maxPriorityFeePerGas),
     };
   } catch {
-    console.warn('⚠️ Pimlico gas price fetch failed, using fallback');
+    console.warn("⚠️ Pimlico gas price fetch failed, using fallback");
     const gasPrice = await publicClient.getGasPrice();
     return {
       maxFeePerGas: (gasPrice * 150n) / 100n,
@@ -199,7 +218,7 @@ async function getPimlicoGasPrices(): Promise<{
 export async function checkUserSafeBalance(
   userAddress: string,
   requiredValue: bigint = 0n,
-  gasBuffer: bigint = parseEther('0.05')
+  gasBuffer: bigint = parseEther("0.05"),
 ): Promise<{
   hasSufficientBalance: boolean;
   safeAddress: Address;
@@ -228,45 +247,46 @@ export async function checkUserSafeBalance(
  */
 export async function sendUserSafeTransaction(
   userAddress: string,
-  calls: Array<{ to: Address; value: bigint; data: Hex }>
+  calls: Array<{ to: Address; value: bigint; data: Hex }>,
 ): Promise<{
   txHash: string;
   safeAddress: Address;
   gasUsed?: string;
 }> {
-  console.log('📤 [USER-SAFE] Sending transaction...');
-  console.log('   User:', userAddress);
-  console.log('   Calls:', calls.length);
+  console.log("📤 [USER-SAFE] Sending transaction...");
+  console.log("   User:", userAddress);
+  console.log("   Calls:", calls.length);
 
   // Get user's Safe client
-  const { client, safeAddress, balance } = await createUserSafeClient(userAddress);
+  const { client, safeAddress, balance } =
+    await createUserSafeClient(userAddress);
 
   if (!client.account) {
-    throw new Error('Failed to create Safe client');
+    throw new Error("Failed to create Safe client");
   }
 
   // Check balance
   const balanceMON = (Number(balance) / 1e18).toFixed(4);
-  console.log('💰 User Safe balance:', balanceMON, 'MON');
+  console.log("💰 User Safe balance:", balanceMON, "MON");
 
   // Calculate total value needed
   const totalValue = calls.reduce((sum, c) => sum + c.value, 0n);
-  const MIN_GAS_BUFFER = parseEther('0.05');
+  const MIN_GAS_BUFFER = parseEther("0.05");
   const minRequired = totalValue + MIN_GAS_BUFFER;
 
   if (balance < minRequired) {
     const requiredMON = (Number(minRequired) / 1e18).toFixed(4);
     throw new Error(
       `Insufficient MON in your Safe. ` +
-      `Balance: ${balanceMON} MON, Required: ${requiredMON} MON. ` +
-      `Please send MON to your Safe: ${safeAddress}`
+        `Balance: ${balanceMON} MON, Required: ${requiredMON} MON. ` +
+        `Please send MON to your Safe: ${safeAddress}`,
     );
   }
 
   // Get gas prices
   const gasPrices = await getPimlicoGasPrices();
 
-  console.log('🚀 Submitting UserOperation...');
+  console.log("🚀 Submitting UserOperation...");
 
   try {
     // Submit UserOperation
@@ -277,10 +297,10 @@ export async function sendUserSafeTransaction(
       maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
     });
 
-    console.log('✅ UserOp submitted:', userOpHash);
+    console.log("✅ UserOp submitted:", userOpHash);
 
     // Wait for mining
-    console.log('⏳ Waiting for confirmation...');
+    console.log("⏳ Waiting for confirmation...");
     const receipt = await client.waitForUserOperationReceipt({
       hash: userOpHash,
       timeout: 300_000,
@@ -289,7 +309,7 @@ export async function sendUserSafeTransaction(
     const txHash = receipt.receipt.transactionHash;
     const gasUsed = receipt.receipt.gasUsed.toString();
 
-    console.log('✅ Transaction mined:', txHash);
+    console.log("✅ Transaction mined:", txHash);
 
     return {
       txHash,
@@ -297,12 +317,15 @@ export async function sendUserSafeTransaction(
       gasUsed,
     };
   } catch (error: any) {
-    console.error('❌ Transaction failed:', error.message);
+    console.error("❌ Transaction failed:", error.message);
 
-    if (error.message?.includes('insufficient') || error.message?.includes('balance')) {
+    if (
+      error.message?.includes("insufficient") ||
+      error.message?.includes("balance")
+    ) {
       throw new Error(
         `Transaction failed - insufficient funds in your Safe (${safeAddress}). ` +
-        `Please add more MON to cover gas costs.`
+          `Please add more MON to cover gas costs.`,
       );
     }
 
@@ -313,23 +336,27 @@ export async function sendUserSafeTransaction(
 /**
  * Check if a User Safe is registered as an authorized burner in the NFT contract
  */
-export async function isUserSafeAuthorizedBurner(userSafeAddress: Address): Promise<boolean> {
+export async function isUserSafeAuthorizedBurner(
+  userSafeAddress: Address,
+): Promise<boolean> {
   const NFT_CONTRACT = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address;
   if (!NFT_CONTRACT) {
-    console.warn('⚠️ NFT contract address not configured');
+    console.warn("⚠️ NFT contract address not configured");
     return false;
   }
 
   try {
     const isAuthorized = await publicClient.readContract({
       address: NFT_CONTRACT,
-      abi: parseAbi(['function authorizedBurners(address) external view returns (bool)']),
-      functionName: 'authorizedBurners',
+      abi: parseAbi([
+        "function authorizedBurners(address) external view returns (bool)",
+      ]),
+      functionName: "authorizedBurners",
       args: [userSafeAddress],
     });
     return isAuthorized as boolean;
   } catch (error: any) {
-    console.error('❌ Failed to check burner authorization:', error.message);
+    console.error("❌ Failed to check burner authorization:", error.message);
     return false;
   }
 }
@@ -339,32 +366,38 @@ export async function isUserSafeAuthorizedBurner(userSafeAddress: Address): Prom
  * This must be called from the Platform Safe (which is the platformOperator).
  */
 export async function registerUserSafeAsBurner(
-  userSafeAddress: Address
+  userSafeAddress: Address,
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   const NFT_CONTRACT = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address;
   if (!NFT_CONTRACT) {
-    return { success: false, error: 'NFT contract address not configured' };
+    return { success: false, error: "NFT contract address not configured" };
   }
 
   try {
     // Check if already registered
-    const isAlreadyAuthorized = await isUserSafeAuthorizedBurner(userSafeAddress);
+    const isAlreadyAuthorized =
+      await isUserSafeAuthorizedBurner(userSafeAddress);
     if (isAlreadyAuthorized) {
-      console.log('✅ User Safe already registered as authorized burner:', userSafeAddress);
+      console.log(
+        "✅ User Safe already registered as authorized burner:",
+        userSafeAddress,
+      );
       return { success: true };
     }
 
-    console.log('📝 Registering User Safe as authorized burner...');
-    console.log('   User Safe:', userSafeAddress);
-    console.log('   NFT Contract:', NFT_CONTRACT);
+    console.log("📝 Registering User Safe as authorized burner...");
+    console.log("   User Safe:", userSafeAddress);
+    console.log("   NFT Contract:", NFT_CONTRACT);
 
     // Import sendSafeTransaction dynamically to avoid circular deps
-    const { sendSafeTransaction } = await import('@/lib/pimlico-safe-aa');
+    const { sendSafeTransaction } = await import("@/lib/pimlico-safe-aa");
 
     // Call registerUserSafeAsBurner from Platform Safe (platformOperator)
     const registerCalldata = encodeFunctionData({
-      abi: parseAbi(['function registerUserSafeAsBurner(address userSafe) external']),
-      functionName: 'registerUserSafeAsBurner',
+      abi: parseAbi([
+        "function registerUserSafeAsBurner(address userSafe) external",
+      ]),
+      functionName: "registerUserSafeAsBurner",
       args: [userSafeAddress],
     });
 
@@ -376,10 +409,10 @@ export async function registerUserSafeAsBurner(
       },
     ]);
 
-    console.log('✅ User Safe registered as authorized burner:', txHash);
+    console.log("✅ User Safe registered as authorized burner:", txHash);
     return { success: true, txHash };
   } catch (error: any) {
-    console.error('❌ Failed to register User Safe as burner:', error.message);
+    console.error("❌ Failed to register User Safe as burner:", error.message);
     return { success: false, error: error.message };
   }
 }
@@ -389,14 +422,14 @@ export async function registerUserSafeAsBurner(
  * Registers it if not already authorized.
  */
 export async function ensureUserSafeCanBurn(
-  userAddress: string
+  userAddress: string,
 ): Promise<{ success: boolean; safeAddress: Address; error?: string }> {
   try {
     const safeAddress = await getUserSafeAddress(userAddress);
 
     const isAuthorized = await isUserSafeAuthorizedBurner(safeAddress);
     if (isAuthorized) {
-      console.log('✅ User Safe already authorized for burns:', safeAddress);
+      console.log("✅ User Safe already authorized for burns:", safeAddress);
       return { success: true, safeAddress };
     }
 
@@ -408,7 +441,11 @@ export async function ensureUserSafeCanBurn(
 
     return { success: true, safeAddress };
   } catch (error: any) {
-    return { success: false, safeAddress: '0x0' as Address, error: error.message };
+    return {
+      success: false,
+      safeAddress: "0x0" as Address,
+      error: error.message,
+    };
   }
 }
 
@@ -417,8 +454,13 @@ export async function ensureUserSafeCanBurn(
  * Checks registration state first, then only registers where needed.
  */
 export async function registerUserSafeOnV2Contracts(
-  userAddress: string
-): Promise<{ success: boolean; txHash?: string; status: string; detail?: string }> {
+  userAddress: string,
+): Promise<{
+  success: boolean;
+  txHash?: string;
+  status: string;
+  detail?: string;
+}> {
   const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
   const PLAY_ORACLE = process.env.NEXT_PUBLIC_PLAY_ORACLE as Address;
   // No ITINERARY_NFT here on purpose.
@@ -435,22 +477,34 @@ export async function registerUserSafeOnV2Contracts(
 
   try {
     const safeAddress = await getUserSafeAddress(userAddress);
-    console.log('[UserSafe] Registering Safe on V2 contracts:', safeAddress);
+    console.log("[UserSafe] Registering Safe on V2 contracts:", safeAddress);
 
     // Check registration state on each contract
     const [isRegisteredPassport, isRegisteredOperator] = await Promise.all([
-      PASSPORT_NFT ? publicClient.readContract({
-        address: PASSPORT_NFT,
-        abi: parseAbi(['function authorizedMinters(address) view returns (bool)']),
-        functionName: 'authorizedMinters',
-        args: [safeAddress],
-      }).catch(() => false) : Promise.resolve(true),
-      PLAY_ORACLE ? publicClient.readContract({
-        address: PLAY_ORACLE,
-        abi: parseAbi(['function authorizedOperators(address) view returns (bool)']),
-        functionName: 'authorizedOperators',
-        args: [safeAddress],
-      }).catch(() => false) : Promise.resolve(true),
+      PASSPORT_NFT
+        ? publicClient
+            .readContract({
+              address: PASSPORT_NFT,
+              abi: parseAbi([
+                "function authorizedMinters(address) view returns (bool)",
+              ]),
+              functionName: "authorizedMinters",
+              args: [safeAddress],
+            })
+            .catch(() => false)
+        : Promise.resolve(true),
+      PLAY_ORACLE
+        ? publicClient
+            .readContract({
+              address: PLAY_ORACLE,
+              abi: parseAbi([
+                "function authorizedOperators(address) view returns (bool)",
+              ]),
+              functionName: "authorizedOperators",
+              args: [safeAddress],
+            })
+            .catch(() => false)
+        : Promise.resolve(true),
     ]);
 
     // Build calls for unregistered contracts
@@ -461,8 +515,10 @@ export async function registerUserSafeOnV2Contracts(
         to: PASSPORT_NFT,
         value: 0n,
         data: encodeFunctionData({
-          abi: parseAbi(['function registerUserSafeAsMinter(address) external']),
-          functionName: 'registerUserSafeAsMinter',
+          abi: parseAbi([
+            "function registerUserSafeAsMinter(address) external",
+          ]),
+          functionName: "registerUserSafeAsMinter",
           args: [safeAddress],
         }) as Hex,
       });
@@ -473,22 +529,26 @@ export async function registerUserSafeOnV2Contracts(
         to: PLAY_ORACLE,
         value: 0n,
         data: encodeFunctionData({
-          abi: parseAbi(['function registerUserSafeAsOperator(address) external']),
-          functionName: 'registerUserSafeAsOperator',
+          abi: parseAbi([
+            "function registerUserSafeAsOperator(address) external",
+          ]),
+          functionName: "registerUserSafeAsOperator",
           args: [safeAddress],
         }) as Hex,
       });
     }
 
     if (calls.length === 0) {
-      console.log('[UserSafe] Already registered on all V2 contracts');
-      return { success: true, status: 'already_registered' };
+      console.log("[UserSafe] Already registered on all V2 contracts");
+      return { success: true, status: "already_registered" };
     }
 
     console.log(`[UserSafe] Registering on ${calls.length} contract(s)...`);
 
     // Send registration via Platform Safe
-    const { sendSafeTransaction, safeAddress: platformSafe } = await import('@/lib/pimlico-safe-aa');
+    const { sendSafeTransaction, safeAddress: platformSafe } = await import(
+      "@/lib/pimlico-safe-aa"
+    );
 
     // Drop calls that would revert BEFORE batching them.
     //
@@ -506,7 +566,11 @@ export async function registerUserSafeOnV2Contracts(
     const viable: typeof calls = [];
     for (const call of calls) {
       try {
-        await publicClient.call({ account: platformSafe, to: call.to, data: call.data });
+        await publicClient.call({
+          account: platformSafe,
+          to: call.to,
+          data: call.data,
+        });
         viable.push(call);
       } catch (simErr: any) {
         console.warn(
@@ -517,8 +581,10 @@ export async function registerUserSafeOnV2Contracts(
     }
 
     if (viable.length === 0) {
-      console.error('[UserSafe] Every registration call reverts; nothing to send');
-      return { success: false, status: 'all_calls_revert' };
+      console.error(
+        "[UserSafe] Every registration call reverts; nothing to send",
+      );
+      return { success: false, status: "all_calls_revert" };
     }
 
     const txHash = await sendSafeTransaction(viable);
@@ -529,7 +595,8 @@ export async function registerUserSafeOnV2Contracts(
     return {
       success: true,
       txHash,
-      status: viable.length === calls.length ? 'registered' : 'registered_partial',
+      status:
+        viable.length === calls.length ? "registered" : "registered_partial",
     };
   } catch (error: any) {
     // Keep the reason. Discarding it into status:'error' is why a registration
@@ -537,10 +604,11 @@ export async function registerUserSafeOnV2Contracts(
     // from a mint that never had a chance, with nothing anywhere naming the
     // actual fault. Redacted because bundler and RPC errors quote the URL they
     // called, and ours carry API keys.
-    const raw = error?.shortMessage || error?.details || error?.message || String(error);
+    const raw =
+      error?.shortMessage || error?.details || error?.message || String(error);
     const detail = redactString(String(raw)).slice(0, 300);
-    console.error('[UserSafe] V2 registration error:', detail);
-    return { success: false, status: 'error', detail };
+    console.error("[UserSafe] V2 registration error:", detail);
+    return { success: false, status: "error", detail };
   }
 }
 
@@ -551,20 +619,20 @@ export async function registerUserSafeOnV2Contracts(
  */
 export async function sendFromExistingSafe(
   safeAddress: Address,
-  calls: Array<{ to: Address; value: bigint; data: Hex }>
+  calls: Array<{ to: Address; value: bigint; data: Hex }>,
 ): Promise<{ txHash: string }> {
   const botSigner = getBotSignerAccount();
 
-  console.log('📤 [USER-SAFE] Sending from known Safe:', safeAddress);
+  console.log("📤 [USER-SAFE] Sending from known Safe:", safeAddress);
 
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
     owners: [botSigner],
     entryPoint: {
       address: ENTRYPOINT_ADDRESS,
-      version: '0.7',
+      version: "0.7",
     },
-    version: '1.4.1',
+    version: "1.4.1",
     address: safeAddress,
   } as any);
 
@@ -584,7 +652,7 @@ export async function sendFromExistingSafe(
     maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
   });
 
-  console.log('✅ UserOp submitted:', userOpHash);
+  console.log("✅ UserOp submitted:", userOpHash);
 
   const receipt = await client.waitForUserOperationReceipt({
     hash: userOpHash,
@@ -592,7 +660,7 @@ export async function sendFromExistingSafe(
   });
 
   const txHash = receipt.receipt.transactionHash;
-  console.log('✅ Confirmed TX:', txHash);
+  console.log("✅ Confirmed TX:", txHash);
   return { txHash };
 }
 
@@ -600,10 +668,13 @@ export async function sendFromExistingSafe(
  * Ensure user Safe is registered on V2 contracts before first operation.
  */
 export async function ensureUserSafeRegistered(
-  userAddress: string
+  userAddress: string,
 ): Promise<void> {
   const result = await registerUserSafeOnV2Contracts(userAddress);
   if (!result.success) {
-    console.warn('[UserSafe] Registration failed but proceeding:', result.status);
+    console.warn(
+      "[UserSafe] Registration failed but proceeding:",
+      result.status,
+    );
   }
 }

@@ -226,7 +226,9 @@ if (!/if\s*\(!result\.success\)/.test(regRoute)) {
       "for a registration that failed and the caller mints into a revert",
   );
 }
-const ensureLib = strip(readFileSync(join(root, "lib/ensure-safe-registered.ts"), "utf8"));
+const ensureLib = strip(
+  readFileSync(join(root, "lib/ensure-safe-registered.ts"), "utf8"),
+);
 checks++;
 if (!/body\?\.success\s*!==\s*true/.test(ensureLib)) {
   failures.push(
