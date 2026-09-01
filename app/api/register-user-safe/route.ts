@@ -100,15 +100,17 @@ export async function POST(req: NextRequest) {
     // the user saw named nothing.
     if (!result.success) {
       console.error(
-        `[RegisterUserSafe] FAILED for ${userAddress}: ${result.status}`,
+        `[RegisterUserSafe] FAILED for ${userAddress}: ${result.status} ${result.detail || ""}`,
       );
       return NextResponse.json(
         {
           success: false,
           status: result.status,
-          error:
-            "Could not register your account for minting. This is a platform-side " +
-            "failure, not something you can fix by retrying — please report it.",
+          detail: result.detail,
+          error: result.detail
+            ? `Could not register your account for minting: ${result.detail}`
+            : "Could not register your account for minting. This is a platform-side " +
+              "failure, not something you can fix by retrying — please report it.",
         },
         { status: 502 },
       );

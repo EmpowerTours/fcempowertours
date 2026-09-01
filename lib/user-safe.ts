@@ -15,6 +15,7 @@ import { activeChain } from '@/app/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toSafeSmartAccount } from 'permissionless/accounts';
 import { env } from '@/lib/env';
+import { redactString } from '@/lib/redact';
 
 const PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
 const ENTRYPOINT_ADDRESS = env.ENTRYPOINT_ADDRESS as Address;
@@ -417,7 +418,7 @@ export async function ensureUserSafeCanBurn(
  */
 export async function registerUserSafeOnV2Contracts(
   userAddress: string
-): Promise<{ success: boolean; txHash?: string; status: string }> {
+): Promise<{ success: boolean; txHash?: string; status: string; detail?: string }> {
   const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
   const PLAY_ORACLE = process.env.NEXT_PUBLIC_PLAY_ORACLE as Address;
   // No ITINERARY_NFT here on purpose.
@@ -531,8 +532,15 @@ export async function registerUserSafeOnV2Contracts(
       status: viable.length === calls.length ? 'registered' : 'registered_partial',
     };
   } catch (error: any) {
-    console.error('[UserSafe] V2 registration error:', error.message);
-    return { success: false, status: 'error' };
+    // Keep the reason. Discarding it into status:'error' is why a registration
+    // failure surfaced to the user three steps later as "execution reverted"
+    // from a mint that never had a chance, with nothing anywhere naming the
+    // actual fault. Redacted because bundler and RPC errors quote the URL they
+    // called, and ours carry API keys.
+    const raw = error?.shortMessage || error?.details || error?.message || String(error);
+    const detail = redactString(String(raw)).slice(0, 300);
+    console.error('[UserSafe] V2 registration error:', detail);
+    return { success: false, status: 'error', detail };
   }
 }
 
