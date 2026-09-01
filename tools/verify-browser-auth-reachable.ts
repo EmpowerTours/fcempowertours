@@ -105,6 +105,35 @@ for (const file of clientFiles) {
   }
 }
 
+// ---- every v3 mint branch must carry the artist's signature -----------------
+// v3 will not mint on the platform's say-so: SalesController.mintMasterFor
+// takes a MintRequest the ARTIST signed. There is no separate collector
+// entrypoint — a collector edition is a master with maxCollectorEditions and
+// collectorPrice set — so both branches need it. The collector branch shipped
+// without, and the server refused with "mintRequest must be an object".
+const mintModal = strip(
+  readFileSync(join(root, "app/components/oracle/CreateNFTModal.tsx"), "utf8"),
+);
+checks++;
+const signCalls = (mintModal.match(/signMintRequest\(\{/g) || []).length;
+const mintCommands = (mintModal.match(/`mint_[a-z_]+ \$\{/g) || []).length;
+if (mintCommands > 0 && signCalls < mintCommands) {
+  failures.push(
+    `CreateNFTModal issues ${mintCommands} mint command(s) but calls ` +
+      `signMintRequest ${signCalls} time(s); a branch that does not sign sends ` +
+      'no mintRequest and v3 refuses it as "mintRequest must be an object"',
+  );
+}
+// The signed payload has to actually reach the command, not just be computed.
+checks++;
+const spreads = (mintModal.match(/\.\.\.[a-zA-Z]*[Ss]igned\b/g) || []).length;
+if (mintCommands > 0 && spreads < mintCommands) {
+  failures.push(
+    `CreateNFTModal computes a signed mint request but only ${spreads} of ` +
+      `${mintCommands} mint command(s) spread it into the params`,
+  );
+}
+
 // ---- bot-command callers must ASK for the signature -------------------------
 // The scan above only sees files that POST to /api/execute-delegated. A client
 // that mints through /api/bot-command instead is invisible to it — which is

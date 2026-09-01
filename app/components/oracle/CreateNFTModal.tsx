@@ -595,6 +595,37 @@ export function CreateNFTModal({
       if (isCollectorEdition) {
         // Collector edition mint
         const command = `mint_collector ${title.slice(0, 50)} ${tokenURI} ${price}`;
+
+        // v3 has no separate collector entrypoint — a collector edition is a
+        // master with maxCollectorEditions and collectorPrice set, relayed
+        // through the same signed mintMasterFor. So it needs the artist's
+        // EIP-712 signature exactly as a standard mint does. This branch never
+        // produced one, so mintRequest arrived undefined and the server refused
+        // with "mintRequest must be an object".
+        //
+        // The collector fields go INTO the signed payload: they are part of the
+        // MintRequest struct, so the platform cannot alter the edition count or
+        // collector price after the artist has approved them.
+        let collectorSigned: {
+          mintRequest?: Record<string, string | number>;
+          mintSignature?: `0x${string}`;
+        } = {};
+
+        if (isV3Contracts()) {
+          setProgressStage("Approve the mint in your wallet...");
+          collectorSigned = await signMintRequest({
+            artist: walletAddress as `0x${string}`,
+            artistFid: farcasterFid,
+            uri: tokenURI,
+            price,
+            collectorPrice,
+            maxCollectorEditions: parseInt(maxEditions, 10),
+            nftType: nftType === "art" ? 1 : 0,
+            signTypedData,
+          });
+          setProgressStage("Sending to blockchain...");
+        }
+
         mintData = await executeCommand(command, {
           // Without this the hook sends no auth at all outside Farcaster, and
           // execute-delegated refuses the mint: "caller did not prove ownership
@@ -610,6 +641,7 @@ export function CreateNFTModal({
           maxEditions,
           is_art: nftType === "art",
           rightsDeclaration: mintRightsDeclaration,
+          ...collectorSigned,
         });
       } else {
         // Standard mint
