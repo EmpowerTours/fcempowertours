@@ -24,7 +24,15 @@ import {
   ensureUserSafeCanBurn,
 } from "@/lib/user-safe";
 import { USE_USER_SAFES } from "@/lib/safe-mode";
-import { encodeFunctionData, parseEther, Address, Hex, parseAbi, formatEther, toEventSelector } from "viem";
+import {
+  encodeFunctionData,
+  parseEther,
+  Address,
+  Hex,
+  parseAbi,
+  formatEther,
+  toEventSelector,
+} from "viem";
 import { createShortUrl } from "@/lib/url-shortener";
 // Switchboard removed - using Pyth Entropy for randomness
 import { activeChain } from "@/app/chains";
@@ -237,7 +245,11 @@ export async function POST(req: NextRequest) {
 
       // Fund-moving: hard fail-closed. Ignore `allowed` (which honors the
       // rollout flag) and require proven ownership of the address.
-      if (fundMovingActions.has(action) && !authz.ownsAddress && !delegatedOwnership) {
+      if (
+        fundMovingActions.has(action) &&
+        !authz.ownsAddress &&
+        !delegatedOwnership
+      ) {
         console.error(
           `🚫 execute-delegated: fund-moving action '${action}' denied — ` +
             `caller did not prove ownership of ${userAddress} (${authz.reason || authz.mode})`,
@@ -804,7 +816,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           message: `Passport minted successfully`,
         });
 
-      // ==================== MINT MUSIC (WITH CAST + FRAME) ====================
+        // ==================== MINT MUSIC (WITH CAST + FRAME) ====================
       }
       case "mint_music": {
         // ✅ Determine if it's Art or Music NFT
@@ -1197,7 +1209,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           message: `${nftTypeName} NFT minted successfully: "${songTitle}" at ${params.price} WMON (Token #${extractedTokenId})`,
         });
 
-      // ==================== MINT COLLECTOR EDITION ====================
+        // ==================== MINT COLLECTOR EDITION ====================
       }
       case "mint_collector": {
         const isCollectorArt =
@@ -1677,7 +1689,11 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
 
             if (priceTrack?.price) {
               const nftPrice = BigInt(priceTrack.price);
-              console.log("💰 NFT price from chain:", nftPrice.toString(), "wei");
+              console.log(
+                "💰 NFT price from chain:",
+                nftPrice.toString(),
+                "wei",
+              );
 
               // Now check Safe's WMON balance (using WMON for payments, not TOURS)
               const { createPublicClient, http } = await import("viem");
@@ -2320,7 +2336,7 @@ ${enjoyText}
           message: `${buyingCollector ? "Collector edition" : "NFT"} purchased for ${userAddress}`,
         });
 
-      // ==================== SEND TOURS ====================
+        // ==================== SEND TOURS ====================
       }
       case "send_tours": {
         console.log("💸 Action: send_tours");
@@ -2381,7 +2397,7 @@ ${enjoyText}
           message: `Sent ${params.amount} TOURS successfully`,
         });
 
-      // ==================== SEND MON ====================
+        // ==================== SEND MON ====================
       }
       case "send_mon": {
         console.log("💸 Action: send_mon");
@@ -2484,7 +2500,7 @@ ${enjoyText}
           message: `Sent ${params.amount} MON successfully`,
         });
 
-      // ==================== SWAP MON FOR TOURS ====================
+        // ==================== SWAP MON FOR TOURS ====================
       }
       case "swap_mon_for_tours": {
         console.log("💱 Action: swap_mon_for_tours");
@@ -2607,7 +2623,7 @@ ${enjoyText}
           message: `Swapped ${params?.amount || "0.1"} MON for TOURS successfully`,
         });
 
-      // ==================== WRAP MON TO WMON ====================
+        // ==================== WRAP MON TO WMON ====================
       }
       case "wrap_mon": {
         console.log("🎁 Action: wrap_mon");
@@ -2697,7 +2713,7 @@ ${enjoyText}
           message: `Wrapped ${params.amount} MON to WMON successfully (gasless)`,
         });
 
-      // ==================== APPROVE WMON FOR PASSPORT ====================
+        // ==================== APPROVE WMON FOR PASSPORT ====================
       }
       case "approve_wmon_for_passport": {
         console.log("🔓 Action: approve_wmon_for_passport");
@@ -2740,7 +2756,7 @@ ${enjoyText}
           message: `Approved WMON for passport contract successfully`,
         });
 
-      // ==================== WITHDRAW TO USER (Safe → User Wallet) ====================
+        // ==================== WITHDRAW TO USER (Safe → User Wallet) ====================
       }
       case "withdraw_to_user": {
         console.log("💸 Action: withdraw_to_user (Safe → User Wallet)");
@@ -2845,7 +2861,7 @@ ${enjoyText}
           message: `Withdrew ${params.amount} ${params.token.toUpperCase()} to your wallet successfully`,
         });
 
-      // ==================== MUSIC NFT V5: STAKING ====================
+        // ==================== MUSIC NFT V5: STAKING ====================
       }
       case "stake_music": {
         console.log("🎵 Action: stake_music");
@@ -2888,7 +2904,7 @@ ${enjoyText}
           message: `Music NFT #${params.tokenId} staked successfully`,
         });
 
-      // ==================== MUSIC NFT V5: UNSTAKING ====================
+        // ==================== MUSIC NFT V5: UNSTAKING ====================
       }
       case "unstake_music": {
         console.log("🎵 Action: unstake_music");
@@ -2931,7 +2947,7 @@ ${enjoyText}
           message: `Music NFT #${params.tokenId} unstaked and rewards claimed`,
         });
 
-      // ==================== MUSIC NFT V7: DELEGATED BURNING ====================
+        // ==================== MUSIC NFT V7: DELEGATED BURNING ====================
       }
       case "burn_music": {
         console.log("🔥 Action: burn_music (v7 delegated)");
@@ -2983,7 +2999,7 @@ ${enjoyText}
           message: `Music NFT #${params.tokenId} burned for 5 TOURS reward`,
         });
 
-      // ==================== CREATE SINGLE EXPERIENCE (Legacy - uses TOURS token) ====================
+        // ==================== CREATE SINGLE EXPERIENCE (Legacy - uses TOURS token) ====================
       }
       case "burn_nft": {
         console.log("🔥 Action: burn_nft (delegated burning via User Safe)");
@@ -3098,7 +3114,7 @@ ${enjoyText}
           message: "Guess submitted successfully!",
         });
 
-      // ==================== COUNTRY COLLECTOR (V2) ====================
+        // ==================== COUNTRY COLLECTOR (V2) ====================
       }
       case "country_collector_complete": {
         console.log("🌍 Action: country_collector_complete");
@@ -3147,7 +3163,7 @@ ${enjoyText}
           message: "Artist completed!",
         });
 
-      // ==================== MUSIC SUBSCRIPTION ====================
+        // ==================== MUSIC SUBSCRIPTION ====================
       }
       case "music-subscribe": {
         console.log("🎵 Action: music-subscribe");
@@ -3321,7 +3337,7 @@ ${enjoyText}
           message: "Music subscription activated!",
         });
 
-      // ==================== VENUE REGISTER ====================
+        // ==================== VENUE REGISTER ====================
       }
       case "venue_register": {
         console.log("🏢 Action: venue_register");
@@ -3515,12 +3531,12 @@ ${enjoyText}
           { status: 400 },
         );
 
-      // ==================== LISTENER WMON REWARDS CLAIM ====================
-      // Listeners earn from the 20% reserve share of subscription revenue, held
-      // by the ListenerRewardPool. The claim used to run through wagmi
-      // writeContract, which cannot work inside the Farcaster mini app — there is
-      // no RainbowKit connection there — so it goes through the Safe like every
-      // other mini app transaction.
+        // ==================== LISTENER WMON REWARDS CLAIM ====================
+        // Listeners earn from the 20% reserve share of subscription revenue, held
+        // by the ListenerRewardPool. The claim used to run through wagmi
+        // writeContract, which cannot work inside the Farcaster mini app — there is
+        // no RainbowKit connection there — so it goes through the Safe like every
+        // other mini app transaction.
       }
       case "claim_listener_wmon": {
         console.log("🎧 Action: claim_listener_wmon");
@@ -3771,7 +3787,7 @@ ${enjoyText}
           message: "WMON claimed directly to your Safe wallet!",
         });
 
-      // ==================== CREATE ITINERARY ====================
+        // ==================== CREATE ITINERARY ====================
       }
       case "buy_resale": {
         console.log("🔄 Action: buy_resale");
@@ -3872,8 +3888,8 @@ ${enjoyText}
           message: `Successfully purchased license #${resaleLicenseId} for ${resalePrice} WMON!`,
         });
 
-      // ==================== DAO: WRAP TOURS TO vTOURS ====================
-      // ==================== DAO: FUND USER SAFE ====================
+        // ==================== DAO: WRAP TOURS TO vTOURS ====================
+        // ==================== DAO: FUND USER SAFE ====================
       }
       case "dao_fund_safe": {
         console.log("🗳️ Action: dao_fund_safe");

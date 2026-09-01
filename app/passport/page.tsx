@@ -1,17 +1,16 @@
-'use client';
+"use client";
 
-import { delegationCovers } from '@/lib/delegation-covered';
-import { ensureSafeRegistered } from '@/lib/ensure-safe-registered';
-import { describeMintFailure } from '@/lib/mint-failure';
-import { authHeaders } from '@/lib/quick-auth-client';
-import { walletAuthHeaders } from '@/lib/wallet-auth-client';
-import { useState, useEffect, useCallback } from 'react';
-import { useSignMessage } from 'wagmi';
-import { useWalletContext } from '@/app/hooks/useWalletContext';
-import { useGeolocation } from '@/lib/useGeolocation';
-import { ALL_COUNTRIES, getCountryByCode } from '@/lib/passport/countries';
-import FarcasterAppSetup from '@/app/components/FarcasterAppSetup';
-
+import { delegationCovers } from "@/lib/delegation-covered";
+import { ensureSafeRegistered } from "@/lib/ensure-safe-registered";
+import { describeMintFailure } from "@/lib/mint-failure";
+import { authHeaders } from "@/lib/quick-auth-client";
+import { walletAuthHeaders } from "@/lib/wallet-auth-client";
+import { useState, useEffect, useCallback } from "react";
+import { useSignMessage } from "wagmi";
+import { useWalletContext } from "@/app/hooks/useWalletContext";
+import { useGeolocation } from "@/lib/useGeolocation";
+import { ALL_COUNTRIES, getCountryByCode } from "@/lib/passport/countries";
+import FarcasterAppSetup from "@/app/components/FarcasterAppSetup";
 
 interface UserPassport {
   tokenId: string;
@@ -24,7 +23,15 @@ export default function PassportPage() {
   // Linked from the landing page's "Get Your Passport" button, so browser-wallet visitors land
   // here first. useFarcasterContext gave them a permanently null walletAddress and a Connect
   // Wallet button that did nothing.
-  const { user, fid, walletAddress, isFarcaster, isLoading: contextLoading, error: contextError, requestWallet } = useWalletContext();
+  const {
+    user,
+    fid,
+    walletAddress,
+    isFarcaster,
+    isLoading: contextLoading,
+    error: contextError,
+    requestWallet,
+  } = useWalletContext();
   const { location, loading: geoLoading, error: geoError } = useGeolocation();
   const { signMessageAsync } = useSignMessage();
 
@@ -58,12 +65,12 @@ export default function PassportPage() {
 
   const farcasterFid = fid ?? user?.fid;
 
-  const [selectedCountryCode, setSelectedCountryCode] = useState('');
+  const [selectedCountryCode, setSelectedCountryCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [txHash, setTxHash] = useState('');
-  const [userOpHash, setUserOpHash] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [txHash, setTxHash] = useState("");
+  const [userOpHash, setUserOpHash] = useState("");
 
   // ✅ Passport collection tracking
   const [userPassports, setUserPassports] = useState<UserPassport[]>([]);
@@ -86,8 +93,9 @@ export default function PassportPage() {
       return;
     }
 
-    const appAdded = localStorage.getItem('fc_app_added') === 'true';
-    const notificationsEnabled = localStorage.getItem('fc_notifications_enabled') === 'true';
+    const appAdded = localStorage.getItem("fc_app_added") === "true";
+    const notificationsEnabled =
+      localStorage.getItem("fc_notifications_enabled") === "true";
 
     if (appAdded && notificationsEnabled) {
       setSetupComplete(true);
@@ -98,7 +106,11 @@ export default function PassportPage() {
   // Auto-select country once geolocation loads
   useEffect(() => {
     if (location && location.country && !selectedCountryCode) {
-      console.log('🌍 Auto-selecting country:', location.country, location.countryName);
+      console.log(
+        "🌍 Auto-selecting country:",
+        location.country,
+        location.countryName,
+      );
       setSelectedCountryCode(location.country);
     }
   }, [location, selectedCountryCode]);
@@ -121,9 +133,9 @@ export default function PassportPage() {
         const data = await response.json();
         const passports = data?.passports || [];
         setUserPassports(passports);
-        console.log('🎫 Found', passports.length, 'passports for user');
+        console.log("🎫 Found", passports.length, "passports for user");
       } catch (err) {
-        console.error('Failed to fetch passports:', err);
+        console.error("Failed to fetch passports:", err);
       } finally {
         setLoadingPassports(false);
       }
@@ -134,32 +146,32 @@ export default function PassportPage() {
 
   // Check if user already has passport for selected country
   const hasPassportForCountry = (countryCode: string) => {
-    return userPassports.some(p => p.countryCode === countryCode);
+    return userPassports.some((p) => p.countryCode === countryCode);
   };
 
-  const collectedCountries = new Set(userPassports.map(p => p.countryCode));
+  const collectedCountries = new Set(userPassports.map((p) => p.countryCode));
   const remainingCountries = ALL_COUNTRIES.length - collectedCountries.size;
 
   const handleMint = async () => {
     if (!walletAddress || !selectedCountryCode) {
-      setError('Please select a country and connect wallet');
+      setError("Please select a country and connect wallet");
       return;
     }
 
     const selectedCountry = getCountryByCode(selectedCountryCode);
     if (!selectedCountry) {
-      setError('Invalid country selected');
+      setError("Invalid country selected");
       return;
     }
 
     setIsLoading(true);
-    setError('');
-    setSuccess('');
-    setTxHash('');
-    setUserOpHash('');
+    setError("");
+    setSuccess("");
+    setTxHash("");
+    setUserOpHash("");
 
     try {
-      console.log('🎫 Minting passport via delegation API (gasless)...');
+      console.log("🎫 Minting passport via delegation API (gasless)...");
 
       // Register the Safe as a minter first, in its own request. This page never
       // did — only the modal path called it — so a mint from here always fell
@@ -168,61 +180,71 @@ export default function PassportPage() {
       await ensureSafeRegistered(walletAddress, authFor);
 
       // ✅ Check for existing delegation
-      const delegationRes = await fetch(`/api/delegation-status?address=${walletAddress}`);
+      const delegationRes = await fetch(
+        `/api/delegation-status?address=${walletAddress}`,
+      );
       const delegationData = await delegationRes.json();
 
-      const hasValidDelegation = delegationData.success &&
-                                delegationData.delegation &&
-                                Array.isArray(delegationData.delegation.permissions) &&
-                                delegationData.delegation.permissions.includes('mint_passport') &&
-                                delegationData.delegation.ownershipProven === true;
+      const hasValidDelegation =
+        delegationData.success &&
+        delegationData.delegation &&
+        Array.isArray(delegationData.delegation.permissions) &&
+        delegationData.delegation.permissions.includes("mint_passport") &&
+        delegationData.delegation.ownershipProven === true;
 
       if (!hasValidDelegation) {
-        console.log('📝 Creating delegation...');
-        setSuccess('⏳ Setting up gasless transactions...');
+        console.log("📝 Creating delegation...");
+        setSuccess("⏳ Setting up gasless transactions...");
 
-        const createRes = await fetch('/api/create-delegation', {
-          method: 'POST',
+        const createRes = await fetch("/api/create-delegation", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            ...(await authFor('create-delegation')),
+            "Content-Type": "application/json",
+            ...(await authFor("create-delegation")),
           },
           body: JSON.stringify({
             userAddress: walletAddress,
-            authMethod: 'farcaster',
+            authMethod: "farcaster",
             fid: farcasterFid,
             durationHours: 24,
             maxTransactions: 100,
-            permissions: ['mint_passport', 'wrap_mon', 'mint_music', 'swap_mon_for_tours', 'send_tours', 'buy_music']
-          })
+            permissions: [
+              "mint_passport",
+              "wrap_mon",
+              "mint_music",
+              "swap_mon_for_tours",
+              "send_tours",
+              "buy_music",
+            ],
+          }),
         });
 
         const createData = await createRes.json();
         if (!createData.success) {
-          throw new Error('Failed to create delegation: ' + createData.error);
+          throw new Error("Failed to create delegation: " + createData.error);
         }
-        console.log('✅ Delegation created');
+        console.log("✅ Delegation created");
       }
 
-      setSuccess('⏳ Minting passport (FREE - we pay gas)...');
+      setSuccess("⏳ Minting passport (FREE - we pay gas)...");
 
       // ✅ Execute mint via delegation API - with auto-wrap if needed
-      let response = await fetch('/api/execute-delegated', {
-        method: 'POST',
+      let response = await fetch("/api/execute-delegated", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          ...(await authFor('execute-delegated:mint_passport')),
+          "Content-Type": "application/json",
+          ...(await authFor("execute-delegated:mint_passport")),
         },
         body: JSON.stringify({
           userAddress: walletAddress,
-          action: 'mint_passport',
+          action: "mint_passport",
           params: {
             countryCode: selectedCountry.code,
             countryName: selectedCountry.name,
             region: selectedCountry.region,
             continent: selectedCountry.continent,
-            fid: farcasterFid
-          }
+            fid: farcasterFid,
+          },
         }),
       });
 
@@ -230,47 +252,50 @@ export default function PassportPage() {
 
       // If needs WMON wrap, do that first then retry mint
       if (!response.ok && responseData.needsWrap) {
-        console.log('🔄 Need to wrap MON first, amount:', responseData.wmonNeeded);
-        setSuccess('⏳ Wrapping MON to WMON...');
+        console.log(
+          "🔄 Need to wrap MON first, amount:",
+          responseData.wmonNeeded,
+        );
+        setSuccess("⏳ Wrapping MON to WMON...");
 
-        const wrapRes = await fetch('/api/execute-delegated', {
-          method: 'POST',
+        const wrapRes = await fetch("/api/execute-delegated", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            ...(await authFor('execute-delegated:wrap_mon')),
+            "Content-Type": "application/json",
+            ...(await authFor("execute-delegated:wrap_mon")),
           },
           body: JSON.stringify({
             userAddress: walletAddress,
-            action: 'wrap_mon',
-            params: { amount: responseData.wmonNeeded }
+            action: "wrap_mon",
+            params: { amount: responseData.wmonNeeded },
           }),
         });
 
         const wrapData = await wrapRes.json();
         if (!wrapRes.ok || !wrapData.success) {
-          throw new Error(wrapData.error || 'Failed to wrap MON');
+          throw new Error(wrapData.error || "Failed to wrap MON");
         }
 
-        console.log('✅ Wrapped MON, now minting...');
-        setSuccess('⏳ Minting passport...');
+        console.log("✅ Wrapped MON, now minting...");
+        setSuccess("⏳ Minting passport...");
 
         // Retry mint
-        response = await fetch('/api/execute-delegated', {
-          method: 'POST',
+        response = await fetch("/api/execute-delegated", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            ...(await authFor('execute-delegated:mint_passport')),
+            "Content-Type": "application/json",
+            ...(await authFor("execute-delegated:mint_passport")),
           },
           body: JSON.stringify({
             userAddress: walletAddress,
-            action: 'mint_passport',
+            action: "mint_passport",
             params: {
               countryCode: selectedCountry.code,
               countryName: selectedCountry.name,
               region: selectedCountry.region,
               continent: selectedCountry.continent,
-              fid: farcasterFid
-            }
+              fid: farcasterFid,
+            },
           }),
         });
 
@@ -281,10 +306,13 @@ export default function PassportPage() {
         // ✅ Extract UserOp hash from error response if available
         if (responseData.userOpHash) {
           setUserOpHash(responseData.userOpHash);
-          console.log('📋 UserOperation hash from error:', responseData.userOpHash);
+          console.log(
+            "📋 UserOperation hash from error:",
+            responseData.userOpHash,
+          );
         }
 
-        throw new Error(responseData.error || 'Mint failed');
+        throw new Error(responseData.error || "Mint failed");
       }
 
       const { txHash: responseTxHash, tokenId } = responseData;
@@ -292,19 +320,22 @@ export default function PassportPage() {
       setTxHash(responseTxHash);
       setSuccess(`🎉 Passport minted (FREE)!
 ${selectedCountry.flag} ${selectedCountry.name}
-Token #${tokenId || 'pending'}`);
+Token #${tokenId || "pending"}`);
 
       // Add to local state immediately for instant UI feedback
-      setUserPassports(prev => [{
-        tokenId: tokenId?.toString() || 'pending',
-        countryCode: selectedCountry.code,
-        countryName: selectedCountry.name,
-        mintedAt: new Date().toISOString()
-      }, ...prev]);
+      setUserPassports((prev) => [
+        {
+          tokenId: tokenId?.toString() || "pending",
+          countryCode: selectedCountry.code,
+          countryName: selectedCountry.name,
+          mintedAt: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
 
-      setSelectedCountryCode('');
+      setSelectedCountryCode("");
     } catch (err: any) {
-      console.error('❌ Error:', err);
+      console.error("❌ Error:", err);
       setError(describeMintFailure(err));
     } finally {
       setIsLoading(false);
@@ -345,10 +376,12 @@ Token #${tokenId || 'pending'}`);
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-black to-blue-900 p-4">
         <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-purple-500/30 max-w-md">
           <div className="text-6xl mb-4">👛</div>
-          <h1 className="text-3xl font-bold text-white mb-4">Connect your wallet</h1>
+          <h1 className="text-3xl font-bold text-white mb-4">
+            Connect your wallet
+          </h1>
           <p className="text-gray-400 mb-6">
-            Your passports are held by your wallet. Connect one to mint and to see the ones you
-            already own.
+            Your passports are held by your wallet. Connect one to mint and to
+            see the ones you already own.
           </p>
           <button
             onClick={requestWallet}
@@ -383,7 +416,8 @@ Token #${tokenId || 'pending'}`);
     );
   }
 
-  const selectedAlreadyMinted = selectedCountryCode && hasPassportForCountry(selectedCountryCode);
+  const selectedAlreadyMinted =
+    selectedCountryCode && hasPassportForCountry(selectedCountryCode);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-blue-900 flex items-center justify-center p-4">
@@ -392,35 +426,45 @@ Token #${tokenId || 'pending'}`);
           {user?.pfpUrl && (
             <img
               src={user.pfpUrl}
-              alt={user.username || 'User'}
+              alt={user.username || "User"}
               className="rounded-full mx-auto mb-3 border-2 border-purple-500"
               style={{
-                width: '40px',
-                height: '40px',
-                minWidth: '40px',
-                minHeight: '40px',
-                maxWidth: '40px',
-                maxHeight: '40px',
-                objectFit: 'cover'
+                width: "40px",
+                height: "40px",
+                minWidth: "40px",
+                minHeight: "40px",
+                maxWidth: "40px",
+                maxHeight: "40px",
+                objectFit: "cover",
               }}
             />
           )}
-          <h1 className="text-3xl font-bold text-white mb-1">🌍 Travel Passport NFT</h1>
+          <h1 className="text-3xl font-bold text-white mb-1">
+            🌍 Travel Passport NFT
+          </h1>
           <p className="text-gray-400 text-sm font-mono">
-            {user?.username ? `@${user.username}` : `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}
+            {user?.username
+              ? `@${user.username}`
+              : `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}
           </p>
         </div>
 
         {/* Collection Progress */}
         <div className="mb-5 p-4 bg-gradient-to-r from-purple-900/50 to-blue-900/50 rounded-xl border border-purple-500/30">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-white font-semibold">🗺️ Collection Progress</span>
-            <span className="text-purple-300 font-bold">{collectedCountries.size} / {ALL_COUNTRIES.length}</span>
+            <span className="text-white font-semibold">
+              🗺️ Collection Progress
+            </span>
+            <span className="text-purple-300 font-bold">
+              {collectedCountries.size} / {ALL_COUNTRIES.length}
+            </span>
           </div>
           <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all duration-500"
-              style={{ width: `${(collectedCountries.size / ALL_COUNTRIES.length) * 100}%` }}
+              style={{
+                width: `${(collectedCountries.size / ALL_COUNTRIES.length) * 100}%`,
+              }}
             />
           </div>
           <p className="text-gray-400 text-xs mt-2">
@@ -431,7 +475,9 @@ Token #${tokenId || 'pending'}`);
         {/* Collected Passports */}
         {userPassports.length > 0 && (
           <div className="mb-5">
-            <p className="text-white text-sm font-medium mb-2">Your Passports:</p>
+            <p className="text-white text-sm font-medium mb-2">
+              Your Passports:
+            </p>
             <div className="flex flex-wrap gap-2 max-h-20 overflow-y-auto">
               {userPassports.map((passport) => {
                 const country = getCountryByCode(passport.countryCode);
@@ -441,8 +487,10 @@ Token #${tokenId || 'pending'}`);
                     className="px-2 py-1 bg-green-500/20 border border-green-500/50 rounded-lg text-xs flex items-center gap-1"
                     title={`${passport.countryName} - Token #${passport.tokenId}`}
                   >
-                    <span>{country?.flag || '🏳️'}</span>
-                    <span className="text-green-300">{passport.countryCode}</span>
+                    <span>{country?.flag || "🏳️"}</span>
+                    <span className="text-green-300">
+                      {passport.countryCode}
+                    </span>
                   </div>
                 );
               })}
@@ -469,7 +517,7 @@ Token #${tokenId || 'pending'}`);
               {location.city && (
                 <p className="text-blue-200 text-xs mt-1">
                   📌 {location.city}
-                  {location.region ? `, ${location.region}` : ''}
+                  {location.region ? `, ${location.region}` : ""}
                 </p>
               )}
               {location.accuracy && (
@@ -484,7 +532,8 @@ Token #${tokenId || 'pending'}`);
         {walletAddress ? (
           <div className="mb-6 bg-green-500/20 border border-green-500/50 rounded-lg p-3">
             <p className="text-green-300 text-sm font-mono">
-              ✅ {farcasterFid ? `FID: ${farcasterFid} | ` : ''}Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              ✅ {farcasterFid ? `FID: ${farcasterFid} | ` : ""}Wallet:{" "}
+              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
             </p>
           </div>
         ) : (
@@ -501,7 +550,9 @@ Token #${tokenId || 'pending'}`);
 
         {error && (
           <div className="mb-4 bg-red-500/20 border border-red-500/50 rounded-lg p-3">
-            <p className="text-red-300 text-sm whitespace-pre-line">❌ {error}</p>
+            <p className="text-red-300 text-sm whitespace-pre-line">
+              ❌ {error}
+            </p>
             {userOpHash && (
               <a
                 href={`https://monadscan.com/op/${userOpHash}`}
@@ -509,7 +560,8 @@ Token #${tokenId || 'pending'}`);
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 mt-2 text-yellow-200 hover:text-yellow-100 underline text-sm font-mono"
               >
-                🔗 Track UserOperation: {userOpHash.slice(0, 10)}...{userOpHash.slice(-8)}
+                🔗 Track UserOperation: {userOpHash.slice(0, 10)}...
+                {userOpHash.slice(-8)}
               </a>
             )}
           </div>
@@ -517,7 +569,9 @@ Token #${tokenId || 'pending'}`);
 
         {success && (
           <div className="mb-4 bg-green-500/20 border border-green-500/50 rounded-lg p-3">
-            <p className="text-green-300 text-sm whitespace-pre-line">{success}</p>
+            <p className="text-green-300 text-sm whitespace-pre-line">
+              {success}
+            </p>
             {txHash && (
               <a
                 href={`https://monadscan.com/tx/${txHash}`}
@@ -547,15 +601,18 @@ Token #${tokenId || 'pending'}`);
               </div>
             ) : selectedCountryCode ? (
               <div className="w-full bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-3 text-center">
-                <p className="text-gray-400 text-xs mb-1">Minting passport for</p>
+                <p className="text-gray-400 text-xs mb-1">
+                  Minting passport for
+                </p>
                 <p className="text-2xl font-bold text-white">
-                  {getCountryByCode(selectedCountryCode)?.flag}{' '}
+                  {getCountryByCode(selectedCountryCode)?.flag}{" "}
                   {getCountryByCode(selectedCountryCode)?.name}
                 </p>
               </div>
             ) : (
               <div className="w-full bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm text-center">
-                Could not detect your location. Please enable location services and try again.
+                Could not detect your location. Please enable location services
+                and try again.
               </div>
             )}
             {selectedAlreadyMinted ? (
@@ -579,25 +636,27 @@ Token #${tokenId || 'pending'}`);
             onClick={handleMint}
             disabled={isLoading || !selectedCountryCode || !walletAddress}
             className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation"
-            style={{ minHeight: '56px' }}
+            style={{ minHeight: "56px" }}
           >
-            {isLoading ? '⏳ Processing (2 steps)...' : '🎫 Mint Passport (FREE)'}
+            {isLoading
+              ? "⏳ Processing (2 steps)..."
+              : "🎫 Mint Passport (FREE)"}
           </button>
         )}
 
         <p className="text-gray-500 text-xs text-center mt-3">
           {selectedAlreadyMinted
-            ? 'Select a different country to expand your collection!'
+            ? "Select a different country to expand your collection!"
             : location
               ? `Minting passport for ${location.countryName} • One per country.`
-              : 'Free mint - we pay gas! One passport per country.'
-          }
+              : "Free mint - we pay gas! One passport per country."}
         </p>
 
         {location && (
           <div className="mt-6 p-3 bg-blue-900/30 rounded-lg border border-blue-500/30">
             <p className="text-blue-200 text-xs font-mono">
-              <strong>📍 Your GPS:</strong><br />
+              <strong>📍 Your GPS:</strong>
+              <br />
               Lat: {location.latitude.toFixed(4)}°<br />
               Lon: {location.longitude.toFixed(4)}°
             </p>
