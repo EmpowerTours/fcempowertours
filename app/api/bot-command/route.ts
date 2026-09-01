@@ -145,7 +145,9 @@ export async function POST(req: NextRequest) {
       // What the BROWSER decided, as opposed to what this server believes.
       // These two disagreed once already — the client read a build-time flag
       // while the server read a runtime one — and it was invisible from here.
-      clientDiag: body?._clientMintDiag ?? "(none sent — client is older than this field)",
+      clientDiag:
+        body?._clientMintDiag ??
+        "(none sent — client is older than this field)",
       serverThinksV3: process.env.NEXT_PUBLIC_CONTRACTS_V3 === "true",
     });
 
@@ -1275,6 +1277,16 @@ To mint a collector edition, use the NFT creation page with the collector toggle
                 maxEditions: maxEditionsVal,
                 fid,
                 is_art: is_collector_art,
+                rightsDeclaration: rightsDeclarationFromRequest,
+                // The mint_music branch relayed these and this one did not, so a
+                // collector mint arrived at execute-delegated with the artist's
+                // signature stripped off in transit and was refused as
+                // "mintRequest must be an object" — while the browser had signed
+                // correctly and said so. Relayed untouched: execute-delegated
+                // re-parses and validates them, and this route must not be the
+                // thing that decides a signature is acceptable.
+                mintRequest: mintRequestFromRequest,
+                mintSignature: mintSignatureFromRequest,
               },
             }),
           },

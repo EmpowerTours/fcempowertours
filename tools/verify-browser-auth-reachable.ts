@@ -134,6 +134,27 @@ if (mintCommands > 0 && spreads < mintCommands) {
   );
 }
 
+// ---- every mint branch must RELAY the artist's signature --------------------
+// bot-command forwards the browser's MintRequest to execute-delegated. The
+// mint_music branch did; mint_collector did not, so a correctly signed collector
+// mint had its signature stripped in transit and was refused as "mintRequest
+// must be an object" — the same asymmetry as the client, on the other side.
+const botCmd = strip(readFileSync(join(root, "app/api/bot-command/route.ts"), "utf8"));
+// Structural, not a count: `mintRequest: mintRequestFromRequest` also appears in
+// the destructuring at the top of the file, so counting occurrences let a branch
+// drop its relay and still pass. Check each dispatch's own params block.
+for (const m of botCmd.matchAll(/action:\s*"(mint_music|mint_collector)"/g)) {
+  checks++;
+  const params = botCmd.slice(m.index ?? 0, (m.index ?? 0) + 900);
+  if (!/mintRequest:\s*mintRequestFromRequest/.test(params)) {
+    failures.push(
+      `bot-command dispatches ${m[1]} without relaying mintRequest; a signature ` +
+        "the browser produced correctly is stripped in transit and the mint is " +
+        'refused as "mintRequest must be an object"',
+    );
+  }
+}
+
 // ---- the mint gate must ask the SERVER, not a build-time flag ---------------
 // isV3Contracts() reads NEXT_PUBLIC_CONTRACTS_V3, which Next inlines into the
 // client bundle at BUILD time while the server reads it at RUNTIME. When the
