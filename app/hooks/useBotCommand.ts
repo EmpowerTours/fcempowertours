@@ -153,6 +153,15 @@ export function useBotCommand() {
             rightsDeclaration: options?.rightsDeclaration,
             mintRequest: options?.mintRequest,
             mintSignature: options?.mintSignature,
+            // Diagnostic only. A mint kept arriving without a signature while
+            // every check said the client should have produced one, and there
+            // was no way to see what the browser actually decided. This makes
+            // the server log say it instead of it being inferred.
+            _clientMintDiag: {
+              hasMintRequest: Boolean(options?.mintRequest),
+              hasMintSignature: Boolean(options?.mintSignature),
+              signatureSkipped: skippedSignature,
+            },
           }),
         });
 

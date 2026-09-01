@@ -142,6 +142,11 @@ export async function POST(req: NextRequest) {
       userAddress,
       fid,
       imageUrl: imageUrlFromRequest,
+      // What the BROWSER decided, as opposed to what this server believes.
+      // These two disagreed once already — the client read a build-time flag
+      // while the server read a runtime one — and it was invisible from here.
+      clientDiag: body?._clientMintDiag ?? "(none sent — client is older than this field)",
+      serverThinksV3: process.env.NEXT_PUBLIC_CONTRACTS_V3 === "true",
     });
 
     // ✅ CRITICAL: Preserve original command for IPFS CIDs (case-sensitive)
