@@ -5,6 +5,7 @@ import { useAccount, useSignMessage } from "wagmi";
 import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
 import { authHeaders } from "@/lib/quick-auth-client";
 import { walletAuthHeaders } from "@/lib/wallet-auth-client";
+import { delegationIsProven } from "@/lib/delegation-proven-client";
 
 /** Must match the `context` the server passes to authorizeUserAddress. */
 const AUTH_CONTEXT = "bot-command";
@@ -104,23 +105,40 @@ export function useBotCommand() {
         // rather than always trying Quick Auth first matters — sdk.quickAuth
         // .getToken() has no host to answer it in a plain browser and only
         // resolves on its 3s timeout, which would stall every command.
-        const auth = inFarcaster
-          ? await authHeaders()
-          : options?.requireWalletAuth
-            ? await walletAuthHeaders({
-                address: userAddress,
-                signMessage: signMessageAsync,
-                context: AUTH_CONTEXT,
-              })
-            : {};
+        // A signature costs a wallet prompt, and an existing proven delegation
+        // already says the same thing — bot-command accepts it. So only ask when
+        // there is no delegation to lean on, which is the difference between a
+        // prompt on every mint and one per delegation.
+        const signForOwnership = async () =>
+          walletAuthHeaders({
+            address: userAddress,
+            signMessage: signMessageAsync,
+            context: AUTH_CONTEXT,
+          });
 
-        const response = await fetch("/api/bot-command", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...auth,
-          },
-          body: JSON.stringify({
+        let skippedSignature = false;
+        let auth: Record<string, string>;
+        if (inFarcaster) {
+          auth = await authHeaders();
+        } else if (options?.requireWalletAuth) {
+          if (await delegationIsProven(userAddress)) {
+            auth = {};
+            skippedSignature = true;
+          } else {
+            auth = await signForOwnership();
+          }
+        } else {
+          auth = {};
+        }
+
+        const send = (headers: Record<string, string>) =>
+          fetch("/api/bot-command", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...headers,
+            },
+            body: JSON.stringify({
             command,
             userAddress,
             location: options?.location,
@@ -137,6 +155,19 @@ export function useBotCommand() {
             mintSignature: options?.mintSignature,
           }),
         });
+
+        let response = await send(auth);
+
+        // The delegation looked usable and the server disagreed — a Redis blip,
+        // or it expired between the check and the call. Fall back to the prompt
+        // rather than failing with a 401 the user cannot act on, which is the
+        // trap in skipping a signature optimistically.
+        if (response.status === 401 && skippedSignature) {
+          console.warn(
+            "[BOT-HOOK] delegation rejected by bot-command; asking for a signature",
+          );
+          response = await send(await signForOwnership());
+        }
 
         if (!response.ok) {
           const errorData = await response.json();

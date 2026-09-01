@@ -87,6 +87,37 @@ for (const surface of [
   }
 }
 
+// bot-command was the last route still demanding a fresh signature, which made a
+// music mint cost two prompts where the passport costs one per day. It must
+// accept a proven delegation like the other two, and the client must actually
+// skip the prompt when one exists — the server accepting it changes nothing on
+// its own if the hook signs unconditionally first.
+const botRoute = strip(read("app/api/bot-command/route.ts"));
+checks++;
+if (!/delegationProvesOwnership\(/.test(botRoute)) {
+  failures.push(
+    "bot-command does not accept a proven delegation; every mint through it " +
+      "costs an ownership signature on top of the mint approval",
+  );
+}
+const botHookSrc = strip(read("app/hooks/useBotCommand.ts"));
+checks++;
+if (!/delegationIsProven\(/.test(botHookSrc)) {
+  failures.push(
+    "useBotCommand signs without checking for a delegation first; the server " +
+      "accepting one is moot if the prompt has already fired",
+  );
+}
+// Skipping the signature optimistically strands the user on a 401 they cannot
+// act on unless the hook falls back to signing.
+checks++;
+if (!/skippedSignature/.test(botHookSrc)) {
+  failures.push(
+    "useBotCommand skips the signature with no fallback; a rejected delegation " +
+      "becomes a 401 with no prompt and no way forward",
+  );
+}
+
 // The helper is where a delegation could be silently widened, so pin its guards.
 const proof = strip(read("lib/delegation-proof.ts"));
 checks++;

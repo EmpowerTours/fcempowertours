@@ -4,9 +4,18 @@ import {
   forwardOwnershipAttestation,
   issueOwnershipAttestation,
 } from "@/lib/ownership-attestation";
+import { delegationProvesOwnership } from "@/lib/delegation-proof";
 import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
-import { getResolvedCatalogue, getResolvedTrack } from "@/lib/catalogue-resolved";
-import { createPublicClient, http, type Address, type PublicClient } from "viem";
+import {
+  getResolvedCatalogue,
+  getResolvedTrack,
+} from "@/lib/catalogue-resolved";
+import {
+  createPublicClient,
+  http,
+  type Address,
+  type PublicClient,
+} from "viem";
 import { activeChain } from "@/app/chains";
 import { findAllPassports } from "@/lib/passport-lookup";
 
@@ -89,7 +98,30 @@ export async function POST(req: NextRequest) {
           { status: 401 },
         );
       }
-      if (authz.ownsAddress && authz.mode === "wallet") {
+      // A proven delegation stands in for the signature, exactly as it does in
+      // execute-delegated and register-user-safe. Without this the ownership
+      // prompt fired on EVERY mint: bot-command was the one route still
+      // demanding a fresh signature, so a music mint cost two wallet prompts —
+      // one to prove the address, one to approve the mint — where the passport
+      // costs one per day.
+      //
+      // No action name is passed. The delegation is being used as proof of
+      // IDENTITY here, not as a spending limit: the commands this route fans out
+      // to are in publicActions, where the permission list is bypassed anyway.
+      // A delegation only exists after ownership was proven once, so this
+      // asserts exactly what the signature asserted, and nothing more.
+      const provenByDelegation =
+        !authz.ownsAddress && (await delegationProvesOwnership(userAddress));
+
+      if (
+        (authz.ownsAddress && authz.mode === "wallet") ||
+        provenByDelegation
+      ) {
+        if (provenByDelegation) {
+          console.log(
+            `[Delegation] bot-command: ✅ ${userAddress.toLowerCase()} proved ownership by an existing delegation`,
+          );
+        }
         attestationHeader = await issueOwnershipAttestation(userAddress);
       }
     }
