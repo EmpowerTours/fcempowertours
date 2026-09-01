@@ -233,19 +233,39 @@ if (/sendSafeTransaction\(/.test(userSafeLib)) {
 // — an oversized track is the usual one — painted a message the user never saw,
 // and the button read as doing nothing at all. The error has to render at the
 // point of action, not only at the top of the page.
-const nftPage = readFileSync(join(root, "app/nft/page.tsx"), "utf8");
-checks++;
-const mintBtnAt = nftPage.indexOf("onClick={uploadAndMint}");
-const errorNearBtn =
-  mintBtnAt > 0 &&
-  /\{\(error \|\| botError\) && \(/.test(
-    nftPage.slice(Math.max(0, mintBtnAt - 900), mintBtnAt),
-  );
-if (!errorNearBtn) {
-  failures.push(
-    "app/nft/page.tsx renders no error beside the mint button; a rejected " +
-      "mint reports itself off-screen and the button looks inert",
-  );
+// BOTH mint surfaces. Only /nft was fixed first, and the user was on the other
+// one — where the button sits ~1200 lines below the error banner inside a
+// scrolling modal — so the symptom survived the fix entirely.
+for (const surface of [
+  "app/nft/page.tsx",
+  "app/components/oracle/CreateNFTModal.tsx",
+]) {
+  const src = readFileSync(join(root, surface), "utf8");
+  const mintBtnAt = src.indexOf("onClick={uploadAndMint}");
+
+  checks++;
+  if (
+    mintBtnAt < 0 ||
+    !/\{\(error \|\| botError\) && \(/.test(
+      src.slice(Math.max(0, mintBtnAt - 900), mintBtnAt),
+    )
+  ) {
+    failures.push(
+      `${surface} renders no error beside the mint button; a rejected mint ` +
+        "reports itself off-screen and the button looks inert",
+    );
+  }
+
+  // A static label is the same failure on the happy path: the mint starts and
+  // nothing on screen changes, so it is indistinguishable from a dead click.
+  checks++;
+  const label = mintBtnAt > 0 ? src.slice(mintBtnAt, mintBtnAt + 900) : "";
+  if (!/\buploading\b\s*\?/.test(label)) {
+    failures.push(
+      `${surface} has a mint button whose label never changes while uploading; ` +
+        "a mint in progress looks identical to a click that did nothing",
+    );
+  }
 }
 
 // ---- A failed registration must not report success ---------------------------

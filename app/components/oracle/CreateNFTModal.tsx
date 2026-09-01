@@ -237,6 +237,26 @@ export function CreateNFTModal({
           }
         }
 
+        // Enforce the limits here rather than only in uploadAndMint, which runs
+        // at the very end: an oversized track was accepted, carried through
+        // trimming, pricing and review, then rejected by a message rendered far
+        // off-screen. Refuse it while the user is still looking at the picker.
+        const limit =
+          setter === setCoverFile
+            ? { bytes: 3 * 1024 * 1024, label: "Cover art", max: "3MB" }
+            : setter === setFullFile
+              ? { bytes: 15 * 1024 * 1024, label: "Full track", max: "15MB" }
+              : { bytes: 600 * 1024, label: "Preview audio", max: "600KB" };
+        if (file.size > limit.bytes) {
+          setError(
+            `${limit.label} is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is ${limit.max}. Please choose a smaller file.`,
+          );
+          setter(null);
+          e.target.value = "";
+          return;
+        }
+        setError(null);
+
         setter(file);
 
         if (setter === setFullFile) {
@@ -2045,13 +2065,34 @@ Full agreement text is stored on IPFS and referenced in the NFT metadata as a cr
                   </div>
                 )}
 
+                {/* This error also renders around line 808, roughly twelve
+                    hundred lines up and off-screen inside a scrolling modal. A
+                    validation failure therefore reported itself somewhere the
+                    user had no reason to look, and the mint button read as
+                    doing nothing at all. Say it at the point of action. */}
+                {(error || botError) && (
+                  <div className="p-4 bg-red-500/20 border-2 border-red-500/40 rounded-xl">
+                    <p className="text-red-300 font-medium">
+                      ❌ {error || botError}
+                    </p>
+                  </div>
+                )}
+
                 {/* Mint Button */}
                 <button
                   onClick={uploadAndMint}
                   disabled={uploading || minting || botLoading}
                   className="w-full px-8 py-6 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 text-white rounded-2xl font-bold text-2xl hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all shadow-2xl"
                 >
-                  🚀 Mint NFT (FREE!)
+                  {/* The label was the constant "Mint NFT (FREE!)". On the happy
+                      path nothing changed either — no spinner, no text change —
+                      so a mint that had genuinely started was indistinguishable
+                      from a click that did nothing. */}
+                  {uploading
+                    ? "⏳ Uploading to IPFS..."
+                    : minting || botLoading
+                      ? "⚡ Minting NFT (FREE)..."
+                      : "🚀 Mint NFT (FREE!)"}
                 </button>
 
                 {!walletAddress && (
