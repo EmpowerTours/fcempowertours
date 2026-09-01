@@ -213,19 +213,16 @@ if (!/for\s*\(const call of viable\)/.test(userSafeLib)) {
       "reverting contract is back in the send path",
   );
 }
-// Scoped to registerUserSafeOnV2Contracts. Other functions in this file still
-// send through the Platform Safe (registerUserSafeAsBurner does) and carry the
-// same latent defect, but they are not on the passport-mint path and are not
-// this check's business to police.
+// File-wide now, not scoped to one function. registerUserSafeAsBurner carried
+// the same defect and has been moved off the Platform Safe too, so nothing in
+// this file should reach for it: every Safe registration here is a plain
+// administrative write from the bot signer, which is already owner() of these
+// contracts and outranks the platformOperator role it uses.
 checks++;
-const v2Fn = userSafeLib.slice(
-  userSafeLib.indexOf("export async function registerUserSafeOnV2Contracts"),
-);
-const v2Body = v2Fn.slice(0, v2Fn.indexOf("\nexport ") + 1 || undefined);
-if (/sendSafeTransaction\(/.test(v2Body)) {
+if (/sendSafeTransaction\(/.test(userSafeLib)) {
   failures.push(
-    "registerUserSafeOnV2Contracts routes registration through the Platform " +
-      "Safe again; that Safe is 2-of-3, the server has one key, and no user " +
+    "lib/user-safe.ts routes a Safe registration through the Platform Safe " +
+      "again; that Safe is 2-of-3, the server has one key, and no user " +
       "operation from it has ever validated",
   );
 }

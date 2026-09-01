@@ -390,10 +390,19 @@ export async function registerUserSafeAsBurner(
     console.log("   User Safe:", userSafeAddress);
     console.log("   NFT Contract:", NFT_CONTRACT);
 
-    // Import sendSafeTransaction dynamically to avoid circular deps
-    const { sendSafeTransaction } = await import("@/lib/pimlico-safe-aa");
+    // From the bot signer EOA, for the same reason as
+    // registerUserSafeOnV2Contracts: the Platform Safe is a 2-of-3 multisig the
+    // server holds one key for, so no user operation from it can ever validate —
+    // its EntryPoint nonce is 0. This had never worked.
+    //
+    // Two things were broken here, not one. The contract's platformOperator was
+    // the zero address — never set after deploy — so this reverted with "Only
+    // platform operator" from every caller including the Platform Safe, which
+    // makes the old comment claiming otherwise wrong. It now points at the bot
+    // signer, set in this transaction hash (a public tx id, not key material):
+    // 0x17cbf7d71ac9ae034dcc32d40c4cc59cbce221a9b1b468e113aaba8bb1b5493d
+    const botSigner = getBotSignerAccount();
 
-    // Call registerUserSafeAsBurner from Platform Safe (platformOperator)
     const registerCalldata = encodeFunctionData({
       abi: parseAbi([
         "function registerUserSafeAsBurner(address userSafe) external",
@@ -402,13 +411,24 @@ export async function registerUserSafeAsBurner(
       args: [userSafeAddress],
     });
 
-    const txHash = await sendSafeTransaction([
-      {
-        to: NFT_CONTRACT,
-        value: 0n,
-        data: registerCalldata as Hex,
-      },
-    ]);
+    // Simulate first: a revert here costs nothing and names the cause, where
+    // failing at submission produced an error the caller discarded.
+    await publicClient.call({
+      account: botSigner.address,
+      to: NFT_CONTRACT,
+      data: registerCalldata as Hex,
+    });
+
+    const walletClient = createWalletClient({
+      account: botSigner,
+      chain: activeChain,
+      transport: http(),
+    });
+    const txHash = await walletClient.sendTransaction({
+      to: NFT_CONTRACT,
+      data: registerCalldata as Hex,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: txHash });
 
     console.log("✅ User Safe registered as authorized burner:", txHash);
     return { success: true, txHash };
