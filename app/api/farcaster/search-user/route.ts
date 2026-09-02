@@ -1,4 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createPublicClient, http, parseAbi } from 'viem';
+import { activeChain } from '@/app/chains';
+
+/**
+ * Resolve an EmpowerTours display name to its owner.
+ *
+ * ProfileRegistry exists so someone with no Farcaster account can claim an
+ * artist name, and `ownerOfName` is the exact reverse lookup a search needs —
+ * but nothing used it for searching, only to check availability while claiming.
+ * So an artist could register a name, watch it render on their own cards, and
+ * still be unfindable by it. Searching "Earvin Gallardo" returned "User not
+ * found" while that name sat on chain.
+ *
+ * Returns null on anything unexpected: no registry configured, no match, a
+ * failed read. A miss here just falls through to the Farcaster answer.
+ */
+async function lookupRegisteredName(name: string) {
+  const registry = process.env.NEXT_PUBLIC_PROFILE_REGISTRY as
+    | `0x${string}`
+    | undefined;
+  if (!registry) return null;
+  try {
+    const client = createPublicClient({ chain: activeChain, transport: http() });
+    const owner = (await client.readContract({
+      address: registry,
+      abi: parseAbi([
+        'function ownerOfName(string displayName) view returns (address)',
+        'function displayNameOf(address owner) view returns (string)',
+      ]),
+      functionName: 'ownerOfName',
+      args: [name],
+    })) as string;
+    if (!owner || /^0x0{40}$/i.test(owner.replace(/^0x/, '0x'))) return null;
+    if (owner === '0x0000000000000000000000000000000000000000') return null;
+    // Read the name back so the reply carries its exact registered casing
+    // rather than whatever the searcher typed.
+    const canonical = (await client.readContract({
+      address: registry,
+      abi: parseAbi(['function displayNameOf(address owner) view returns (string)']),
+      functionName: 'displayNameOf',
+      args: [owner as `0x${string}`],
+    })) as string;
+    return { owner, displayName: canonical || name };
+  } catch {
+    return null;
+  }
+}
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
 
@@ -59,6 +106,26 @@ export async function GET(req: NextRequest) {
       const users = fallbackData.result?.users || [];
 
       if (users.length === 0) {
+        // Farcaster's own search found nobody. This is the path a wallet-only
+        // artist's registered name actually reaches.
+        const registered = await lookupRegisteredName(username.trim());
+        if (registered) {
+          console.log('[SearchUser] Found via ProfileRegistry:', registered.displayName);
+          return NextResponse.json({
+            success: true,
+            user: {
+              fid: null,
+              username: null,
+              displayName: registered.displayName,
+              pfpUrl: null,
+              walletAddress: registered.owner,
+              followerCount: 0,
+              followingCount: 0,
+              bio: '',
+              source: 'profile-registry',
+            },
+          });
+        }
         return NextResponse.json({
           success: false,
           error: 'User not found'
@@ -91,6 +158,27 @@ export async function GET(req: NextRequest) {
 
     if (!user) {
       console.log('[SearchUser] User not found in response:', cleanUsername);
+      // Not on Farcaster is the normal case for a wallet-only artist. Their
+      // registered EmpowerTours name is the other place to look, and the one
+      // ProfileRegistry was deployed for.
+      const registered = await lookupRegisteredName(username.trim());
+      if (registered) {
+        console.log('[SearchUser] Found via ProfileRegistry:', registered.displayName);
+        return NextResponse.json({
+          success: true,
+          user: {
+            fid: null,
+            username: null,
+            displayName: registered.displayName,
+            pfpUrl: null,
+            walletAddress: registered.owner,
+            followerCount: 0,
+            followingCount: 0,
+            bio: '',
+            source: 'profile-registry',
+          },
+        });
+      }
       return NextResponse.json({
         success: false,
         error: 'User not found'
