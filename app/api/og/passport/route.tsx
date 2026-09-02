@@ -175,12 +175,17 @@ function generatePassportImage(passport: PassportData) {
           {/* Flag */}
           <div
             style={{
-              // 180 overflowed the card: the flag, country, code and region
-              // together exceeded the height flex:1 could give them, and Satori
-              // collapsed them on top of each other rather than clipping.
+              // flexShrink: 0 is what stops the overlap. The card is flex:1, so
+              // when its children do not fit Satori SHRINKS them toward zero
+              // height and they end up drawn on top of one another — the flag,
+              // the country, the code and the region all landing in the same
+              // band. It does not clip, so nothing looks broken until you
+              // render the PNG and look at it. Shrinking the font alone did not
+              // fix it; refusing to shrink does.
               fontSize: 110,
               marginBottom: '16px',
               display: 'flex',
+              flexShrink: 0,
             }}
           >
             {flag}
@@ -195,6 +200,7 @@ function generatePassportImage(passport: PassportData) {
               marginBottom: '8px',
               textAlign: 'center',
               display: 'flex',
+              flexShrink: 0,
             }}
           >
             {countryName.toUpperCase()}
@@ -207,6 +213,7 @@ function generatePassportImage(passport: PassportData) {
               color: '#93c5fd',
               marginBottom: '6px',
               display: 'flex',
+              flexShrink: 0,
             }}
           >
             {passport.countryCode}
@@ -218,6 +225,7 @@ function generatePassportImage(passport: PassportData) {
               fontSize: 24,
               color: '#60a5fa',
               display: 'flex',
+              flexShrink: 0,
             }}
           >
             {region}
