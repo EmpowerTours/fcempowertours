@@ -1,4 +1,5 @@
 "use client";
+import { TrackSalesControls } from "@/app/components/oracle/TrackSalesControls";
 import { authHeaders } from "@/lib/quick-auth-client";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -1511,6 +1512,15 @@ export default function ProfilePage() {
                               </p>
                             </div>
                           )}
+                          {/* Price and take-off-sale, for the artist only.
+                              Both were deployed on SalesController with no
+                              interface, which left burning the master as the
+                              only way to change a price — irreversible, and it
+                              orphans licences already sold. */}
+                          <TrackSalesControls
+                            tokenId={String(nft.tokenId ?? '')}
+                            onChanged={() => void loadAllData()}
+                          />
                           <div className="space-y-2">
                             <div className="flex gap-2">
                               {nft.txHash && (
