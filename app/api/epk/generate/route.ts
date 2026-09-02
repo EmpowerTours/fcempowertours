@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
 import { NeynarAPIClient, Configuration } from "@neynar/nodejs-sdk";
-import { encodeFunctionData, parseEther, type Address } from "viem";
-import { sendUserSafeTransaction } from "@/lib/user-safe";
+import { encodeFunctionData, parseAbi, parseEther, type Address } from "viem";
+import {
+  getUserSafeAddress,
+  publicClient,
+  sendUserSafeTransaction,
+} from "@/lib/user-safe";
 import { getArtistStreamingStats } from "@/lib/epk/chain";
 import {
   DEFAULT_TECHNICAL_RIDER,
@@ -52,15 +56,44 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const transferData = encodeFunctionData({
+      const fee = parseEther(EPK_GENERATION_FEE);
+
+      // Wrap the shortfall before transferring. Every other paid action does
+      // this — mint_collector batches WMON.deposit() ahead of its fee — and this
+      // route did not, so it failed for anyone holding MON rather than WMON.
+      // A Safe funded with 44 MON and 0 WMON could not generate a press kit and
+      // the failure surfaced as "Failed to generate press kit".
+      const safeAddress = await getUserSafeAddress(userAddress);
+      const held = (await publicClient.readContract({
+        address: WMON_ADDRESS,
         abi: ERC20ABI,
-        functionName: "transfer",
-        args: [PLATFORM_SAFE, parseEther(EPK_GENERATION_FEE)],
+        functionName: "balanceOf",
+        args: [safeAddress],
+      })) as bigint;
+
+      const calls: { to: Address; value: bigint; data: `0x${string}` }[] = [];
+      if (held < fee) {
+        calls.push({
+          to: WMON_ADDRESS,
+          value: fee - held,
+          data: encodeFunctionData({
+            abi: parseAbi(["function deposit() external payable"]),
+            functionName: "deposit",
+            args: [],
+          }),
+        });
+      }
+      calls.push({
+        to: WMON_ADDRESS,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: ERC20ABI,
+          functionName: "transfer",
+          args: [PLATFORM_SAFE, fee],
+        }),
       });
 
-      await sendUserSafeTransaction(userAddress, [
-        { to: WMON_ADDRESS, value: 0n, data: transferData },
-      ]);
+      await sendUserSafeTransaction(userAddress, calls);
 
       console.log("[EPK Generate] Payment collected successfully");
     } catch (paymentError: any) {

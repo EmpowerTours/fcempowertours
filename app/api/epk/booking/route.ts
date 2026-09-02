@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
-import { encodeFunctionData, parseEther, type Address } from 'viem';
-import { sendUserSafeTransaction } from '@/lib/user-safe';
+import { encodeFunctionData, parseAbi, parseEther, type Address } from 'viem';
+import {
+  getUserSafeAddress,
+  publicClient,
+  sendUserSafeTransaction,
+} from '@/lib/user-safe';
 import { EPK_INQUIRY_PREFIX, EPK_REGISTRY_ADDRESS } from '@/lib/epk/constants';
 import type { BookingInquiry } from '@/lib/epk/types';
 import EPKRegistryABI from '@/lib/abis/EPKRegistry.json';
@@ -52,6 +56,33 @@ export async function POST(req: NextRequest) {
           message: inquiry.message,
         });
 
+        // A booking deposit is a WMON amount taken from a Safe that is usually
+        // funded in MON. Wrap the shortfall first, as every other paid action
+        // does — otherwise approve() succeeds against a zero balance and
+        // createBooking reverts with nothing useful to show the booker.
+        const safeAddress = await getUserSafeAddress(userAddress);
+        const heldWmon = (await publicClient.readContract({
+          address: WMON_ADDRESS,
+          abi: ERC20ABI,
+          functionName: 'balanceOf',
+          args: [safeAddress],
+        })) as bigint;
+
+        const wrapCalls: { to: Address; value: bigint; data: `0x${string}` }[] =
+          heldWmon < depositWei
+            ? [
+                {
+                  to: WMON_ADDRESS,
+                  value: depositWei - heldWmon,
+                  data: encodeFunctionData({
+                    abi: parseAbi(['function deposit() external payable']),
+                    functionName: 'deposit',
+                    args: [],
+                  }),
+                },
+              ]
+            : [];
+
         // Approve WMON spending + create booking in one batch
         const approveData = encodeFunctionData({
           abi: ERC20ABI,
@@ -66,6 +97,7 @@ export async function POST(req: NextRequest) {
         });
 
         const result = await sendUserSafeTransaction(userAddress, [
+          ...wrapCalls,
           { to: WMON_ADDRESS, value: 0n, data: approveData },
           { to: EPK_REGISTRY_ADDRESS as Address, value: 0n, data: bookingData },
         ]);
