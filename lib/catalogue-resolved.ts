@@ -45,6 +45,8 @@ export interface TrackMetadata {
   name?: string;
   imageUrl?: string;
   audioUrl?: string;
+  /** The 3s preview from `animation_url`. Safe to play to anyone. */
+  previewUrl?: string;
   /**
    * The metadata document as fetched.
    *
@@ -64,8 +66,13 @@ export interface ResolvedTrack extends CatalogueRow {
   /** Metadata name, or a `Track #N` / `Art #N` placeholder when unresolved. */
   name: string;
   imageUrl: string;
-  /** Full track. `external_url` is preferred over `animation_url`, which is a 3s preview. */
+  /**
+   * FULL track, from `external_url`. Licensed playback and the radio only —
+   * serving this on a public surface gives the whole song away.
+   */
   audioUrl?: string;
+  /** 3s preview from `animation_url`. What public surfaces should play. */
+  previewUrl?: string;
   /** Price in WMON, fixed to 2dp. The raw wei string stays on `price`. */
   priceWMON: string;
 }
@@ -107,11 +114,17 @@ export async function fetchTrackMetadata(
     // preview would silently serve clips as if they were songs.
     const rawAudio =
       doc.external_url || doc.audio_url || doc.audio || doc.animation_url;
+    // Kept separate rather than collapsed into one field. Public surfaces play
+    // the preview; the radio and any licensed playback need the full track. One
+    // field meant every caller got the full song, so a cast embed streamed the
+    // whole record to anyone with the link and no licence.
+    const rawPreview = doc.animation_url;
 
     const meta: TrackMetadata = {
       name: typeof doc.name === "string" ? doc.name : undefined,
       imageUrl: doc.image ? resolveIPFS(doc.image) : undefined,
       audioUrl: rawAudio ? resolveIPFS(rawAudio) : undefined,
+      previewUrl: rawPreview ? resolveIPFS(rawPreview) : undefined,
       raw: doc && typeof doc === "object" ? doc : undefined,
     };
     metadataCache.set(tokenURI, meta);
@@ -180,6 +193,7 @@ export async function getResolvedCatalogue(opts?: {
           (row.isArt ? `Art #${row.tokenId}` : `Track #${row.tokenId}`),
         imageUrl: meta.imageUrl ?? "",
         audioUrl: meta.audioUrl,
+        previewUrl: meta.previewUrl,
         priceWMON: row.price ? (Number(row.price) / 1e18).toFixed(2) : "0",
       };
     }),

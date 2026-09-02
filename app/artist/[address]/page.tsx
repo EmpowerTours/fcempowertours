@@ -295,20 +295,50 @@ export default function ArtistProfilePage() {
       if (!response.ok) throw new Error(`Catalogue read failed: ${response.status}`);
       const result = await response.json();
 
+      // Match on artistFid as well as address. Masters 1-5 were minted into v3
+      // by the deployer, and mintMaster records artist = msg.sender, so their
+      // on-chain artist is 0x8df64bac… while artistFid is 765994 (@unify34).
+      // Filtering on address alone left those five orphaned: the real artist's
+      // page said "hasn't minted any NFTs" while their songs sat in the
+      // catalogue. The address on chain is immutable, so the fid is the only
+      // link back to the person who made them.
+      let viewerFid: number | undefined;
+      try {
+        const fidRes = await fetch(
+          `/api/neynar/v2/farcaster/user/bulk_by_address?addresses=${artistAddress}`,
+        );
+        if (fidRes.ok) {
+          const fidJson = await fidRes.json();
+          const first = Object.values(fidJson ?? {})[0];
+          viewerFid = Array.isArray(first) ? first[0]?.fid : undefined;
+        }
+      } catch {
+        // No Farcaster account for this address is the normal case for a
+        // wallet-only artist. Fall back to matching on address alone.
+      }
+
       const artistMusicMapped = (result.tracks || [])
-        .filter(
-          (t: any) => t.artist?.toLowerCase() === artistAddress.toLowerCase(),
-        )
+        .filter((t: any) => {
+          if (t.artist?.toLowerCase() === artistAddress.toLowerCase()) return true;
+          return Boolean(viewerFid) && Number(t.artistFid) === Number(viewerFid);
+        })
         .map((t: any) => ({
           tokenId: Number(t.tokenId),
           tokenURI: t.tokenURI,
-          mintedAt: '',
+          // createdAt is unix SECONDS from the registry and 0 where it stores
+          // none. new Date('') rendered "Invalid date" on every card.
+          mintedAt: t.createdAt
+            ? new Date(Number(t.createdAt) * 1000).toISOString()
+            : '',
           txHash: '',
           metadata: {
             name: t.name,
             // Already gateway-resolved server-side.
             image: t.imageUrl,
-            animation_url: t.audioUrl,
+            // The PREVIEW, not the full track. audioUrl is external_url — the
+            // whole song — and playing it here streamed complete records to
+            // anyone with the link, licence or not.
+            animation_url: t.previewUrl,
           },
           price: (Number(t.price) / 1e18).toFixed(6),
           isArt: t.isArt || false,
@@ -506,9 +536,14 @@ export default function ArtistProfilePage() {
                       <p className="font-bold text-gray-900 text-lg truncate">
                         {music.metadata?.name || `Track #${music.tokenId}`}
                       </p>
-                      <p className="text-sm text-gray-600">
-                        Minted {new Date(music.mintedAt).toLocaleDateString()}
-                      </p>
+                      {/* Only when a real date exists. The legacy contract stores
+                          no createdAt, and rendering it anyway printed
+                          "Minted Invalid date". */}
+                      {music.mintedAt && (
+                        <p className="text-sm text-gray-600">
+                          Minted {new Date(music.mintedAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                     {music.metadata?.animation_url ? (
                       <div className="bg-gray-50 rounded-lg p-2 border border-gray-200">
@@ -652,9 +687,14 @@ export default function ArtistProfilePage() {
                       <p className="font-bold text-gray-900 text-lg truncate">
                         {art.metadata?.name || `Art #${art.tokenId}`}
                       </p>
-                      <p className="text-sm text-gray-600">
-                        Minted {new Date(art.mintedAt).toLocaleDateString()}
-                      </p>
+                      {/* Only when a real date exists. The legacy contract stores
+                          no createdAt, and rendering it anyway printed
+                          "Minted Invalid date". */}
+                      {art.mintedAt && (
+                        <p className="text-sm text-gray-600">
+                          Minted {new Date(art.mintedAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                     <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 text-center">
                       <p className="text-xs text-gray-500">🎨 Visual Art NFT</p>

@@ -107,6 +107,7 @@ export default function MusicDiscoveryPage() {
         name: string;
         imageUrl: string;
         audioUrl?: string;
+        previewUrl?: string;
         artistName?: string;
         artistNameSource?:
           | "farcaster"
@@ -138,7 +139,10 @@ export default function MusicDiscoveryPage() {
           metadata: {
             name: t.name,
             image: t.imageUrl,
-            animation_url: t.audioUrl,
+            // Preview, not the full track. audioUrl is external_url — the whole
+            // song — and discover is a public browse surface, so playing it
+            // there gave the record away to anyone who opened the page.
+            animation_url: t.previewUrl,
           },
           isLoadingMetadata: false,
         }));
