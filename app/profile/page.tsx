@@ -1055,39 +1055,11 @@ export default function ProfilePage() {
                 </motion.div>
               </div>
             </motion.div>
-            <motion.div
-              className="p-5 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.6 }}
-              whileHover={{ scale: 1.03, y: -5 }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-xs text-gray-600 mb-1 font-medium">
-                    TOURS Balance
-                  </p>
-                  <motion.p
-                    className="text-2xl font-bold text-green-700"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.8, type: "spring", stiffness: 200 }}
-                  >
-                    {balances.tours}
-                  </motion.p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    EmpowerTours Token
-                  </p>
-                </div>
-                <motion.div
-                  className="text-3xl"
-                  animate={{ rotate: [0, -10, 10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                >
-                  🎫
-                </motion.div>
-              </div>
-            </motion.div>
+            {/* The TOURS balance card was removed on 2026-09-02. TOURS is not
+                part of the current economy — licences, mints and the passport
+                all settle in WMON — so showing a balance implied a token users
+                were meant to hold and spend. get-balances reads TOURS V2
+                (0x45b76a12…, supply 1e29) and returns 0.00 for accounts here. */}
           </div>
 
           {/* User Safe Wallet Widget */}

@@ -6,7 +6,8 @@ import { readCatalogueFromChain } from '@/lib/catalogue-source';
 
 const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
 const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
-const BOT_SAFE_ACCOUNT = process.env.NEXT_PUBLIC_SAFE_ACCOUNT as Address; // ✅ Bot's Safe account
+// The Platform Safe address used to be read here and reported as the
+// caller's Safe balance. Balances now come from the user's own Safe.
 
 const ERC20_ABI = [
   {
@@ -49,23 +50,28 @@ export async function POST(req: NextRequest) {
       console.error('❌ Error fetching user MON balance:', error);
     }
 
-    // Get Platform Safe balance (for delegation transparency)
-    console.log('⏳ Fetching Platform Safe balance...');
+    // THIS USER'S Safe, not the platform's.
+    //
+    // This read NEXT_PUBLIC_SAFE_ACCOUNT — the Platform Safe — and reported it
+    // as the caller's safe balance, so every user was shown the platform's
+    // money as their own. Under USE_USER_SAFES each user has their own Safe and
+    // that is the one holding the funds a mint actually spends; showing the
+    // platform's instead is both wrong and dangerous, because it invites
+    // spending against a balance that is not yours.
+    console.log('⏳ Fetching user Safe balance...');
     let platformSafeBalance = 0n;
     try {
-      if (BOT_SAFE_ACCOUNT) {
-        platformSafeBalance = await publicClient.getBalance({
-          address: BOT_SAFE_ACCOUNT
-        });
-        console.log(`✅ Platform Safe MON balance: ${platformSafeBalance.toString()} wei`);
-      }
+      const { getUserSafeAddress } = await import('@/lib/user-safe');
+      const userSafe = await getUserSafeAddress(address);
+      platformSafeBalance = await publicClient.getBalance({ address: userSafe });
+      console.log(`✅ User Safe ${userSafe} MON balance: ${platformSafeBalance.toString()} wei`);
     } catch (error) {
-      console.error('❌ Error fetching Platform Safe balance:', error);
+      console.error('❌ Error fetching user Safe balance:', error);
     }
 
     // Format for display
     const monFormattedUser = parseFloat(formatEther(monBalanceUser)).toFixed(4);
-    const monFormattedSafe = parseFloat(formatEther(platformSafeBalance)).toFixed(4); // Platform Safe (delegation account)
+    const monFormattedSafe = parseFloat(formatEther(platformSafeBalance)).toFixed(4); // this user's Safe
     const monFormatted = monFormattedUser; // Show wallet balance in main field
     console.log(`✅ MON balance - User wallet: ${monFormattedUser}, Platform Safe: ${monFormattedSafe}`);
 
