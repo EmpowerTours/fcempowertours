@@ -134,6 +134,32 @@ if (mintCommands > 0 && spreads < mintCommands) {
   );
 }
 
+// ---- a wallet-only artist's mint must still be announced --------------------
+// All three mint casts were wrapped in `if (params?.fid)`, so a mint from a
+// browser wallet — the case the wallet-only work exists for — succeeded and the
+// platform said nothing. The cast is published by the platform's own bot signer
+// and needs no FID from the artist; the credit line resolves to their Farcaster
+// handle if they have one, their ProfileRegistry name if not, and their address
+// otherwise.
+const execRoute = strip(
+  readFileSync(join(root, "app/api/execute-delegated/route.ts"), "utf8"),
+);
+checks++;
+if (/if \(params\?\.fid\) \{\s*try \{/.test(execRoute)) {
+  failures.push(
+    "a mint cast is gated behind params.fid again; a wallet-only artist's " +
+      "launch is published to nobody",
+  );
+}
+// And the credit must not fall back to raw hex when a name exists.
+checks++;
+if (/const shortArtist = `\$\{userAddress\.slice/.test(execRoute)) {
+  failures.push(
+    "a mint cast credits the artist with a bare truncated address instead of " +
+      "castArtistLabel; a Farcaster handle or ProfileRegistry name is ignored",
+  );
+}
+
 // ---- every mint branch must RELAY the artist's signature --------------------
 // bot-command forwards the browser's MintRequest to execute-delegated. The
 // mint_music branch did; mint_collector did not, so a correctly signed collector

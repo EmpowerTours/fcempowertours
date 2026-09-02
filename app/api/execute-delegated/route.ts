@@ -18,6 +18,7 @@ import {
 } from "@/lib/delegation-system";
 import { sendSafeTransaction } from "@/lib/pimlico-safe-aa";
 import { delegationProvesOwnership } from "@/lib/delegation-proof";
+import { castArtistLabel } from "@/lib/cast-artist-label";
 import {
   sendUserSafeTransaction,
   getUserSafeAddress,
@@ -760,7 +761,10 @@ export async function POST(req: NextRequest) {
         }
 
         // ✅ POST CAST WITH MINI-APP FRAME EMBED (opens in Farcaster mini-app, not browser)
-        if (params?.fid) {
+        // Not fid-gated: the cast is published by the platform's own bot
+        // signer, so a wallet-only artist needs no Farcaster account to be
+        // announced. Gating it meant their launch happened in silence.
+        {
           try {
             // Use frame endpoint which has proper fc:frame meta with launch_frame action
             const frameUrl = `${APP_URL}/api/frames/passport/${mintedTokenId}`;
@@ -1060,7 +1064,10 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         // ✅ POST CAST WITH FRAME - Link to artist profile
         let frameUrl = "";
         let ogImageUrl = "";
-        if (params?.fid) {
+        // Not fid-gated: the cast is published by the platform's own bot
+        // signer, so a wallet-only artist needs no Farcaster account to be
+        // announced. Gating it meant their launch happened in silence.
+        {
           try {
             // ✅ Determine if it's music or art (0 = MUSIC, 1 = ART)
             const isArt =
@@ -1139,7 +1146,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
             }
 
             // Short artist address for display
-            const shortArtist = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+            const shortArtist = await castArtistLabel(userAddress, params?.fid);
 
             const castText = `${nftTypeEmoji} New ${nftTypeText} Minted!
 
@@ -1543,11 +1550,17 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           );
         }
 
-        // Post Farcaster cast with collector edition details
-        if (params?.fid) {
+        // Post Farcaster cast with collector edition details.
+        //
+        // NOT gated on params.fid. It used to be, which meant a wallet-only
+        // artist's launch was never announced — the mint succeeded and the
+        // platform said nothing, on the exact path the wallet-only work exists
+        // to support. The cast is published by the platform's own bot signer,
+        // which needs no FID from the artist.
+        {
           try {
             const isArt = isCollectorArt;
-            const shortArtist = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+            const shortArtist = await castArtistLabel(userAddress, params?.fid);
             const _nftEmoji = isArt ? "🎨" : "🎵";
             const nftText = isArt ? "Art" : "Music";
 
@@ -2086,7 +2099,10 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         console.log("✅ Music purchase successful, TX:", buyTxHash);
 
         // ✅ POST CAST WITH FRAME - FETCH MUSIC DATA FROM ENVIO (IMPROVED)
-        if (params?.fid) {
+        // Not fid-gated: the cast is published by the platform's own bot
+        // signer, so a wallet-only artist needs no Farcaster account to be
+        // announced. Gating it meant their launch happened in silence.
+        {
           try {
             let songTitle = params.songTitle || "Track";
             let songPrice = "0"; // ✅ Default to 0 not ?
