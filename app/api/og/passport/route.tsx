@@ -168,15 +168,18 @@ function generatePassportImage(passport: PassportData) {
             justifyContent: 'center',
             background: 'rgba(30, 64, 175, 0.3)',
             borderRadius: '20px',
-            padding: '60px',
+            padding: '32px',
             border: '4px solid rgba(96, 165, 250, 0.5)',
           }}
         >
           {/* Flag */}
           <div
             style={{
-              fontSize: 180,
-              marginBottom: '40px',
+              // 180 overflowed the card: the flag, country, code and region
+              // together exceeded the height flex:1 could give them, and Satori
+              // collapsed them on top of each other rather than clipping.
+              fontSize: 110,
+              marginBottom: '16px',
               display: 'flex',
             }}
           >
@@ -186,10 +189,10 @@ function generatePassportImage(passport: PassportData) {
           {/* Country Name */}
           <div
             style={{
-              fontSize: countryName.length > 15 ? 48 : 56,
+              fontSize: countryName.length > 15 ? 40 : 48,
               fontWeight: 'bold',
               color: 'white',
-              marginBottom: '20px',
+              marginBottom: '8px',
               textAlign: 'center',
               display: 'flex',
             }}
@@ -200,9 +203,9 @@ function generatePassportImage(passport: PassportData) {
           {/* Country Code */}
           <div
             style={{
-              fontSize: 32,
+              fontSize: 28,
               color: '#93c5fd',
-              marginBottom: '10px',
+              marginBottom: '6px',
               display: 'flex',
             }}
           >
