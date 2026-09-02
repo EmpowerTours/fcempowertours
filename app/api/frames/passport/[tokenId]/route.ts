@@ -15,8 +15,15 @@ export async function GET(
 ) {
   const { tokenId } = await params;
 
-  // Dynamic passport image with stamps from indexer
-  const imageUrl = `${APP_URL}/api/passport/image/${tokenId}`;
+  // /api/passport/image/<id> serves image/svg+xml at 400x600. Farcaster frames
+  // render raster only — an SVG comes out black — and want 1.91:1, not portrait.
+  // So the passport embed was a black rectangle in every cast while the music
+  // frame, which already pointed at an ImageResponse PNG, looked fine.
+  //
+  // /api/og/passport returns a 1200x630 PNG, which is the frame spec exactly.
+  // The SVG route is left alone: it is still the right thing for an <img> in the
+  // app, where vector at 400x600 is what the passport should look like.
+  const imageUrl = `${APP_URL}/api/og/passport?tokenId=${encodeURIComponent(tokenId)}`;
 
   // Target URL when frame button is clicked - opens mini app to passport page
   const targetUrl = `${APP_URL}/passport?tokenId=${tokenId}`;
