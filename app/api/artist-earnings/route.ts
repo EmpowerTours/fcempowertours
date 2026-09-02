@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getTreasuryFeeBps } from "@/lib/artist-cut";
 import {
   PLAY_HISTORY_KEY,
   PLAY_HISTORY_CAP,
@@ -305,11 +306,12 @@ export async function GET(req: NextRequest) {
       supporterMap.set(tipper, supporter);
     }
 
-    // Aggregate license sales (artist gets 70% of price)
+    const treasuryFeeBps = await getTreasuryFeeBps();
+
     let totalLicenseSalesWei = BigInt(0);
     for (const license of licenses) {
       const price = BigInt(license.masterToken?.price || "0");
-      const artistCut = (price * BigInt(70)) / BigInt(100);
+      const artistCut = price - (price * treasuryFeeBps) / 10_000n;
       totalLicenseSalesWei += artistCut;
 
       // Track license buyers as supporters

@@ -19,6 +19,7 @@ const redis = new Redis({
 });
 
 import { PLAY_HISTORY_KEY, PLAY_HISTORY_CAP } from "@/lib/play-ledger";
+import { getTreasuryFeeBps } from "@/lib/artist-cut";
 
 interface StreamingStats {
   totalPlays: number;
@@ -165,6 +166,11 @@ export async function GET(req: NextRequest) {
           { name: string; artist: string; salesCount: number; revenue: bigint }
         >();
 
+        // The artist's share is the price less SalesController's treasury fee.
+        // Read once: this loop is synchronous and the fee cannot change inside
+        // a request.
+        const treasuryFeeBps = await getTreasuryFeeBps();
+
         // Process licenses (sales)
         licenses.forEach((license: any) => {
           const price = BigInt(license.masterToken?.price || "0");
@@ -173,8 +179,8 @@ export async function GET(req: NextRequest) {
           const tokenId = license.masterTokenId;
           const songName = license.masterToken?.name || `Song #${tokenId}`;
 
-          // Calculate artist payment (70% of price goes to artist)
-          const artistPayment = (price * BigInt(70)) / BigInt(100);
+          // Was hardcoded at 70% while the deployed fee pays the artist 90%.
+          const artistPayment = price - (price * treasuryFeeBps) / 10_000n;
           totalSales += artistPayment;
 
           // Track artist stats

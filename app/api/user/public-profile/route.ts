@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { createPublicClient, http, type Address, type PublicClient } from 'viem';
+import { createPublicClient, http, parseAbi, type Address, type PublicClient } from 'viem';
 import { activeChain } from '@/app/chains';
 import { getAllCountryCodes } from '@/lib/passport/countries';
 import { findAllPassports, getPassportDetails } from '@/lib/passport-lookup';
@@ -76,6 +76,55 @@ const DEFAULT_PRIVACY: PrivacySettings = {
   showAchievements: true,
 };
 
+/**
+ * Resolve an artist name registered on ProfileRegistry to its owning wallet.
+ *
+ * Not everyone using this app has a Farcaster account — registering a display
+ * name onchain is exactly how a wallet-only artist becomes findable. Resolving
+ * names through Neynar alone meant those artists returned "User not found",
+ * which defeats the point of the registry. Returns a Neynar-shaped user so the
+ * rest of the route (privacy, onchain stats, userType) needs no special case.
+ */
+async function lookupRegisteredName(name: string) {
+  const registry = process.env.NEXT_PUBLIC_PROFILE_REGISTRY as
+    | `0x${string}`
+    | undefined;
+  if (!registry) return null;
+  try {
+    const client = createPublicClient({ chain: activeChain, transport: http() });
+    const owner = (await client.readContract({
+      address: registry,
+      abi: parseAbi(['function ownerOfName(string displayName) view returns (address)']),
+      functionName: 'ownerOfName',
+      args: [name],
+    })) as string;
+    if (!owner || owner === '0x0000000000000000000000000000000000000000') return null;
+    // Read the name back so the profile carries its registered casing rather
+    // than whatever the searcher typed.
+    const canonical = (await client.readContract({
+      address: registry,
+      abi: parseAbi(['function displayNameOf(address owner) view returns (string)']),
+      functionName: 'displayNameOf',
+      args: [owner as `0x${string}`],
+    })) as string;
+    return {
+      fid: null,
+      username: null,
+      display_name: canonical || name,
+      pfp_url: null,
+      follower_count: 0,
+      following_count: 0,
+      verifications: [owner],
+      verified_addresses: { eth_addresses: [owner] },
+      custody_address: owner,
+      registeredOnchain: true,
+    };
+  } catch (error) {
+    console.error('[PublicProfile] ProfileRegistry lookup failed:', error);
+    return null;
+  }
+}
+
 async function getFarcasterUser(params: { username?: string; fid?: string; address?: string }) {
   const { username, fid, address } = params;
 
@@ -88,7 +137,9 @@ async function getFarcasterUser(params: { username?: string; fid?: string; addre
       );
       if (response.ok) {
         const data = await response.json();
-        return data.user;
+        // Only return a hit. A 200 with no user must fall through to the
+        // search and then the registry, not short-circuit as "not found".
+        if (data.user) return data.user;
       }
 
       // Fallback to search
@@ -100,7 +151,16 @@ async function getFarcasterUser(params: { username?: string; fid?: string; addre
         const searchData = await searchResponse.json();
         const users = searchData.result?.users || [];
         const exactMatch = users.find((u: any) => u.username.toLowerCase() === username.toLowerCase());
-        return exactMatch || users[0];
+        const hit = exactMatch || users[0];
+        if (hit) return hit;
+      }
+
+      // Neynar knows nothing about wallet-only artists. Their registered name is
+      // onchain, so ask the registry before giving up.
+      const registered = await lookupRegisteredName(username.trim());
+      if (registered) {
+        console.log('[PublicProfile] Found via ProfileRegistry:', registered.display_name);
+        return registered;
       }
     }
 

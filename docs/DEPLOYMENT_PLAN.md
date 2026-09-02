@@ -493,7 +493,7 @@ complete manifest while anything is still unknown.
    `migrateLegacyPassport(…,uint64)`; the last parameter is `uint256`, so the selector was
    `0x4b63ac18` rather than `0x43e398c1`, and the script called a correct contract broken.
    Derive selectors from `forge inspect <Contract> methodIdentifiers`.
-   `tools/verify-manifest-entries.ts` now checks every manifest signature against the compiled
+   `tools/check-manifest-entries.ts` now checks every manifest signature against the compiled
    ABI for exactly this reason — the guard will happily approve an entry whose selector no
    function answers, and the revert arrives after the approval.
 
@@ -510,7 +510,7 @@ Those three must be sent by hand, which the guard permits by design — it only 
 the agent runs. `build-migration-manifest.ts` prints them separately, ready to paste. Do not
 reshape the data to fit the parser.
 
-`tools/verify-manifest-entries.ts <manifest.json>` replays every entry through that same parser
+`tools/check-manifest-entries.ts <manifest.json>` replays every entry through that same parser
 and fails on any that would be denied. Run it before approving anything.
 
 ### Order

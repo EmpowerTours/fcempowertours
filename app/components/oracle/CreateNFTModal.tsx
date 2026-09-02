@@ -45,7 +45,12 @@ export function CreateNFTModal({
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
-  const [price, setPrice] = useState("1");
+  // Deliberately empty, not "1". A price that defaults to something is a price
+  // nobody has to look at: Ganado went on sale at 1 WMON — its collector
+  // edition was 500 — because the field sat at its default through several
+  // retries and nothing anywhere questioned it. An empty field forces a choice,
+  // and the validation below refuses to mint without one.
+  const [price, setPrice] = useState("");
   const [uploading, setUploading] = useState(false);
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -463,9 +468,13 @@ export function CreateNFTModal({
       rejectAt(2, "If providing a preview, please also provide the full track");
       return;
     }
+    // 35 is the floor both price inputs already advertise with min="35". HTML
+    // min does not constrain a value set in state, and neither
+    // validateMintRequest nor the contract has a floor — so nothing enforced it
+    // anywhere, and a mistyped or defaulted price went on chain silently.
     const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum < 1 || priceNum > 100_000_000) {
-      rejectAt(3, "Price must be between 1 and 100,000,000 WMON");
+    if (isNaN(priceNum) || priceNum < 35 || priceNum > 100_000_000) {
+      rejectAt(3, "Licence price must be between 35 and 100,000,000 WMON");
       return;
     }
     // Collector edition validations

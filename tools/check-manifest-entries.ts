@@ -1,7 +1,11 @@
 /**
  * Replay proposed manifest entries through the guard's own parser.
  *
- * Run: `node --experimental-strip-types tools/verify-manifest-entries.ts <manifest.json>`
+ * Run: `node --experimental-strip-types tools/check-manifest-entries.ts <manifest.json>`
+ *
+ * Named `check-`, not `verify-`: .claude/verify.sh runs every `tools/verify-*.ts`
+ * with no arguments as a repo invariant, and this one needs a manifest path. It
+ * is a tool you point at a file, not a gate.
  *
  * ## Why this exists
  *
@@ -21,7 +25,7 @@ import { execFileSync } from "node:child_process";
 
 const path = process.argv[2];
 if (!path) {
-  console.error("usage: verify-manifest-entries.ts <manifest.json>");
+  console.error("usage: check-manifest-entries.ts <manifest.json>");
   process.exit(1);
 }
 

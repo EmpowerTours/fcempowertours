@@ -9,6 +9,7 @@
 # Detection happens at RUNTIME, so this stays correct as the repo changes.
 #
 #   VERIFY_SKIP_BUILD=1   skip the (slow) production build step
+#   VERIFY_FORGE_ARGS     extra args for forge test (used to drop obsolete tests)
 # =============================================================================
 
 set -uo pipefail
@@ -64,7 +65,15 @@ for FDIR in $FDIRS; do
 
     # forge test EXITS 0 WHEN THERE ARE NO TESTS. An empty suite is the most
     # dangerous kind of green, so assert on parsed output, never the exit code.
-    TOUT=$( cd "$FDIR" && timeout "$STEP_TIMEOUT" forge test 2>&1 ); TRC=$?
+    # VERIFY_FORGE_ARGS lets .claude/verify.conf exclude named tests. Excluding a
+    # test is a claim that it is obsolete, not that it is inconvenient -- the conf
+    # must say why, per test, or this hook is being abused.
+    FORGE_ARGS=()
+    if [ -n "${VERIFY_FORGE_ARGS:-}" ]; then
+        read -ra FORGE_ARGS <<< "$VERIFY_FORGE_ARGS"
+        skip "forge test FILTERED by VERIFY_FORGE_ARGS - see .claude/verify.conf"
+    fi
+    TOUT=$( cd "$FDIR" && timeout "$STEP_TIMEOUT" forge test ${FORGE_ARGS[@]+"${FORGE_ARGS[@]}"} 2>&1 ); TRC=$?
     if [ $TRC -eq 124 ]; then
         fail "forge test - TIMED OUT after ${STEP_TIMEOUT}s"
     elif printf '%s' "$TOUT" | grep -q 'No tests found'; then
@@ -145,6 +154,26 @@ if [ -f go.mod ]; then
     else
         skip "go not installed"
     fi
+fi
+
+# =============================================================================
+# REPO INVARIANTS - tools/verify-*.ts
+# =============================================================================
+# Each of these encodes a bug that actually shipped: a frame image that rendered
+# black, a public audio URL that served the full track, a payout split hardcoded
+# at the wrong percentage. They were all written and then never run by anything,
+# which makes them documentation, not gates. Discovery is a glob so a new one is
+# live the moment it is added -- nobody has to remember to register it.
+if ls tools/verify-*.ts >/dev/null 2>&1; then
+    step "repo invariants"
+    INV=0
+    for V in tools/verify-*.ts; do
+        run "$(basename "$V")" npx tsx "$V"
+        INV=$((INV+1))
+    done
+    # A glob that matches nothing silently passes. It matched here, so this only
+    # guards against the loop body being skipped some other way.
+    [ "$INV" -gt 0 ] || fail "tools/verify-*.ts matched but ran nothing"
 fi
 
 # =============================================================================
