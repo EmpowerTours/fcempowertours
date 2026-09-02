@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
-import { useActionAuth } from "@/app/hooks/useActionAuth";
+
 
 import Link from "next/link";
 import PageTransition, {
@@ -103,9 +103,6 @@ export default function ProfilePage() {
     requestWallet,
   } = useWalletContext();
 
-  // stake_music / unstake_music spend the user's Safe, so execute-delegated demands proven
-  // ownership. authHeaders() alone is a Farcaster-only proof and 401s in a browser.
-  const authFor = useActionAuth();
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
   const [createdArt, setCreatedArt] = useState<MusicNFTWithMetadata[]>([]);
@@ -134,9 +131,6 @@ export default function ProfilePage() {
   const [refreshMessage, _setRefreshMessage] = useState<string>("");
   const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
   const [audioLoading, setAudioLoading] = useState<Record<string, boolean>>({}); // ✅ ADDED
-  const [_stakingNFT, setStakingNFT] = useState<string | null>(null);
-  const [stakingError, setStakingError] = useState<string | null>(null);
-  const [stakingSuccess, setStakingSuccess] = useState<string | null>(null);
   const [_stakingInfo, _setStakingInfo] = useState<Record<string, any>>({});
   const [_pendingRewards, _setPendingRewards] = useState<Record<string, string>>(
     {},
@@ -403,108 +397,12 @@ export default function ProfilePage() {
     window.location.href = `/burn-music?${params.toString()}`;
   };
 
-  const _handleStakeMusic = async (tokenId: string | number) => {
-    if (!walletAddress) {
-      setStakingError("Please connect your wallet first");
-      return;
-    }
-
-    setStakingNFT(tokenId.toString());
-    setStakingError(null);
-    setStakingSuccess(null);
-
-    try {
-      // Use delegation system for gasless staking
-      const response = await fetch("/api/execute-delegated", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authFor("execute-delegated:stake_music")),
-        },
-        body: JSON.stringify({
-          userAddress: walletAddress,
-          action: "stake_music",
-          params: {
-            tokenId: tokenId.toString(),
-          },
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to stake music NFT");
-      }
-
-      setStakingSuccess(`Music NFT #${tokenId} has been staked!`);
-
-      // Reload data to refresh staking status
-      await loadAllData();
-
-      setTimeout(() => setStakingSuccess(null), 5000);
-    } catch (error: any) {
-      console.error("Stake error:", error);
-      setStakingError(error.message || "Failed to stake music NFT");
-    } finally {
-      setStakingNFT(null);
-    }
-  };
-
-  const _handleUnstakeMusic = async (tokenId: string | number) => {
-    if (!walletAddress) {
-      setStakingError("Please connect your wallet first");
-      return;
-    }
-
-    setStakingNFT(tokenId.toString());
-    setStakingError(null);
-    setStakingSuccess(null);
-
-    try {
-      // Use delegation system for gasless unstaking
-      const response = await fetch("/api/execute-delegated", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authFor("execute-delegated:unstake_music")),
-        },
-        body: JSON.stringify({
-          userAddress: walletAddress,
-          action: "unstake_music",
-          params: {
-            tokenId: tokenId.toString(),
-          },
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to unstake music NFT");
-      }
-
-      setStakingSuccess(`Music NFT #${tokenId} unstaked and rewards claimed!`);
-
-      // Reload data to refresh staking status and balance
-      await loadAllData();
-      await loadBalances();
-
-      setTimeout(() => setStakingSuccess(null), 5000);
-    } catch (error: any) {
-      console.error("Unstake error:", error);
-      setStakingError(error.message || "Failed to unstake music NFT");
-    } finally {
-      setStakingNFT(null);
-    }
-  };
-
-  const _handleClaimRewards = async (_tokenId: string | number) => {
-    // Rewards are automatically claimed when you unstake
-    setStakingError(
-      'Rewards are automatically claimed when you unstake your NFT. Use "Unstake NFT" to withdraw your stake and claim rewards.',
-    );
-    setTimeout(() => setStakingError(null), 5000);
-  };
+  // The stake / unstake / claim-rewards handlers were removed on 2026-09-01.
+  // There is no staking: stakeMusicNFT (selector 0x441cbc8c) is absent from both
+  // the live LicenseRegistry and the old EmpowerToursNFT, so those actions could
+  // only ever revert. Nothing rendered a button for them either — they were
+  // underscore-prefixed and unreachable, which is how "STAKEABLE / Earn Rewards"
+  // survived long enough to be printed on a public passport image.
 
   const loadBalances = async () => {
     if (!walletAddress) return;
@@ -1026,20 +924,6 @@ export default function ProfilePage() {
           {refreshMessage && (
             <div className="mb-6 p-4 bg-blue-100 border-2 border-blue-400 rounded-lg">
               <p className="text-blue-700 font-medium">{refreshMessage}</p>
-            </div>
-          )}
-
-          {/* Staking Success Message */}
-          {stakingSuccess && (
-            <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
-              <p className="text-blue-700 font-medium">✅ {stakingSuccess}</p>
-            </div>
-          )}
-
-          {/* Staking Error Message */}
-          {stakingError && (
-            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <p className="text-red-700 font-medium">❌ {stakingError}</p>
             </div>
           )}
 

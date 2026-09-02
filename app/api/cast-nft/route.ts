@@ -8,7 +8,7 @@ const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID || '';
 export async function POST(req: NextRequest) {
   try {
     const {
-      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'experience_created' | 'experience_purchased' | 'play_recorded' | 'top_artist' | 'radio_skip_random' | 'voice_note'
+      type,           // 'passport' | 'music_mint' | 'music_purchase' | 'play_recorded' | 'top_artist' | 'radio_skip_random' | 'voice_note'
       fid,            // Farcaster ID
       tokenId,        // NFT token ID
       txHash,         // Transaction hash
@@ -17,13 +17,8 @@ export async function POST(req: NextRequest) {
       songTitle,      // For music
       price,          // For music
       _artist,         // For music purchase
-      // Experience fields
-      experienceId,   // For experiences
-      title,          // Experience title
-      city,           // Experience city
-      country,        // Experience country
-      _creatorAddress, // Experience creator
-      _buyerAddress,   // Experience buyer
+      // Experience fields removed with their branches: the itinerary feature
+      // has no handler and no caller ever sent an experience_* cast type.
       // Play recording / Top artist fields
       params,         // Additional params object for play_recorded and top_artist
       // Radio skip random fields
@@ -109,45 +104,12 @@ Gasless - they paid the gas! 🚀
     }
 
     // ==================== EXPERIENCE CREATED CAST ====================
-    else if (type === 'experience_created') {
-      const experienceUrl = `${APP_URL}/experiences/${experienceId}`;
-      castText = `🗺️ New Experience Created on @empowertours!
-
-"${title || 'Untitled Experience'}"
-📍 ${city}, ${country}
-💰 Price: ${price} WMON
-
-✨ GPS-revealed travel experience
-🎁 Earn rewards for completing
-
-View: https://monadscan.com/tx/${txHash}
-
-@empowertours`;
-
-      embeds = [{ url: experienceUrl }];
-      console.log('📢 Experience created cast text:', castText);
-    }
-
-    // ==================== EXPERIENCE PURCHASED CAST ====================
-    else if (type === 'experience_purchased') {
-      const experienceUrl = `${APP_URL}/experiences/${experienceId}`;
-      castText = `🎉 Experience Purchased on @empowertours!
-
-"${title || 'Untitled Experience'}"
-📍 ${city}, ${country}
-💰 ${price} WMON
-
-🗺️ Location unlocked! Time to explore!
-
-TX: https://monadscan.com/tx/${txHash}
-
-@empowertours`;
-
-      embeds = [{ url: experienceUrl }];
-      console.log('📢 Experience purchased cast text:', castText);
-    }
-
-    // ==================== PLAY RECORDED CAST ====================
+    // The experience_created and experience_purchased branches were removed on
+    // 2026-09-01. Experiences are the itinerary feature, which has no handler,
+    // and no caller ever sent either type — record-play, live-radio and
+    // execute-delegated only send play_recorded, radio_skip_random and
+    // voice_note. The created branch also promised "Earn rewards for
+    // completing", which nothing in the app does.
     else if (type === 'play_recorded') {
       const { songName, artistName, duration, artistFid } = params || {};
       // Frame URL that opens mini app (not browser) when tapped in Warpcast

@@ -203,8 +203,6 @@ export async function POST(req: NextRequest) {
       "vault_emergency_withdraw",
       "purchase_climb",
       "create_climb",
-      "stake_music",
-      "unstake_music",
 
       // Found by tools/verify-value-actions-gated.ts rather than by reading, which is the
       // point of that check — both were missed when this list was extended by hand.
@@ -310,8 +308,6 @@ export async function POST(req: NextRequest) {
       "swap_mon_for_tours", // Swap MON for TOURS
       "wrap_mon", // Wrap MON to WMON
       "approve_wmon_for_passport", // Approve WMON for passport mint
-      "stake_music", // Stake music NFT for rewards
-      "unstake_music", // Unstake music NFT and claim rewards
       "burn_music", // Burn music NFT
       "burn_nft", // Generic NFT burn
       "buy_resale", // Purchase resale NFT from secondary market
@@ -2878,92 +2874,11 @@ ${enjoyText}
 
         // ==================== MUSIC NFT V5: STAKING ====================
       }
-      case "stake_music": {
-        console.log("🎵 Action: stake_music");
-        if (!params?.tokenId) {
-          return NextResponse.json(
-            { success: false, error: "Missing tokenId for stake_music" },
-            { status: 400 },
-          );
-        }
-
-        const stakeTokenId = BigInt(params.tokenId);
-
-        const stakeMusicCalls = [
-          {
-            to: EMPOWER_TOURS_NFT,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function stakeMusicNFT(uint256 tokenId) external",
-              ]),
-              functionName: "stakeMusicNFT",
-              args: [stakeTokenId],
-            }) as Hex,
-          },
-        ];
-
-        const stakeMusicTxHash = await executeTransaction(
-          stakeMusicCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Music NFT staked, TX:", stakeMusicTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: stakeMusicTxHash,
-          action,
-          userAddress,
-          tokenId: params.tokenId,
-          message: `Music NFT #${params.tokenId} staked successfully`,
-        });
-
-        // ==================== MUSIC NFT V5: UNSTAKING ====================
-      }
-      case "unstake_music": {
-        console.log("🎵 Action: unstake_music");
-        if (!params?.tokenId) {
-          return NextResponse.json(
-            { success: false, error: "Missing tokenId for unstake_music" },
-            { status: 400 },
-          );
-        }
-
-        const unstakeTokenId = BigInt(params.tokenId);
-
-        const unstakeMusicCalls = [
-          {
-            to: EMPOWER_TOURS_NFT,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function unstakeMusicNFT(uint256 tokenId) external",
-              ]),
-              functionName: "unstakeMusicNFT",
-              args: [unstakeTokenId],
-            }) as Hex,
-          },
-        ];
-
-        const unstakeMusicTxHash = await executeTransaction(
-          unstakeMusicCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Music NFT unstaked, TX:", unstakeMusicTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: unstakeMusicTxHash,
-          action,
-          userAddress,
-          tokenId: params.tokenId,
-          message: `Music NFT #${params.tokenId} unstaked and rewards claimed`,
-        });
-
-        // ==================== MUSIC NFT V7: DELEGATED BURNING ====================
-      }
+      // stake_music and unstake_music were removed on 2026-09-01. They called
+      // stakeMusicNFT/unstakeMusicNFT on the NFT contract, and that selector
+      // (0x441cbc8c) is absent from BOTH the live LicenseRegistry and the old
+      // EmpowerToursNFT — there is no staking anywhere and never was. The
+      // actions could only ever revert. Nothing in the UI called them either.
       case "burn_music": {
         console.log("🔥 Action: burn_music (v7 delegated)");
         if (!params?.tokenId) {
