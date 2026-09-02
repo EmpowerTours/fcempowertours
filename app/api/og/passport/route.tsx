@@ -255,36 +255,14 @@ function generatePassportImage(passport: PassportData) {
                 display: 'flex',
               }}
             >
-              {continent} • Stakeable NFT
+              {continent}
             </div>
           </div>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-end',
-            }}
-          >
-            <div
-              style={{
-                fontSize: 18,
-                color: '#10b981',
-                fontWeight: 'bold',
-                display: 'flex',
-              }}
-            >
-              ⚡ STAKEABLE
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                color: '#d1fae5',
-                display: 'flex',
-              }}
-            >
-              Earn Rewards • Build Credit
-            </div>
-          </div>
+          {/* The right-hand block here claimed "⚡ STAKEABLE" and
+              "Earn Rewards • Build Credit". Passports are not stakeable and
+              earn nothing — staking exists for MUSIC NFTs only. Removed rather
+              than restyled: it was a false claim on an image published to a
+              public timeline. */}
         </div>
 
         {/* Stamp Badge */}
@@ -373,7 +351,7 @@ function generateDefaultPassportImage() {
             display: 'flex',
           }}
         >
-          Collect. Stake. Earn Rewards.
+          Collect passports from around the world.
         </div>
 
         <div
@@ -390,7 +368,7 @@ function generateDefaultPassportImage() {
         >
           <span style={{ display: 'flex' }}>🎫 195 Countries</span>
           <span style={{ display: 'flex' }}>•</span>
-          <span style={{ display: 'flex' }}>💎 Stakeable</span>
+          <span style={{ display: 'flex' }}>🌍 Collectible</span>
           <span style={{ display: 'flex' }}>•</span>
           <span style={{ display: 'flex' }}>⚡ Free Mint</span>
         </div>
