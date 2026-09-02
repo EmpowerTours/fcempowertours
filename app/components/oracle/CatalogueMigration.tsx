@@ -78,7 +78,7 @@ export const CatalogueMigration: React.FC<Props> = ({
   walletAddress,
   isDarkMode = true,
 }) => {
-  const { sendTransaction, isConnected } = useWalletContext();
+  const { sendTransaction, isConnected, switchChain } = useWalletContext();
   const [masters, setMasters] = useState<LegacyMaster[]>([]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [done, setDone] = useState<Record<number, string>>({});
@@ -226,7 +226,13 @@ export const CatalogueMigration: React.FC<Props> = ({
         ],
       });
 
-      const res = await sendTransaction({ to: sales, data, value: "0x0" });
+            // chainId is REQUIRED here. Without it useFarcasterContext sends
+      // eth_sendTransaction with chainId: undefined, so the Farcaster
+      // wallet stays on whatever chain it is already on — Base by default
+      // — and offers to sign a Monad transaction there. Confirming does
+      // nothing: the contract does not exist on that chain.
+      await switchChain({ chainId: activeChain.id });
+      const res = await sendTransaction({ to: sales, data, value: "0x0", chainId: activeChain.id });
       const hash = res?.transactionHash ?? res?.hash ?? "";
       setDone((d) => ({ ...d, [m.id]: hash }));
       setStatus({ kind: "idle" });

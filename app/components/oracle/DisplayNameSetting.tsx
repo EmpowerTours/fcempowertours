@@ -68,7 +68,7 @@ export function DisplayNameSetting({
   isDarkMode,
   farcasterUsername,
 }: Props) {
-  const { sendTransaction, isConnected } = useWalletContext();
+  const { sendTransaction, isConnected, switchChain } = useWalletContext();
 
   const [current, setCurrent] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -156,7 +156,13 @@ export function DisplayNameSetting({
         args: [name, "", ""],
       });
 
-      await sendTransaction({ to: registry, data, value: "0x0" });
+            // chainId is REQUIRED here. Without it useFarcasterContext sends
+      // eth_sendTransaction with chainId: undefined, so the Farcaster
+      // wallet stays on whatever chain it is already on — Base by default
+      // — and offers to sign a Monad transaction there. Confirming does
+      // nothing: the contract does not exist on that chain.
+      await switchChain({ chainId: activeChain.id });
+      await sendTransaction({ to: registry, data, value: "0x0", chainId: activeChain.id });
       setStatus(`Your artist name is now "${name}".`);
       await load();
     } catch (e) {
