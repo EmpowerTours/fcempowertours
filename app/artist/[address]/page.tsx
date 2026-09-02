@@ -374,7 +374,7 @@ export default function ArtistProfilePage() {
         throw new Error(result.error || 'Purchase failed');
       }
       
-      alert(`Buying "${music.metadata?.name || 'track'}"!\n\nPrice: ${music.price} TOURS\n\nTX: ${result.txHash}`);
+      alert(`Buying "${music.metadata?.name || 'track'}"!\n\nPrice: ${music.price} WMON\n\nTX: ${result.txHash}`);
       setTimeout(() => loadArtistProfile(), 2000);
     } catch (error: any) {
       alert(`Purchase failed: ${error.message}`);
@@ -469,7 +469,7 @@ export default function ArtistProfilePage() {
                 📱 Mobile: Using Farcaster Wallet
               </p>
               <p className="text-yellow-700 text-xs">
-                Transactions will use your Farcaster custody address. Make sure it has TOURS tokens + MON for gas.
+                Transactions will use your Farcaster custody address. Make sure it has WMON + MON for gas.
               </p>
               {!walletAddress && (
                 <button
@@ -605,7 +605,7 @@ export default function ArtistProfilePage() {
                         <div>
                           <p className="text-xs text-gray-600">License Price</p>
                           <p className="text-2xl font-bold text-purple-600">
-                            {music.price || '0.01'} TOURS
+                            {music.price || '0.01'} WMON
                           </p>
                         </div>
                         <div className="text-right">
@@ -628,7 +628,7 @@ export default function ArtistProfilePage() {
                           ? '⏳ Processing...'
                           : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
                           ? '✓ Your Own Track'
-                          : `💳 Buy License (${music.price || '0.01'} TOURS)`}
+                          : `💳 Buy License (${music.price || '0.01'} WMON)`}
                       </button>
                       {music.txHash && (
                         <a
@@ -704,7 +704,7 @@ export default function ArtistProfilePage() {
                         <div>
                           <p className="text-xs text-gray-600">License Price</p>
                           <p className="text-2xl font-bold text-blue-600">
-                            {art.price || '0.01'} TOURS
+                            {art.price || '0.01'} WMON
                           </p>
                         </div>
                         <div className="text-right">
@@ -727,7 +727,7 @@ export default function ArtistProfilePage() {
                           ? '⏳ Processing...'
                           : walletAddress?.toLowerCase() === artistAddress.toLowerCase()
                           ? '✓ Your Own Art'
-                          : `💳 Buy License (${art.price || '0.01'} TOURS)`}
+                          : `💳 Buy License (${art.price || '0.01'} WMON)`}
                       </button>
                       {art.txHash && (
                         <a
