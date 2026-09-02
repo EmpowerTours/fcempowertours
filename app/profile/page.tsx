@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 
-
 import Link from "next/link";
 import PageTransition, {
   FadeIn,
@@ -15,7 +14,6 @@ import PageTransition, {
 import { AnimatedStatCard } from "@/app/components/animations/AnimatedCard";
 import UserSafeWidget from "@/app/components/UserSafeWidget";
 import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";
-
 
 interface MusicMetadata {
   animation_url?: string;
@@ -133,9 +131,9 @@ export default function ProfilePage() {
   const [audioErrors, setAudioErrors] = useState<Record<string, string>>({});
   const [audioLoading, setAudioLoading] = useState<Record<string, boolean>>({}); // ✅ ADDED
   const [_stakingInfo, _setStakingInfo] = useState<Record<string, any>>({});
-  const [_pendingRewards, _setPendingRewards] = useState<Record<string, string>>(
-    {},
-  );
+  const [_pendingRewards, _setPendingRewards] = useState<
+    Record<string, string>
+  >({});
   const [collectorInfo, setCollectorInfo] = useState<
     Record<
       string,
@@ -833,9 +831,7 @@ export default function ProfilePage() {
             Connect Wallet
           </button>
           {contextError && (
-            <p className="text-sm text-gray-500 mt-4">
-              {contextError.message}
-            </p>
+            <p className="text-sm text-gray-500 mt-4">{contextError.message}</p>
           )}
         </div>
       </div>
@@ -1518,7 +1514,7 @@ export default function ProfilePage() {
                               only way to change a price — irreversible, and it
                               orphans licences already sold. */}
                           <TrackSalesControls
-                            tokenId={String(nft.tokenId ?? '')}
+                            tokenId={String(nft.tokenId ?? "")}
                             onChanged={() => void loadAllData()}
                           />
                           <div className="space-y-2">
@@ -2193,8 +2189,6 @@ export default function ProfilePage() {
                 </>
               )}
             </div>
-
-
           </div>
 
           <div className="mt-8 text-center">
@@ -2241,9 +2235,7 @@ export default function ProfilePage() {
                 )}
               </AnimatePresence>
             </motion.button>
-            <p className="text-xs text-gray-500 mt-2">
-              Read live from Monad
-            </p>
+            <p className="text-xs text-gray-500 mt-2">Read live from Monad</p>
             {queriedAddresses.length > 0 && (
               <p className="text-xs text-gray-400 mt-1">
                 Querying {queriedAddresses.length} address
