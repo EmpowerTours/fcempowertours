@@ -381,7 +381,12 @@ export async function GET(req: NextRequest) {
       followingCount: fcUser.following_count,
       walletAddress,
       userType,
-      isVerified: (fcUser.verifications?.length || 0) > 0,
+      // "Verified" means Farcaster verified an address. A registry name is not
+      // that claim, and the synthetic user carries the owner in `verifications`
+      // only so the wallet resolves — it must not be read as a Farcaster badge.
+      isVerified: fcUser.registeredOnchain
+        ? false
+        : (fcUser.verifications?.length || 0) > 0,
       privacySettings: privacy,
     };
 
