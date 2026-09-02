@@ -168,7 +168,7 @@ function generatePassportImage(passport: PassportData) {
             justifyContent: 'center',
             background: 'rgba(30, 64, 175, 0.3)',
             borderRadius: '20px',
-            padding: '32px',
+            padding: '16px',
             border: '4px solid rgba(96, 165, 250, 0.5)',
           }}
         >
@@ -182,8 +182,8 @@ function generatePassportImage(passport: PassportData) {
               // band. It does not clip, so nothing looks broken until you
               // render the PNG and look at it. Shrinking the font alone did not
               // fix it; refusing to shrink does.
-              fontSize: 110,
-              marginBottom: '16px',
+              fontSize: 64,
+              marginBottom: '10px',
               display: 'flex',
               flexShrink: 0,
             }}
@@ -194,10 +194,10 @@ function generatePassportImage(passport: PassportData) {
           {/* Country Name */}
           <div
             style={{
-              fontSize: countryName.length > 15 ? 40 : 48,
+              fontSize: countryName.length > 15 ? 34 : 40,
               fontWeight: 'bold',
               color: 'white',
-              marginBottom: '8px',
+              marginBottom: '6px',
               textAlign: 'center',
               display: 'flex',
               flexShrink: 0,
@@ -209,9 +209,9 @@ function generatePassportImage(passport: PassportData) {
           {/* Country Code */}
           <div
             style={{
-              fontSize: 28,
+              fontSize: 20,
               color: '#93c5fd',
-              marginBottom: '6px',
+              marginBottom: '2px',
               display: 'flex',
               flexShrink: 0,
             }}
@@ -222,7 +222,7 @@ function generatePassportImage(passport: PassportData) {
           {/* Region */}
           <div
             style={{
-              fontSize: 24,
+              fontSize: 18,
               color: '#60a5fa',
               display: 'flex',
               flexShrink: 0,
