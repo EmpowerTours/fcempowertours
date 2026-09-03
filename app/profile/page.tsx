@@ -1515,6 +1515,7 @@ export default function ProfilePage() {
                               orphans licences already sold. */}
                           <TrackSalesControls
                             tokenId={String(nft.tokenId ?? "")}
+                            trackName={nft.metadata?.name}
                             onChanged={() => void loadAllData()}
                           />
                           <div className="space-y-2">

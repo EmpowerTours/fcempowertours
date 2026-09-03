@@ -777,6 +777,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           </div>
                           <TrackSalesControls
                             tokenId={track.tokenId}
+                            trackName={track.name}
                             dark
                             onChanged={() => {
                               if (walletAddress) void loadStats(walletAddress);

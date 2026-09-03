@@ -35,24 +35,35 @@ const SALES_ABI = parseAbi([
 
 const REGISTRY_ABI = parseAbi([
   "function getMaster(uint256) view returns (address artist, uint256 artistFid, uint64 createdAt, uint32 maxCollectorEditions, uint32 collectorsMinted, uint8 nftType, address referrer, uint96 royaltyShareBps, address royaltyShareSink)",
+  "function burn(uint256 tokenId) external",
 ]);
 
 interface Props {
   tokenId: string | number;
+  /** Typed back by the artist to confirm a burn. Irreversible needs friction. */
+  trackName?: string;
   /** Rendered only when this matches the master's on-chain artist. */
   onChanged?: () => void;
   /** ProfileModal is dark; /profile is light. Same controls, both surfaces. */
   dark?: boolean;
 }
 
-export function TrackSalesControls({ tokenId, onChanged, dark }: Props) {
+export function TrackSalesControls({
+  tokenId,
+  trackName,
+  onChanged,
+  dark,
+}: Props) {
   const { walletAddress, sendTransaction, switchChain } = useWalletContext();
 
   const [isArtist, setIsArtist] = useState(false);
   const [price, setPrice] = useState("");
   const [collectorPrice, setCollectorPrice] = useState("");
   const [paused, setPaused] = useState(false);
-  const [busy, setBusy] = useState<null | "price" | "pause">(null);
+  const [busy, setBusy] = useState<null | "price" | "pause" | "burn">(null);
+  const [confirmingBurn, setConfirmingBurn] = useState(false);
+  const [burnConfirmText, setBurnConfirmText] = useState("");
+  const [collectorsMinted, setCollectorsMinted] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -87,6 +98,9 @@ export function TrackSalesControls({ tokenId, onChanged, dark }: Props) {
       // getMaster returns a positional tuple; artist is [0].
       const artist = (master as unknown as unknown[])[0] as string;
       setIsArtist(artist?.toLowerCase() === walletAddress.toLowerCase());
+      // Position 4 is collectorsMinted. Shown before a burn because burning a
+      // master orphans every licence already sold from it.
+      setCollectorsMinted(Number((master as unknown as unknown[])[4] ?? 0));
 
       const [onchainPrice, onchainCollector, onchainPaused] = p as unknown as [
         bigint,
@@ -145,6 +159,46 @@ export function TrackSalesControls({ tokenId, onChanged, dark }: Props) {
     }
   };
 
+  /**
+   * Burn the master. Irreversible, and the id can never be reused.
+   *
+   * The gentler option is almost always right: taking a track off sale hides it
+   * and keeps every licence already sold working. Burn exists for the cases the
+   * artist actually asked for — a typo in the name, or wanting the work off the
+   * platform entirely — because tokenURI is fixed at mint and cannot be edited.
+   *
+   * Requires the artist's wallet, not their Safe: the registry checks
+   * ownerOf(masterTokenId), and masters are minted to the signing wallet.
+   */
+  const burnMaster = async () => {
+    setBusy("burn");
+    setError(null);
+    setStatus(null);
+    try {
+      if (!registry) throw new Error("Registry address is not configured.");
+      const data = encodeFunctionData({
+        abi: REGISTRY_ABI,
+        functionName: "burn",
+        args: [BigInt(tokenId)],
+      });
+      await switchChain({ chainId: activeChain.id });
+      await sendTransaction({
+        to: registry,
+        data,
+        value: "0x0",
+        chainId: activeChain.id,
+      });
+      setStatus("Burned. The track is gone and the id cannot be reused.");
+      setConfirmingBurn(false);
+      setBurnConfirmText("");
+      onChanged?.();
+    } catch (e) {
+      setError((e as Error)?.message ?? "Could not burn the track.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const togglePause = async () => {
     setBusy("pause");
     setError(null);
@@ -193,7 +247,7 @@ export function TrackSalesControls({ tokenId, onChanged, dark }: Props) {
 
       <div className="flex flex-wrap items-end gap-2">
         <label className={`flex flex-col text-xs ${label}`}>
-          Licence price (WMON)
+          Standard licence (WMON)
           <input
             type="number"
             min="0"
@@ -204,7 +258,7 @@ export function TrackSalesControls({ tokenId, onChanged, dark }: Props) {
           />
         </label>
         <label className={`flex flex-col text-xs ${label}`}>
-          Collector price (WMON)
+          Limited edition (WMON)
           <input
             type="number"
             min="0"
@@ -237,12 +291,97 @@ export function TrackSalesControls({ tokenId, onChanged, dark }: Props) {
       </div>
 
       <p className={`text-[11px] ${note} mt-2`}>
-        {paused
-          ? "Not for sale. Licences already sold keep working."
-          : "On sale. Changing the price does not affect licences already sold."}
+        Two separate prices. A buyer choosing a standard licence pays the first;
+        a buyer choosing the limited edition pays the second. Setting them equal
+        makes the limited edition pointless.
       </p>
 
-      {status && <p className="text-xs text-green-700 mt-1">{status}</p>}
+      <p className={`text-[11px] ${note} mt-1`}>
+        {paused
+          ? "Not for sale. Licences already sold keep working."
+          : "On sale. Changing a price does not affect licences already sold."}
+      </p>
+
+      {!confirmingBurn ? (
+        <button
+          onClick={() => setConfirmingBurn(true)}
+          disabled={busy !== null}
+          className={`mt-3 text-[11px] underline disabled:opacity-50 ${
+            dark ? "text-red-400" : "text-red-600"
+          }`}
+        >
+          Remove this track permanently
+        </button>
+      ) : (
+        <div
+          className={`mt-3 p-3 rounded-lg border ${
+            dark ? "border-red-800 bg-red-950/40" : "border-red-300 bg-red-50"
+          }`}
+        >
+          <p
+            className={`text-xs font-bold ${dark ? "text-red-300" : "text-red-700"}`}
+          >
+            This cannot be undone.
+          </p>
+          <p className={`text-[11px] mt-1 ${note}`}>
+            Burning destroys the master. The token id can never be reused, and
+            you cannot re-mint this track under it.
+            {collectorsMinted !== null && collectorsMinted > 0 && (
+              <>
+                {" "}
+                <strong>
+                  {collectorsMinted} limited edition
+                  {collectorsMinted === 1 ? "" : "s"} already sold
+                </strong>{" "}
+                will point at a master that no longer exists.
+              </>
+            )}{" "}
+            If you only want it off the store, use “Take off sale” instead —
+            that keeps every licence already sold working.
+          </p>
+          <label className={`flex flex-col text-xs mt-2 ${label}`}>
+            Type{" "}
+            <span className="font-mono font-bold">{trackName || "BURN"}</span>{" "}
+            to confirm
+            <input
+              value={burnConfirmText}
+              onChange={(e) => setBurnConfirmText(e.target.value)}
+              className={`mt-1 px-2 py-1 rounded border text-sm ${field}`}
+            />
+          </label>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={burnMaster}
+              disabled={
+                busy !== null || burnConfirmText !== (trackName || "BURN")
+              }
+              className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-semibold disabled:opacity-40"
+            >
+              {busy === "burn" ? "Burning…" : "Burn permanently"}
+            </button>
+            <button
+              onClick={() => {
+                setConfirmingBurn(false);
+                setBurnConfirmText("");
+              }}
+              disabled={busy !== null}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold disabled:opacity-50 ${
+                dark ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-800"
+              }`}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status && (
+        <p
+          className={`text-xs mt-1 ${dark ? "text-green-400" : "text-green-700"}`}
+        >
+          {status}
+        </p>
+      )}
       {error && <p className="text-xs text-red-600 mt-1">❌ {error}</p>}
     </div>
   );
