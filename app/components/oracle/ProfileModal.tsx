@@ -80,7 +80,8 @@ interface SafeBalance {
 }
 
 interface SearchedUser {
-  fid: number;
+  /** null for a wallet-only profile resolved from ProfileRegistry. */
+  fid: number | null;
   username: string;
   displayName?: string;
   pfpUrl?: string;
@@ -560,11 +561,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     <p className="font-bold text-white capitalize">
                       {searchedUser.userType || "Explorer"}
                     </p>
-                    {searchedUser.followerCount !== undefined && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        {searchedUser.followerCount} followers
-                      </p>
-                    )}
+                    {/* Followers are a Farcaster number. A wallet-only artist
+                        has no follower graph here, so the count is not low --
+                        it does not apply, and rendering "0 followers" says
+                        something untrue about them. Hidden until there is a
+                        follow relationship this app actually stores. */}
+                    {searchedUser.fid != null &&
+                      searchedUser.followerCount !== undefined && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          {searchedUser.followerCount} followers
+                        </p>
+                      )}
                   </div>
 
                   {/* Bio */}
