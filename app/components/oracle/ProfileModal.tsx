@@ -2,6 +2,7 @@
 
 import { authHeaders } from "@/lib/quick-auth-client";
 import { TrackSalesControls } from "@/app/components/oracle/TrackSalesControls";
+import { ReferralPanel } from "@/app/components/oracle/ReferralPanel";
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -733,6 +734,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 walletAddress={walletAddress}
                 isDarkMode={isDarkMode}
               />
+
+              {/* Everyone can refer, artist or not -- it pays on subscriptions,
+                  not on anything they made. So this sits above the artist-only
+                  sections rather than inside them. */}
+              <ReferralPanel dark />
 
               {/* The tracks themselves, not just a count of them.
                   "Where do I change the price of Ganado?" had no answer from

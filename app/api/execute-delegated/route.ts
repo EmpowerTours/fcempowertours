@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildSubscribeCall } from "@/lib/subscription-referrals";
 import {
   findDuplicateMaster,
   isV3Contracts,
@@ -3223,7 +3224,24 @@ ${enjoyText}
           });
         }
 
-        // Step 2: Approve WMON for subscription payment
+        // Route through SubscriptionReferrals when it is configured, so a referral
+        // can actually be recorded. It pulls the price from the caller and forwards
+        // the whole of it to V6, keeping none — the commission is paid from its own
+        // pool. When unset, this is byte-for-byte the previous direct call: a
+        // referral that cannot be recorded must never cost someone a subscription.
+        //
+        // Attribution is one-shot. `_bindReferrer` refuses anyone whose V6 expiry is
+        // non-zero, so a subscription taken on the direct path can never be
+        // attributed afterwards.
+        const subRouting = buildSubscribeCall({
+          subscription: MUSIC_SUBSCRIPTION,
+          subscriber: userAddress as Address,
+          userFid: subFidBigInt,
+          tier: subTier,
+          referrer: (params?.referrer as Address | undefined) ?? null,
+        });
+
+        // Step 2: Approve WMON to whoever pulls the payment.
         musicSubCalls.push({
           to: WMON_TOKEN_SUB,
           value: 0n,
@@ -3232,21 +3250,20 @@ ${enjoyText}
               "function approve(address spender, uint256 amount) external returns (bool)",
             ]),
             functionName: "approve",
-            args: [MUSIC_SUBSCRIPTION, subAmountBigInt],
+            args: [subRouting.spender, subAmountBigInt],
           }) as Hex,
         });
 
-        // Step 3: Call subscribeFor (delegation pattern)
+        // Step 3: Subscribe (delegation pattern).
+        console.log(
+          subRouting.routed
+            ? "🎁 Subscribing via SubscriptionReferrals"
+            : "🎵 Subscribing directly on V6 (no referral router configured)",
+        );
         musicSubCalls.push({
-          to: MUSIC_SUBSCRIPTION,
+          to: subRouting.target,
           value: 0n,
-          data: encodeFunctionData({
-            abi: parseAbi([
-              "function subscribeFor(address user, uint256 userFid, uint8 tier) external",
-            ]),
-            functionName: "subscribeFor",
-            args: [userAddress as Address, subFidBigInt, subTier],
-          }) as Hex,
+          data: subRouting.data,
         });
 
         const musicSubTxHash = await executeTransaction(

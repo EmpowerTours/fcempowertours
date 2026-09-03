@@ -1,5 +1,6 @@
 "use client";
 
+import { storedReferrer } from "@/lib/referral-link";
 import { useActionAuth } from "@/app/hooks/useActionAuth";
 import {
   isV3Contracts,
@@ -311,6 +312,10 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
             userFid: userFid && userFid > 0 ? userFid : 0,
             tier: selectedTier,
             amount: priceInWei.toString(),
+            // Whoever's link brought them here, remembered since arrival. The
+            // contract only ever binds this on a first-ever subscription, so it
+            // is now or never. Null when nobody referred them.
+            referrer: storedReferrer(userAddress),
           },
         }),
       });

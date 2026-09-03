@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
+import { captureReferrerFromUrl } from '@/lib/referral-link';
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
@@ -41,6 +42,14 @@ export default function SwipeNavigation({ children }: SwipeNavigationProps) {
     }
     return basePages;
   };
+
+  // Every page renders inside this, so it is the one place a ?ref= on any entry
+  // URL is guaranteed to be seen. Attribution binds only on a first-ever
+  // subscription, and the person who clicks a link rarely subscribes on the
+  // page they landed on.
+  useEffect(() => {
+    captureReferrerFromUrl();
+  }, [pathname]);
 
   useEffect(() => {
     // Only enable on mobile/touch devices
