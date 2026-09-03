@@ -1,8 +1,30 @@
+/* Tailwind v4. `@tailwind base/components/utilities` are v3 directives and are
+   SILENTLY IGNORED by v4 -- they emitted no utilities at all, so the deployed
+   CSS carried 362 rules and not one of them defined .w-12, .text-xs or .gap-2.
+   The app has been running with no utility classes since the first commit.
+
+   tailwind.config.js is deliberately NOT loaded via @config. It sets
+   colors.green and colors.blue to flat values, which REPLACES those scales --
+   text-green-400 (29 files) and text-blue-400 (14 files) would stop resolving.
+   The one thing from it that is actually used, animate-fadeIn, is defined below. */
+@import "tailwindcss";
 @import "tw-animate-css";
 @plugin "tailwindcss-animate";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+
+@theme {
+  --animate-fadeIn: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
 /* Light mode (default) */
 :root {
