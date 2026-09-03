@@ -7,8 +7,9 @@
  *
  * Two ways that limit becomes decoration, both easy to reintroduce:
  *
- *  1. Uploading via /api/upload-pinata, which is open and unmetered. It is one
- *     line to switch back, and nothing would fail.
+ *  1. Uploading via an open endpoint. /api/upload-pinata was exactly that --
+ *     no auth, no limit, pinning to the platform's paid account -- and has
+ *     been deleted. This still guards against a replacement appearing.
  *  2. Trusting an address the caller merely asserted. A per-address counter on
  *     an unauthenticated route resets by sending a different address.
  *
