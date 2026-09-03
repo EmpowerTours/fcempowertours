@@ -14,6 +14,7 @@ import {
   referralsAddress,
 } from "@/lib/subscription-referrals";
 import { referralLinkFor } from "@/lib/referral-link";
+import { parseEther, parseAbi } from "viem";
 
 /**
  * Share a link, earn a share of the platform fee when someone subscribes.
@@ -49,6 +50,8 @@ export function ReferralPanel({ dark }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [topUp, setTopUp] = useState("");
+  const [funding, setFunding] = useState(false);
 
   const load = useCallback(async () => {
     if (!router || !walletAddress) return;
@@ -95,6 +98,103 @@ export function ReferralPanel({ dark }: Props) {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setError("Could not copy. Select the link and copy it manually.");
+    }
+  };
+
+  // fund() is unpermissioned -- anyone may top up the pool -- but a "fund the
+  // reward pool" control in every listener's profile is noise, so it is shown
+  // only to the configured operator address.
+  const admin = (process.env.NEXT_PUBLIC_ADMIN_ADDRESS || "").toLowerCase();
+  const isOperator = admin.length > 0 && walletAddress?.toLowerCase() === admin;
+
+  /**
+   * Top up the commission pool: wrap the shortfall, approve, fund.
+   *
+   * Three transactions from the operator's own wallet, narrated, because an
+   * unexplained second prompt reads as a stuck app. Wrapping only the shortfall
+   * means WMON already held is used rather than stranded.
+   */
+  const fundPool = async () => {
+    setFunding(true);
+    setError(null);
+    setStatus(null);
+    try {
+      const wmon = process.env.NEXT_PUBLIC_WMON as `0x${string}` | undefined;
+      if (!wmon) throw new Error("WMON is not configured.");
+      const amount = Number(topUp);
+      if (!topUp || isNaN(amount) || amount <= 0) {
+        throw new Error("Enter an amount greater than zero.");
+      }
+      const wei = parseEther(topUp);
+
+      const client = createPublicClient({
+        chain: activeChain,
+        transport: http(),
+      });
+      const erc20 = parseAbi([
+        "function balanceOf(address) view returns (uint256)",
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function approve(address spender, uint256 amount) external returns (bool)",
+        "function deposit() external payable",
+      ]);
+
+      await switchChain({ chainId: activeChain.id });
+
+      const held = (await client.readContract({
+        address: wmon,
+        abi: erc20,
+        functionName: "balanceOf",
+        args: [walletAddress as `0x${string}`],
+      })) as bigint;
+      if (held < wei) {
+        setStatus("Step 1 of 3 — wrapping MON…");
+        await sendTransaction({
+          to: wmon,
+          data: encodeFunctionData({ abi: erc20, functionName: "deposit" }),
+          value: `0x${(wei - held).toString(16)}`,
+          chainId: activeChain.id,
+        });
+      }
+
+      const allowed = (await client.readContract({
+        address: wmon,
+        abi: erc20,
+        functionName: "allowance",
+        args: [walletAddress as `0x${string}`, router],
+      })) as bigint;
+      if (allowed < wei) {
+        setStatus("Step 2 of 3 — approving WMON…");
+        await sendTransaction({
+          to: wmon,
+          data: encodeFunctionData({
+            abi: erc20,
+            functionName: "approve",
+            args: [router, wei],
+          }),
+          value: "0x0",
+          chainId: activeChain.id,
+        });
+      }
+
+      setStatus("Step 3 of 3 — funding the pool…");
+      await sendTransaction({
+        to: router,
+        data: encodeFunctionData({
+          abi: SUBSCRIPTION_REFERRALS_ABI,
+          functionName: "fund",
+          args: [wei],
+        }),
+        value: "0x0",
+        chainId: activeChain.id,
+      });
+
+      setStatus(`Pool topped up by ${topUp} WMON.`);
+      setTopUp("");
+      await load();
+    } catch (e) {
+      setError((e as Error)?.message ?? "Could not fund the pool.");
+    } finally {
+      setFunding(false);
     }
   };
 
@@ -182,6 +282,45 @@ export function ReferralPanel({ dark }: Props) {
           {busy ? "Claiming…" : "Claim"}
         </button>
       </div>
+
+      {isOperator && (
+        <div
+          className={`mt-4 pt-3 border-t ${dark ? "border-gray-700" : "border-gray-200"}`}
+        >
+          <p className={`text-[11px] font-bold ${heading}`}>
+            Reward pool — operator only
+          </p>
+          <p className={`text-[11px] mt-1 ${note}`}>
+            Commission accrues only up to what the pool backs, so an empty pool
+            pays nobody and says nothing. About 9 WMON covers one monthly
+            referral. Not spent — governance can withdraw whatever is unclaimed.
+            {unreserved !== null && (
+              <>
+                {" "}
+                Available now: <strong>{formatEther(unreserved)} WMON</strong>.
+              </>
+            )}
+          </p>
+          <div className="flex gap-2 mt-2">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              placeholder="27"
+              value={topUp}
+              onChange={(e) => setTopUp(e.target.value)}
+              className={`w-24 px-2 py-1 rounded border text-sm ${field}`}
+            />
+            <button
+              onClick={fundPool}
+              disabled={funding || !topUp}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-sm font-semibold disabled:opacity-40"
+            >
+              {funding ? "Funding…" : "Fund pool"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {blockers.length > 0 && (
         <p className={`text-[11px] mt-3 ${note}`}>

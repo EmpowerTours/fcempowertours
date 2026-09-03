@@ -32,6 +32,9 @@ export const SUBSCRIPTION_REFERRALS_ABI = parseAbi([
   "function subscribeWithReferral(uint8 tier, uint256 userFid, address referrer) external",
   "function renewFor(address subscriber, uint8 tier, uint256 userFid) external",
   "function claimReferral() external",
+  // Unpermissioned: anyone may top up the pool. Commission only accrues up to
+  // what the pool backs, so an empty pool pays nobody -- silently.
+  "function fund(uint256 amount) external",
   "function referralBalance(address referrer) view returns (uint256)",
   "function referrerOf(address subscriber) view returns (address)",
   "function referrerBps() view returns (uint96)",
