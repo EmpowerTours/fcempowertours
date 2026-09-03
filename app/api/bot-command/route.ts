@@ -1322,26 +1322,21 @@ View: https://monadscan.com/tx/${mintCollectorData.txHash}`,
       lowerCommand.includes("burn music") ||
       lowerCommand.includes("burn song")
     ) {
-      const tokenIdMatch = lowerCommand.match(/burn (?:music|song) (\d+)/);
-      if (!tokenIdMatch) {
-        return NextResponse.json({
-          success: false,
-          message: 'Invalid format. Use: "burn music <tokenId>"',
-        });
-      }
-
-      const tokenId = tokenIdMatch[1];
-      console.log("[BOT] Redirecting to burn page for token:", tokenId);
-
+      // No token id needed any more: the destination is the artist's own
+      // profile, where each track carries its own control. Demanding
+      // "burn music <id>" was only ever to build a URL for the deleted page.
+      // Burning happens on the profile, in the track's own controls: it runs
+      // from the artist's wallet, because LicenseRegistry.burn checks ownerOf
+      // and a master belongs to the signing wallet, not the Safe.
+      //
+      // This used to send people to /burn-music, which called
+      // burnNFTForDelegated -- a function that does not exist on v3 and reverts
+      // -- and told them they had received 5 TOURS. There is no TOURS reward.
       return NextResponse.json({
         success: true,
         action: "navigate",
-        path: `/burn-music?tokenId=${tokenId}`,
-        message: `🔥 Burn NFT #${tokenId}
-
-Opening burn page where you can burn your NFT and receive 5 TOURS reward.
-
-Note: You'll pay a small gas fee to burn the NFT.`,
+        path: `/profile`,
+        message: `Open the track on your profile and use "Remove this track permanently". It asks you to type the name first, because burning cannot be undone.`,
       });
     }
 

@@ -377,25 +377,6 @@ export default function ProfilePage() {
     }));
   };
 
-  const handleBurnMusic = async (tokenId: string | number, name?: string) => {
-    if (!walletAddress) {
-      alert("Please connect your wallet first");
-      return;
-    }
-
-    // Redirect to dedicated burn page with Privy wallet integration
-    const params = new URLSearchParams({
-      tokenId: tokenId.toString(),
-      from: walletAddress,
-    });
-
-    if (name) {
-      params.append("name", name);
-    }
-
-    window.location.href = `/burn-music?${params.toString()}`;
-  };
-
   // The stake / unstake / claim-rewards handlers were removed on 2026-09-01.
   // There is no staking: stakeMusicNFT (selector 0x441cbc8c) is absent from both
   // the live LicenseRegistry and the old EmpowerToursNFT, so those actions could
@@ -1541,17 +1522,6 @@ export default function ProfilePage() {
                                 </a>
                               )}
                             </div>
-                            {/* Delete Button */}
-                            <button
-                              onClick={() =>
-                                nft.tokenId &&
-                                handleBurnMusic(nft.tokenId, nft.metadata?.name)
-                              }
-                              className="w-full px-3 py-3 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-all touch-manipulation"
-                              style={{ minHeight: "48px" }}
-                            >
-                              🗑️ Delete NFT
-                            </button>
                           </div>
                         </div>
                       </div>
@@ -1671,17 +1641,16 @@ export default function ProfilePage() {
                                 </a>
                               )}
                             </div>
-                            {/* Delete Button */}
-                            <button
-                              onClick={() =>
-                                nft.tokenId &&
-                                handleBurnMusic(nft.tokenId, nft.metadata?.name)
-                              }
-                              className="w-full px-3 py-3 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-all touch-manipulation"
-                              style={{ minHeight: "48px" }}
-                            >
-                              🗑️ Delete NFT
-                            </button>
+                            {/* Art has the same controls as music: it is a
+                                master in the same registry, so price, pause and
+                                removal all apply. Previously art's only burn was
+                                a button pointing at /burn-music, which called a
+                                function that does not exist on v3. */}
+                            <TrackSalesControls
+                              tokenId={String(nft.tokenId ?? "")}
+                              trackName={nft.metadata?.name}
+                              onChanged={() => void loadAllData()}
+                            />
                           </div>
                         </div>
                       </div>

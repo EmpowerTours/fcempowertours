@@ -27,12 +27,13 @@ import { authorizeUserAddress } from "@/lib/quick-auth";
  */
 
 // SECURITY: Restricted default permissions (high-risk actions excluded)
+// burn_music and burn_nft were removed with their handlers: both called
+// burnNFTForDelegated, which does not exist on v3. Burning runs from the
+// artist's wallet now, so no delegated permission is involved.
 const DEFAULT_PERMISSIONS = [
   "mint_passport",
   "mint_music",
   "buy_music",
-  "burn_music",
-  "burn_nft",
   "stake_music",
   "unstake_music",
   "swap_mon_for_tours",

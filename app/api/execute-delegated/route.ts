@@ -24,7 +24,6 @@ import {
   sendUserSafeTransaction,
   getUserSafeAddress,
   checkUserSafeBalance,
-  ensureUserSafeCanBurn,
 } from "@/lib/user-safe";
 import { USE_USER_SAFES } from "@/lib/safe-mode";
 import {
@@ -2880,121 +2879,13 @@ ${enjoyText}
       // (0x441cbc8c) is absent from BOTH the live LicenseRegistry and the old
       // EmpowerToursNFT — there is no staking anywhere and never was. The
       // actions could only ever revert. Nothing in the UI called them either.
-      case "burn_music": {
-        console.log("🔥 Action: burn_music (v7 delegated)");
-        if (!params?.tokenId) {
-          return NextResponse.json(
-            { success: false, error: "Missing tokenId for burn_music" },
-            { status: 400 },
-          );
-        }
-
-        const burnTokenId = BigInt(params.tokenId);
-
-        console.log("🔥 Burning NFT with delegated burner (Safe Account)");
-        console.log("  - Owner:", userAddress);
-        console.log("  - Token ID:", burnTokenId.toString());
-
-        // v7 uses burnNFTForDelegated - Safe Account is authorized burner
-        // NFT stays with user, Safe just has permission to burn it
-        const burnMusicCalls = [
-          {
-            to: EMPOWER_TOURS_NFT,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function burnNFTForDelegated(address owner, uint256 tokenId) external",
-              ]),
-              functionName: "burnNFTForDelegated",
-              args: [userAddress as Address, burnTokenId],
-            }) as Hex,
-          },
-        ];
-
-        const burnMusicTxHash = await executeTransaction(
-          burnMusicCalls,
-          userAddress as Address,
-        );
-        console.log(
-          "✅ Music NFT burned via delegated burner, TX:",
-          burnMusicTxHash,
-        );
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: burnMusicTxHash,
-          action,
-          userAddress,
-          tokenId: params.tokenId,
-          message: `Music NFT #${params.tokenId} burned for 5 TOURS reward`,
-        });
-
-        // ==================== CREATE SINGLE EXPERIENCE (Legacy - uses TOURS token) ====================
-      }
-      case "burn_nft": {
-        console.log("🔥 Action: burn_nft (delegated burning via User Safe)");
-
-        const { tokenId } = params;
-        if (!tokenId) {
-          return NextResponse.json(
-            { success: false, error: "Missing tokenId" },
-            { status: 400 },
-          );
-        }
-
-        console.log(`🔥 Burning NFT #${tokenId} for user ${userAddress}`);
-
-        // Step 1: Ensure User Safe is registered as authorized burner
-        // This will register the User Safe via Platform Safe if not already registered
-        if (USE_USER_SAFES) {
-          console.log("📝 Ensuring User Safe is authorized to burn...");
-          const burnAuthResult = await ensureUserSafeCanBurn(userAddress);
-          if (!burnAuthResult.success) {
-            return NextResponse.json(
-              {
-                success: false,
-                error: `Failed to authorize User Safe for burns: ${burnAuthResult.error}`,
-              },
-              { status: 500 },
-            );
-          }
-          console.log("✅ User Safe authorized:", burnAuthResult.safeAddress);
-        }
-
-        // Step 2: Burn the NFT via User Safe (or Platform Safe if not using User Safes)
-        // Use burnNFTForDelegated function - the User Safe is now an authorized burner
-        const burnCalldata = encodeFunctionData({
-          abi: parseAbi([
-            "function burnNFTForDelegated(address owner, uint256 tokenId) external",
-          ]),
-          functionName: "burnNFTForDelegated",
-          args: [userAddress as Address, BigInt(tokenId)],
-        });
-
-        const txHash = await executeTransaction(
-          [
-            {
-              to: EMPOWER_TOURS_NFT,
-              data: burnCalldata as Hex,
-              value: BigInt(0),
-            },
-          ],
-          userAddress as Address,
-        );
-
-        await incrementTransactionCount(userAddress);
-        console.log("🔥 NFT burned successfully:", txHash);
-
-        return NextResponse.json({
-          success: true,
-          txHash,
-          userAddress,
-          tokenId,
-          message: `NFT #${tokenId} burned successfully! 5 TOURS reward sent to owner.`,
-        });
-      }
-
+      // burn_nft removed. It called burnNFTForDelegated(address,uint256),
+      // which does not exist on the v3 LicenseRegistry -- absent from the
+      // source and reverting on chain since the August cutover. The design was
+      // wrong beyond the function name: it burned via the user's Safe, and a
+      // master is owned by the artist's WALLET, so a Safe could never have had
+      // authority over one. Burning now runs from the wallet in
+      // TrackSalesControls, where LicenseRegistry.burn's ownerOf check passes.
       // ==================== CREATE EXPERIENCE (ITINERARY NFT) ====================
       // ==================== MUSIC BEAT MATCH (V2) ====================
       case "beat_match_submit_guess": {
