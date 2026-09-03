@@ -3,6 +3,7 @@
 import { authHeaders } from "@/lib/quick-auth-client";
 import { TrackSalesControls } from "@/app/components/oracle/TrackSalesControls";
 import { ReferralPanel } from "@/app/components/oracle/ReferralPanel";
+import { LicenseResale } from "@/app/components/oracle/LicenseResale";
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -51,6 +52,13 @@ interface ProfileModalProps {
 interface PassportData {
   tokenId: string;
   countryCode: string;
+}
+
+interface PurchasedLicense {
+  licenseId: string;
+  masterName: string;
+  masterImage?: string;
+  isCollector: boolean;
 }
 
 interface CreatedTrack {
@@ -121,6 +129,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   // away, keeping only the count. That is why there was no way to reprice a
   // track from the surface people actually use.
   const [createdTracks, setCreatedTracks] = useState<CreatedTrack[]>([]);
+  // Same omission as the created list: user-stats returns the licences and the
+  // modal kept only the count, so there was nowhere to sell one from.
+  const [purchased, setPurchased] = useState<PurchasedLicense[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
@@ -328,6 +339,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         .filter((p: any) => p.countryCode && p.countryCode !== "XX")
         .map((p: any) => ({ tokenId: p.tokenId, countryCode: p.countryCode }));
 
+      setPurchased(
+        (result.purchased || []).map((l: any) => ({
+          licenseId: String(l.licenseId),
+          masterName: l.masterName || `Licence #${l.licenseId}`,
+          masterImage: l.masterImage,
+          isCollector: Boolean(l.isCollector),
+        })),
+      );
+
       setCreatedTracks(
         (result.created || []).map((t: any) => ({
           id: String(t.id),
@@ -350,6 +370,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     } catch (error) {
       console.error("[ProfileModal] Stats load error:", error);
       setCreatedTracks([]);
+      setPurchased([]);
       setStats({
         passports: 0,
         musicCreated: 0,
@@ -746,6 +767,58 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   not on anything they made. So this sits above the artist-only
                   sections rather than inside them. */}
               <ReferralPanel dark />
+
+              {/* Licences you bought, and a way to pass one on. Resale is a
+                  link you send to a person, not a listing on a board -- the
+                  contract settles it and takes the artist's royalty on the way
+                  through. */}
+              {purchased.length > 0 && (
+                <div className="bg-black/20 border border-gray-700/50 rounded-xl p-4">
+                  <h4 className="font-medium text-white flex items-center gap-2 mb-3">
+                    <Ticket className="w-5 h-5 text-cyan-400" />
+                    Licences I Own
+                  </h4>
+                  <div className="space-y-3">
+                    {purchased.map((lic) => (
+                      <div
+                        key={lic.licenseId}
+                        className="bg-black/30 rounded-lg p-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          {lic.masterImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={lic.masterImage}
+                              alt={lic.masterName}
+                              className="w-12 h-12 rounded object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded bg-gray-700 flex items-center justify-center flex-shrink-0">
+                              <Music className="w-5 h-5 text-gray-400" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-white truncate">
+                              {lic.masterName}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {lic.isCollector
+                                ? "Limited edition"
+                                : "Standard licence"}{" "}
+                              · #{lic.licenseId}
+                            </p>
+                          </div>
+                        </div>
+                        <LicenseResale
+                          licenseId={lic.licenseId}
+                          name={lic.masterName}
+                          dark
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* The tracks themselves, not just a count of them.
                   "Where do I change the price of Ganado?" had no answer from

@@ -835,17 +835,21 @@ export default function OraclePage() {
             </div>
 
             {/* Quick Actions - Minimal floating pills */}
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+            {/* One line, always. Four pills at px-4/gap-3 measure ~430px, which
+                is exactly a phone's width, so "Create NFT" wrapped to its own
+                row and read as a separate thing. Tighter padding and gap on
+                small screens fit all four; the roomier spacing returns at sm. */}
+            <div className="flex flex-nowrap items-center justify-center gap-1.5 sm:gap-3 mt-6">
               <button
                 onClick={() => openModal(() => setShowProfileModal(true))}
-                className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-purple-400 hover:bg-purple-500/10" : "text-gray-500 hover:text-purple-600 hover:bg-purple-50"}`}
+                className={`group flex shrink-0 items-center gap-1 sm:gap-1.5 whitespace-nowrap px-2.5 sm:px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-purple-400 hover:bg-purple-500/10" : "text-gray-500 hover:text-purple-600 hover:bg-purple-50"}`}
               >
                 <User className="w-3.5 h-3.5" />
                 Profile
               </button>
               <button
                 onClick={() => openModal(() => setShowDashboardModal(true))}
-                className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10" : "text-gray-500 hover:text-cyan-600 hover:bg-cyan-50"}`}
+                className={`group flex shrink-0 items-center gap-1 sm:gap-1.5 whitespace-nowrap px-2.5 sm:px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10" : "text-gray-500 hover:text-cyan-600 hover:bg-cyan-50"}`}
               >
                 <BarChart3 className="w-3.5 h-3.5" />
                 Dashboard
@@ -857,14 +861,14 @@ export default function OraclePage() {
                   setShowRadioModal(true);
                   setRadioMinimized(false);
                 }}
-                className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-pink-400 hover:bg-pink-500/10" : "text-gray-500 hover:text-pink-600 hover:bg-pink-50"}`}
+                className={`group flex shrink-0 items-center gap-1 sm:gap-1.5 whitespace-nowrap px-2.5 sm:px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-pink-400 hover:bg-pink-500/10" : "text-gray-500 hover:text-pink-600 hover:bg-pink-50"}`}
               >
                 <Radio className="w-3.5 h-3.5" />
                 Radio
               </button>
               <button
                 onClick={() => openModal(() => setShowCreateNFTModal(true))}
-                className={`group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10" : "text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"}`}
+                className={`group flex shrink-0 items-center gap-1 sm:gap-1.5 whitespace-nowrap px-2.5 sm:px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10" : "text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"}`}
               >
                 <Plus className="w-3.5 h-3.5" />
                 Create NFT
