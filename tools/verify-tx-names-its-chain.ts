@@ -31,6 +31,33 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * The source of the object literal starting at `open` (the index of its "{"),
+ * counting nested braces and skipping strings and template literals.
+ */
+function objectLiteralAt(code: string, open: number): string {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = open; i < code.length; i++) {
+    const ch = code[i];
+    if (quote) {
+      if (ch === "\\") i++;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      quote = ch;
+      continue;
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return code.slice(open, i + 1);
+    }
+  }
+  return code.slice(open);
+}
+
 for (const file of walk(join(root, "app"))) {
   const src = readFileSync(file, "utf8");
   const code = src
@@ -42,9 +69,11 @@ for (const file of walk(join(root, "app"))) {
   // chainId must not vouch for another that does not.
   for (const m of code.matchAll(/\bsendTransaction\(\{/g)) {
     const start = m.index ?? 0;
-    const slice = code.slice(start, start + 400);
-    const end = slice.indexOf("})");
-    const literal = end > 0 ? slice.slice(0, end) : slice;
+    // Brace-match to the end of THIS object literal. Scanning to the first "})"
+    // stopped at a nested encodeFunctionData({...}) and reported three correct
+    // calls as missing a chainId -- a false positive, which is worse than no
+    // check: it trains you to ignore the one time it is right.
+    const literal = objectLiteralAt(code, start + m[0].length - 1);
     checks++;
     if (!/chainId/.test(literal)) {
       failures.push(
@@ -61,4 +90,6 @@ if (failures.length > 0) {
   for (const f of failures) console.error(`  - ${f}`);
   process.exit(1);
 }
-console.log(`✓ every sendTransaction names its chain — ${checks} checks passed`);
+console.log(
+  `✓ every sendTransaction names its chain — ${checks} checks passed`,
+);

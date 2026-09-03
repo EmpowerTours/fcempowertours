@@ -1,6 +1,13 @@
 "use client";
 
 import { storedReferrer } from "@/lib/referral-link";
+import { useWalletContext } from "@/app/hooks/useWalletContext";
+import { activeChain } from "@/app/chains";
+import { encodeFunctionData, parseAbi, createPublicClient, http } from "viem";
+import {
+  SUBSCRIPTION_REFERRALS_ABI,
+  referralsAddress,
+} from "@/lib/subscription-referrals";
 import { useActionAuth } from "@/app/hooks/useActionAuth";
 import {
   isV3Contracts,
@@ -100,6 +107,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   // music-subscribe spends the user's Safe, so execute-delegated demands proven ownership of
   // userAddress; a bare Quick Auth token is a Farcaster-only proof and 401s in a browser.
   const authFor = useActionAuth();
+  const { walletAddress, sendTransaction, switchChain } = useWalletContext();
 
   const [subscriptionStatus, setSubscriptionStatus] =
     useState<SubscriptionStatus | null>(null);
@@ -274,6 +282,99 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
     checkBalance();
   }, [userAddress]);
 
+  /**
+   * Subscribe from the user's OWN wallet, so a referral can be attributed.
+   *
+   * `_bindReferrer` accepts an attribution only from the subscriber themselves
+   * or from `trustedRelayer`. The gasless path pays from each user's own Safe,
+   * and one relayer slot cannot cover a Safe per user, so on that path a
+   * referral is silently dropped. Attribution is one-shot -- the contract
+   * refuses anyone whose V6 expiry is non-zero -- so a referral not recorded
+   * here can never be recorded later.
+   *
+   * Used ONLY when a referrer is pending. Everyone else keeps the gasless Safe
+   * path: three wallet prompts is a real cost, and it should be paid only when
+   * it buys something.
+   */
+  const subscribeFromWallet = async (
+    tierIndex: number,
+    priceInWei: bigint,
+    referrer: string,
+  ) => {
+    const router = referralsAddress();
+    const wmon = process.env.NEXT_PUBLIC_WMON as `0x${string}` | undefined;
+    if (!router || !wmon) throw new Error("Referrals are not configured.");
+    if (!walletAddress) throw new Error("Connect a wallet first.");
+
+    const client = createPublicClient({
+      chain: activeChain,
+      transport: http(),
+    });
+    const erc20 = parseAbi([
+      "function balanceOf(address) view returns (uint256)",
+      "function allowance(address owner, address spender) view returns (uint256)",
+      "function approve(address spender, uint256 amount) external returns (bool)",
+      "function deposit() external payable",
+    ]);
+
+    await switchChain({ chainId: activeChain.id });
+
+    // Wrap only the shortfall, so someone already holding WMON is not made to
+    // hold MON as well.
+    const held = (await client.readContract({
+      address: wmon,
+      abi: erc20,
+      functionName: "balanceOf",
+      args: [walletAddress as `0x${string}`],
+    })) as bigint;
+    if (held < priceInWei) {
+      const short = priceInWei - held;
+      setSuccess("Step 1 of 3 — wrapping MON…");
+      await sendTransaction({
+        to: wmon,
+        data: encodeFunctionData({ abi: erc20, functionName: "deposit" }),
+        value: `0x${short.toString(16)}`,
+        chainId: activeChain.id,
+      });
+    }
+
+    const allowance = (await client.readContract({
+      address: wmon,
+      abi: erc20,
+      functionName: "allowance",
+      args: [walletAddress as `0x${string}`, router],
+    })) as bigint;
+    if (allowance < priceInWei) {
+      setSuccess("Step 2 of 3 — approving WMON…");
+      await sendTransaction({
+        to: wmon,
+        data: encodeFunctionData({
+          abi: erc20,
+          functionName: "approve",
+          args: [router, priceInWei],
+        }),
+        value: "0x0",
+        chainId: activeChain.id,
+      });
+    }
+
+    setSuccess("Step 3 of 3 — subscribing…");
+    await sendTransaction({
+      to: router,
+      data: encodeFunctionData({
+        abi: SUBSCRIPTION_REFERRALS_ABI,
+        functionName: "subscribeWithReferral",
+        args: [
+          tierIndex,
+          BigInt(userFid && userFid > 0 ? userFid : 0),
+          referrer as `0x${string}`,
+        ],
+      }),
+      value: "0x0",
+      chainId: activeChain.id,
+    });
+  };
+
   const handleSubscribe = async () => {
     if (!userAddress) {
       setError("Please connect your wallet");
@@ -295,6 +396,23 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
     try {
       const tier = TIERS[selectedTier];
       const priceInWei = ethers.parseEther(tier.price.toString());
+
+      // A pending referral is the only reason to give up the gasless path.
+      // Attribution binds once, on a first-ever subscription, and only from the
+      // subscriber's own address while trustedRelayer is unset.
+      const pendingReferrer = storedReferrer(userAddress);
+      if (pendingReferrer && referralsAddress()) {
+        await subscribeFromWallet(
+          selectedTier,
+          BigInt(priceInWei.toString()),
+          pendingReferrer,
+        );
+        setSuccess(`Successfully subscribed for ${tier.duration}!`);
+        setLoading(false);
+        // Same refresh the delegated path uses.
+        setTimeout(() => window.location.reload(), 2000);
+        return;
+      }
 
       // Call the delegation API
       const response = await fetch("/api/execute-delegated", {

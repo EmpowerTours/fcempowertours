@@ -26,6 +26,10 @@ import { encodeFunctionData, parseAbi, type Address, type Hex } from "viem";
 
 export const SUBSCRIPTION_REFERRALS_ABI = parseAbi([
   "function subscribeWithReferralFor(address subscriber, uint8 tier, uint256 userFid, address referrer) external",
+  // The self-serve variant. msg.sender IS the subscriber, which is the only way
+  // _bindReferrer accepts an attribution while trustedRelayer is unset -- and
+  // with a Safe per user, one relayer slot can never cover them.
+  "function subscribeWithReferral(uint8 tier, uint256 userFid, address referrer) external",
   "function renewFor(address subscriber, uint8 tier, uint256 userFid) external",
   "function claimReferral() external",
   "function referralBalance(address referrer) view returns (uint256)",
