@@ -6,7 +6,8 @@ import { activeChain } from "@/app/chains";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { isV3Contracts } from "@/lib/contract-generation";
 import { ProfileAvatar } from "@/app/components/oracle/ProfileAvatar";
-import { avatarUriForCid } from "@/lib/profile-avatar";
+import { walletAuthHeaders } from "@/lib/wallet-auth-client";
+import { useSignMessage } from "wagmi";
 import {
   MAX_NAME_BYTES,
   byteLength,
@@ -52,6 +53,16 @@ const PROFILE_ABI = parseAbi([
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 
+/** "12 days", "6 hours", "40 minutes" — never "0 days". */
+function formatWait(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  if (days >= 1) return `${days} day${days === 1 ? "" : "s"}`;
+  const hours = Math.floor(seconds / 3600);
+  if (hours >= 1) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  const minutes = Math.max(1, Math.floor(seconds / 60));
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+}
+
 interface Props {
   walletAddress: string | null | undefined;
   isDarkMode: boolean;
@@ -72,6 +83,7 @@ export function DisplayNameSetting({
   farcasterUsername,
 }: Props) {
   const { sendTransaction, isConnected, switchChain } = useWalletContext();
+  const { signMessageAsync } = useSignMessage();
 
   const [current, setCurrent] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -85,6 +97,8 @@ export function DisplayNameSetting({
   const [avatarUri, setAvatarUri] = useState("");
   const [bio, setBio] = useState("");
   const [uploading, setUploading] = useState(false);
+  // Seconds until this address may change its picture again, from the server.
+  const [cooldown, setCooldown] = useState<number | null>(null);
 
   const registry = process.env.NEXT_PUBLIC_PROFILE_REGISTRY as
     | `0x${string}`
@@ -117,6 +131,19 @@ export function DisplayNameSetting({
       setDraft(name || "");
       setAvatarUri(profile?.avatarURI ?? "");
       setBio(profile?.bio ?? "");
+
+      // Ask the server, not the chain. `updatedAt` moves on any profile write,
+      // so using it would make a name change look like a picture change and
+      // lock someone out of a limit they never spent.
+      try {
+        const res = await fetch(
+          `/api/profile/avatar?address=${encodeURIComponent(walletAddress)}`,
+        );
+        const data = await res.json();
+        setCooldown(data?.canChange ? 0 : (data?.secondsRemaining ?? 0));
+      } catch {
+        setCooldown(null);
+      }
     } catch {
       setCurrent(null);
     } finally {
@@ -223,13 +250,34 @@ export function DisplayNameSetting({
 
       const body = new FormData();
       body.append("file", file);
-      const res = await fetch("/api/upload-pinata", { method: "POST", body });
+      body.append("address", walletAddress as string);
+
+      // Signed nonce: a per-address limit on an unauthenticated endpoint is
+      // decoration, since anyone could send a different address.
+      const headers = await walletAuthHeaders({
+        address: walletAddress as string,
+        signMessage: signMessageAsync,
+        context: "profile-avatar",
+      });
+
+      const res = await fetch("/api/profile/avatar", {
+        method: "POST",
+        headers,
+        body,
+      });
       const data = await res.json();
-      if (!res.ok || !data?.ipfsHash) {
+      if (res.status === 429) {
+        setCooldown(data?.secondsRemaining ?? null);
+        throw new Error(
+          data?.error ||
+            "You can change your profile picture once every 30 days.",
+        );
+      }
+      if (!res.ok || !data?.avatarURI) {
         throw new Error(data?.error || "Could not upload the picture.");
       }
 
-      const uri = avatarUriForCid(data.ipfsHash);
+      const uri = data.avatarURI as string;
       const dataHex = encodeFunctionData({
         abi: PROFILE_ABI,
         functionName: "setProfile",
@@ -243,7 +291,8 @@ export function DisplayNameSetting({
         chainId: activeChain.id,
       });
       setAvatarUri(uri);
-      setStatus("Picture updated.");
+      setCooldown(data?.cooldownSeconds ?? 30 * 24 * 60 * 60);
+      setStatus("Picture updated. You can change it again in 30 days.");
       await load();
     } catch (e) {
       setError((e as Error)?.message ?? "Could not set the picture.");
@@ -279,28 +328,35 @@ export function DisplayNameSetting({
         <ProfileAvatar uri={avatarUri} name={current ?? draft} />
         <div className="min-w-0">
           <p className="text-xs font-bold">Profile picture</p>
-          <label
-            className={`text-xs underline cursor-pointer ${
-              current ? "text-cyan-500" : "text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            {uploading
-              ? "Uploading…"
-              : avatarUri
-                ? "Change picture"
-                : "Add a picture"}
-            <input
-              type="file"
-              accept="image/*"
-              disabled={uploading || !current}
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void uploadAvatar(f);
-                e.currentTarget.value = "";
-              }}
-            />
-          </label>
+          {cooldown !== null && cooldown > 0 ? (
+            <p className={`text-xs ${muted}`}>
+              Changed recently — you can change it again in{" "}
+              {formatWait(cooldown)}.
+            </p>
+          ) : (
+            <label
+              className={`text-xs underline cursor-pointer ${
+                current ? "text-cyan-500" : "text-gray-500 cursor-not-allowed"
+              }`}
+            >
+              {uploading
+                ? "Uploading…"
+                : avatarUri
+                  ? "Change picture"
+                  : "Add a picture"}
+              <input
+                type="file"
+                accept="image/*"
+                disabled={uploading || !current}
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void uploadAvatar(f);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </label>
+          )}
           {!current && (
             <p className={`text-[11px] ${muted}`}>
               Set a name first — the registry stores them together.
