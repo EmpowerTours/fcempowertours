@@ -129,7 +129,7 @@ export default function HomeClient() {
             <a href="/profile" className="hover:text-purple-300">
               Profile
             </a>
-            <a href="/market" className="hover:text-purple-300">
+            <a href="/discover" className="hover:text-purple-300">
               Market
             </a>
             <a href="/dashboard" className="hover:text-purple-300">

@@ -543,7 +543,7 @@ export default function TweaksPage() {
             </p>
             <div className="mt-4 flex justify-center gap-6 text-sm">
               <Link
-                href="/market"
+                href="/discover"
                 className="text-purple-400 hover:text-purple-300"
               >
                 Music NFTs

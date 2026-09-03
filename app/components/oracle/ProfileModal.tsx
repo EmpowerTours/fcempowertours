@@ -1,6 +1,7 @@
 "use client";
 
 import { authHeaders } from "@/lib/quick-auth-client";
+import { TrackSalesControls } from "@/app/components/oracle/TrackSalesControls";
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -49,6 +50,15 @@ interface ProfileModalProps {
 interface PassportData {
   tokenId: string;
   countryCode: string;
+}
+
+interface CreatedTrack {
+  id: string;
+  tokenId: string;
+  name: string;
+  imageUrl?: string;
+  price: string;
+  isArt: boolean;
 }
 
 interface UserStats {
@@ -105,6 +115,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 }) => {
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
+  // user-stats already returns the full `created` array and this modal threw it
+  // away, keeping only the count. That is why there was no way to reprice a
+  // track from the surface people actually use.
+  const [createdTracks, setCreatedTracks] = useState<CreatedTrack[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
@@ -312,6 +326,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         .filter((p: any) => p.countryCode && p.countryCode !== "XX")
         .map((p: any) => ({ tokenId: p.tokenId, countryCode: p.countryCode }));
 
+      setCreatedTracks(
+        (result.created || []).map((t: any) => ({
+          id: String(t.id),
+          tokenId: String(t.tokenId),
+          name: t.name || `Track #${t.tokenId}`,
+          imageUrl: t.imageUrl,
+          price: String(t.price ?? "0"),
+          isArt: Boolean(t.isArt),
+        })),
+      );
+
       setStats({
         passports: result.stats.passports,
         musicCreated: result.stats.musicCreated,
@@ -322,6 +347,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       });
     } catch (error) {
       console.error("[ProfileModal] Stats load error:", error);
+      setCreatedTracks([]);
       setStats({
         passports: 0,
         musicCreated: 0,
@@ -707,6 +733,60 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 walletAddress={walletAddress}
                 isDarkMode={isDarkMode}
               />
+
+              {/* The tracks themselves, not just a count of them.
+                  "Where do I change the price of Ganado?" had no answer from
+                  this modal: it showed a Music Created number and nothing to
+                  act on, while the per-track controls existed only on /profile,
+                  a separate page. A count is not a control. */}
+              {createdTracks.length > 0 && (
+                <div className="bg-black/20 border border-gray-700/50 rounded-xl p-4">
+                  <h4 className="font-medium text-white flex items-center gap-2 mb-3">
+                    <Music className="w-5 h-5 text-blue-400" />
+                    Music I Created
+                  </h4>
+                  <div className="space-y-3">
+                    {createdTracks
+                      .filter((t) => !t.isArt)
+                      .map((track) => (
+                        <div
+                          key={track.id}
+                          className="bg-black/30 rounded-lg p-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            {track.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={track.imageUrl}
+                                alt={track.name}
+                                className="w-12 h-12 rounded object-cover flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded bg-gray-700 flex items-center justify-center flex-shrink-0">
+                                <Music className="w-5 h-5 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-white truncate">
+                                {track.name}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                #{track.tokenId}
+                              </p>
+                            </div>
+                          </div>
+                          <TrackSalesControls
+                            tokenId={track.tokenId}
+                            dark
+                            onChanged={() => {
+                              if (walletAddress) void loadStats(walletAddress);
+                            }}
+                          />
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
 
               {/* Artist Earnings - only for music creators */}
               {stats.musicCreated > 0 && (

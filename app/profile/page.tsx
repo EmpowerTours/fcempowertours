@@ -1364,7 +1364,7 @@ export default function ProfilePage() {
               Mint NFT
             </Link>
             <Link
-              href="/market"
+              href="/discover"
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-center text-sm font-medium transition-all"
             >
               Browse Market

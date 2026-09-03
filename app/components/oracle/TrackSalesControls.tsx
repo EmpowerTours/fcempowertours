@@ -41,9 +41,11 @@ interface Props {
   tokenId: string | number;
   /** Rendered only when this matches the master's on-chain artist. */
   onChanged?: () => void;
+  /** ProfileModal is dark; /profile is light. Same controls, both surfaces. */
+  dark?: boolean;
 }
 
-export function TrackSalesControls({ tokenId, onChanged }: Props) {
+export function TrackSalesControls({ tokenId, onChanged, dark }: Props) {
   const { walletAddress, sendTransaction, switchChain } = useWalletContext();
 
   const [isArtist, setIsArtist] = useState(false);
@@ -175,12 +177,22 @@ export function TrackSalesControls({ tokenId, onChanged }: Props) {
     }
   };
 
+  const shell = dark
+    ? "border-gray-700 bg-black/30"
+    : "border-gray-200 bg-gray-50";
+  const heading = dark ? "text-gray-200" : "text-gray-700";
+  const label = dark ? "text-gray-400" : "text-gray-600";
+  const field = dark
+    ? "border-gray-600 bg-black/40 text-white"
+    : "border-gray-300 text-gray-900";
+  const note = dark ? "text-gray-400" : "text-gray-500";
+
   return (
-    <div className="mt-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
-      <p className="text-xs font-bold text-gray-700 mb-2">Your track</p>
+    <div className={`mt-3 p-3 rounded-xl border ${shell}`}>
+      <p className={`text-xs font-bold ${heading} mb-2`}>Your track</p>
 
       <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col text-xs text-gray-600">
+        <label className={`flex flex-col text-xs ${label}`}>
           Licence price (WMON)
           <input
             type="number"
@@ -188,10 +200,10 @@ export function TrackSalesControls({ tokenId, onChanged }: Props) {
             step="0.01"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            className="mt-1 w-32 px-2 py-1 rounded border border-gray-300 text-sm text-gray-900"
+            className={`mt-1 w-32 px-2 py-1 rounded border text-sm ${field}`}
           />
         </label>
-        <label className="flex flex-col text-xs text-gray-600">
+        <label className={`flex flex-col text-xs ${label}`}>
           Collector price (WMON)
           <input
             type="number"
@@ -199,7 +211,7 @@ export function TrackSalesControls({ tokenId, onChanged }: Props) {
             step="1"
             value={collectorPrice}
             onChange={(e) => setCollectorPrice(e.target.value)}
-            className="mt-1 w-32 px-2 py-1 rounded border border-gray-300 text-sm text-gray-900"
+            className={`mt-1 w-32 px-2 py-1 rounded border text-sm ${field}`}
           />
         </label>
         <button
@@ -224,7 +236,7 @@ export function TrackSalesControls({ tokenId, onChanged }: Props) {
         </button>
       </div>
 
-      <p className="text-[11px] text-gray-500 mt-2">
+      <p className={`text-[11px] ${note} mt-2`}>
         {paused
           ? "Not for sale. Licences already sold keep working."
           : "On sale. Changing the price does not affect licences already sold."}
