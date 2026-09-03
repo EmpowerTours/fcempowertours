@@ -1323,7 +1323,7 @@ export default function ProfilePage() {
             </motion.div>
           )}
 
-          <div className="grid grid-cols-6 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             <AnimatedStatCard
               value={passportNFTs.length}
               label="Passports"
@@ -1384,7 +1384,7 @@ export default function ProfilePage() {
                     {totalCreatedMusicPages || 1}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {paginatedCreatedMusic.map((nft) => {
                     const ci = collectorInfo[String(nft.tokenId)];
                     const displayImage =
@@ -1599,7 +1599,7 @@ export default function ProfilePage() {
                     {totalCreatedArtPages || 1}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {paginatedCreatedArt.map((nft) => {
                     const ci = collectorInfo[String(nft.tokenId)];
                     const displayImage =
@@ -1729,7 +1729,7 @@ export default function ProfilePage() {
                     {totalPurchasedMusicPages || 1}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {paginatedPurchasedMusic.map((license) => {
                     const ci = collectorInfo[String(license.masterTokenId)];
                     const displayImage =
@@ -1961,7 +1961,7 @@ export default function ProfilePage() {
                     {totalPurchasedArtPages || 1}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {paginatedPurchasedArt.map((nft) => {
                     const tokenKey = String(nft.masterTokenId || nft.tokenId);
                     const ci = collectorInfo[tokenKey];
@@ -2087,7 +2087,7 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                     {paginatedPassports.map((passport) => {
                       // Handle mintedAt as either timestamp (number) or date string
                       const mintDate =
