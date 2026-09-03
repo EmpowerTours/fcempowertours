@@ -22,7 +22,8 @@ counterparty actually implements. Built 2026-08-18 for deployment-plan task #1.
    and a live call against it reverts today, on the live V2. The radio calls that function on
    the NFT; it does not expose one. Any conclusion of the form "contract X has function Y"
    below rests on a probe unless a live call is cited beside it.
-4. For undeployed contracts (v3), checked against source.
+4. The v3 contracts were undeployed when this was written; the cutover ran 2026-08-21 and
+   all six are live. Verify against chain, not against this file.
 
 ## Live set (Monad mainnet, chain 143)
 
@@ -119,8 +120,9 @@ standing — a burnt licence would have kept passing `hasValidLicense`. Burn now
 
 ## Constraint C1 — what V6 must preserve
 
-`SubscriptionReferrals` (v3, undeployed) calls four things on the subscription contract. V6 must
-keep all four signatures intact:
+`SubscriptionReferrals` (v3, deployed at `0x5A1c34124eF5b4eC09Bdf0da5b2cbaEE5BE409B3` and
+pointed at the live V6) calls four things on the subscription contract. V6 must keep all four
+signatures intact:
 
 ```
 subscribeFor(address user, uint256 userFid, SubscriptionTier tier)

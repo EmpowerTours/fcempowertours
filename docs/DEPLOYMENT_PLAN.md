@@ -130,7 +130,8 @@ address-based sibling before the FID lookup stops being universal.
 
 ## Display names — decided 2026-08-19
 
-`ProfileRegistry` (v3, undeployed) gives a wallet-only artist a name instead of `0x1a2b…f9c0`.
+`ProfileRegistry` (v3, deployed at `0xf4C27308f2183E7Cb07c32FAF449a259831E16EC`) gives a
+wallet-only artist a name instead of `0x1a2b…f9c0`.
 Resolution order belongs in the app, and the registry is the **fallback**, never the winner:
 
 ```
@@ -262,10 +263,10 @@ and are not covered by this flag. That is the remaining half of task #7.
 |---|---|---|
 | 1 | Contract integration matrix | **done** — found 3 breaks; 1 and 2 now fixed |
 | 2 | v3 `artistFid` optional + correct `V3_DESIGN` errors | **done** |
-| 3 | `MusicSubscriptionV6` against the v3 interface | **done** — undeployed |
-| 4 | `ProfileRegistry` for non-Farcaster display names | **done** — 24 tests, undeployed |
+| 3 | `MusicSubscriptionV6` against the v3 interface | **done** — live `0xc7EDB67B59B8B89cF4E9bA9bd7b940052563611B` |
+| 4 | `ProfileRegistry` for non-Farcaster display names | **done** — 24 tests, live `0xf4C27308f2183E7Cb07c32FAF449a259831E16EC` |
 | 5 | Delete the OpenClaw Discord agent | **done** |
-| 6 | `PassportNFT` redeploy, address-keyed dedup | **done** — `PassportNFTV4`, 20 tests, undeployed |
+| 6 | `PassportNFT` redeploy, address-keyed dedup | **done** — `PassportNFTV4`, 20 tests, live `0x4D5533e29Cf190131885Dc7Dbef22e31F4252410` |
 | 7 | v3 deploy script, `migrateLegacy`, app cutover | **code done** — nothing left but to run it |
 | 8 | TOURS decision | parked — product call, not engineering |
 | 9 | Envio lottery cleanup | deliberately last, with the new addresses |
