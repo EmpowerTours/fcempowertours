@@ -5,6 +5,8 @@ import { createPublicClient, encodeFunctionData, http, parseAbi } from "viem";
 import { activeChain } from "@/app/chains";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { isV3Contracts } from "@/lib/contract-generation";
+import { ProfileAvatar } from "@/app/components/oracle/ProfileAvatar";
+import { avatarUriForCid } from "@/lib/profile-avatar";
 import {
   MAX_NAME_BYTES,
   byteLength,
@@ -44,6 +46,7 @@ import {
 const PROFILE_ABI = parseAbi([
   "function displayNameOf(address owner) view returns (string)",
   "function ownerOfName(string displayName) view returns (address)",
+  "function getProfile(address owner) view returns ((string displayName, string avatarURI, string bio, uint64 updatedAt))",
   "function setProfile(string displayName, string avatarURI, string bio) external",
 ]);
 
@@ -76,6 +79,12 @@ export function DisplayNameSetting({
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Held so a name change writes them back. setProfile overwrites all three
+  // fields, and this control used to pass empty strings for the other two --
+  // harmless only while nobody had an avatar.
+  const [avatarUri, setAvatarUri] = useState("");
+  const [bio, setBio] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const registry = process.env.NEXT_PUBLIC_PROFILE_REGISTRY as
     | `0x${string}`
@@ -90,14 +99,24 @@ export function DisplayNameSetting({
     if (!walletAddress || !registry) return;
     setLoading(true);
     try {
-      const name = (await client().readContract({
+      // getProfile, not displayNameOf: the other two fields have to be read
+      // before they can be preserved on write.
+      const profile = (await client().readContract({
         address: registry,
         abi: PROFILE_ABI,
-        functionName: "displayNameOf",
+        functionName: "getProfile",
         args: [walletAddress as `0x${string}`],
-      })) as string;
+      })) as {
+        displayName: string;
+        avatarURI: string;
+        bio: string;
+        updatedAt: bigint;
+      };
+      const name = profile?.displayName ?? "";
       setCurrent(name || null);
       setDraft(name || "");
+      setAvatarUri(profile?.avatarURI ?? "");
+      setBio(profile?.bio ?? "");
     } catch {
       setCurrent(null);
     } finally {
@@ -148,27 +167,88 @@ export function DisplayNameSetting({
         return;
       }
 
-      // avatarURI and bio are left empty on purpose. This control does one thing, and writing
-      // blanks would silently clear anything set elsewhere.
+      // Write back the avatar and bio that were read in load(). setProfile
+      // replaces the whole struct, so passing "" here erased whatever else the
+      // artist had set -- a picture vanishing when you rename yourself, looking
+      // like the upload had failed.
       const data = encodeFunctionData({
         abi: PROFILE_ABI,
         functionName: "setProfile",
-        args: [name, "", ""],
+        args: [name, avatarUri, bio],
       });
 
-            // chainId is REQUIRED here. Without it useFarcasterContext sends
+      // chainId is REQUIRED here. Without it useFarcasterContext sends
       // eth_sendTransaction with chainId: undefined, so the Farcaster
       // wallet stays on whatever chain it is already on — Base by default
       // — and offers to sign a Monad transaction there. Confirming does
       // nothing: the contract does not exist on that chain.
       await switchChain({ chainId: activeChain.id });
-      await sendTransaction({ to: registry, data, value: "0x0", chainId: activeChain.id });
+      await sendTransaction({
+        to: registry,
+        data,
+        value: "0x0",
+        chainId: activeChain.id,
+      });
       setStatus(`Your artist name is now "${name}".`);
       await load();
     } catch (e) {
       setError((e as Error)?.message ?? "Could not set the name.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  /**
+   * Pin a picture and store its CID.
+   *
+   * Written as ipfs://<cid>, never a gateway URL: 256 bytes is the on-chain cap
+   * and a gateway hostname wastes it, but more importantly the CID keeps working
+   * if the gateway changes. The app only renders IPFS content it recognises --
+   * see resolveAvatarUri -- so an arbitrary URL would be stored and then ignored.
+   */
+  const uploadAvatar = async (file: File) => {
+    setUploading(true);
+    setError(null);
+    setStatus(null);
+    try {
+      if (!current) {
+        throw new Error("Set your artist name first, then add a picture.");
+      }
+      if (!file.type.startsWith("image/")) {
+        throw new Error("That file is not an image.");
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("Keep it under 5MB.");
+      }
+
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/upload-pinata", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok || !data?.ipfsHash) {
+        throw new Error(data?.error || "Could not upload the picture.");
+      }
+
+      const uri = avatarUriForCid(data.ipfsHash);
+      const dataHex = encodeFunctionData({
+        abi: PROFILE_ABI,
+        functionName: "setProfile",
+        args: [current, uri, bio],
+      });
+      await switchChain({ chainId: activeChain.id });
+      await sendTransaction({
+        to: registry,
+        data: dataHex,
+        value: "0x0",
+        chainId: activeChain.id,
+      });
+      setAvatarUri(uri);
+      setStatus("Picture updated.");
+      await load();
+    } catch (e) {
+      setError((e as Error)?.message ?? "Could not set the picture.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -192,6 +272,43 @@ export function DisplayNameSetting({
 
   return (
     <div className={`p-4 rounded-xl border ${card} space-y-3`}>
+      {/* Fixed 48px, capped by width/height attributes as well as classes, so a
+          large upload cannot take over the page the way Ganado's 1024px cover
+          did when Tailwind was emitting nothing. */}
+      <div className="flex items-center gap-3">
+        <ProfileAvatar uri={avatarUri} name={current ?? draft} />
+        <div className="min-w-0">
+          <p className="text-xs font-bold">Profile picture</p>
+          <label
+            className={`text-xs underline cursor-pointer ${
+              current ? "text-cyan-500" : "text-gray-500 cursor-not-allowed"
+            }`}
+          >
+            {uploading
+              ? "Uploading…"
+              : avatarUri
+                ? "Change picture"
+                : "Add a picture"}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploading || !current}
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadAvatar(f);
+                e.currentTarget.value = "";
+              }}
+            />
+          </label>
+          {!current && (
+            <p className={`text-[11px] ${muted}`}>
+              Set a name first — the registry stores them together.
+            </p>
+          )}
+        </div>
+      </div>
+
       <div>
         <h3 className="text-sm font-bold">Artist name</h3>
         {onFarcaster ? (

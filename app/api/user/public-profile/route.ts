@@ -99,24 +99,37 @@ async function lookupRegisteredName(name: string) {
       args: [name],
     })) as string;
     if (!owner || owner === '0x0000000000000000000000000000000000000000') return null;
-    // Read the name back so the profile carries its registered casing rather
-    // than whatever the searcher typed.
-    const canonical = (await client.readContract({
+    // getProfile rather than displayNameOf: it carries the registered casing AND
+    // the avatar the artist set, which is the only profile picture a wallet-only
+    // user has. viem decodes a named struct as an object.
+    const profile = (await client.readContract({
       address: registry,
-      abi: parseAbi(['function displayNameOf(address owner) view returns (string)']),
-      functionName: 'displayNameOf',
+      abi: parseAbi([
+        'function getProfile(address owner) view returns ((string displayName, string avatarURI, string bio, uint64 updatedAt))',
+      ]),
+      functionName: 'getProfile',
       args: [owner as `0x${string}`],
-    })) as string;
+    })) as {
+      displayName: string;
+      avatarURI: string;
+      bio: string;
+      updatedAt: bigint;
+    };
+    const canonical = profile?.displayName;
     return {
       fid: null,
       username: null,
       display_name: canonical || name,
-      pfp_url: null,
+      // Only rendered if it passes resolveAvatarUri on the client: the on-chain
+      // value is an arbitrary string set by whoever owns the address.
+      pfp_url: profile?.avatarURI || null,
+      avatar_uri: profile?.avatarURI || null,
       follower_count: 0,
       following_count: 0,
       verifications: [owner],
       verified_addresses: { eth_addresses: [owner] },
       custody_address: owner,
+      profile: { bio: { text: profile?.bio || '' } },
       registeredOnchain: true,
     };
   } catch (error) {
