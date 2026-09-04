@@ -25,7 +25,12 @@ export async function POST(req: NextRequest) {
       // Play recording / Top artist fields
       params, // Additional params object for play_recorded and top_artist
       // Radio skip random fields
-      _userAddress, // User's wallet address (used when there is no fid)
+      // Accept BOTH spellings. The underscore was a "deliberately unused"
+      // marker from when this route required an fid; the skip caller has always
+      // sent `userAddress`, so the moment the field started mattering, skips
+      // stopped casting while queues worked.
+      _userAddress,
+      userAddress: userAddressPlain,
     } = await req.json();
 
     console.log("🎵 [CAST] Posting cast:", {
@@ -44,7 +49,8 @@ export async function POST(req: NextRequest) {
     // from wallet-only users vanished.
     //
     // Something to attribute is still required: either an fid or an address.
-    if (!fid && !_userAddress) {
+    const actorAddress = _userAddress || userAddressPlain;
+    if (!fid && !actorAddress) {
       console.log("ℹ️ Neither fid nor address provided, skipping cast");
       return NextResponse.json({
         success: true,
@@ -72,9 +78,9 @@ export async function POST(req: NextRequest) {
           // Fall through to the address-based name.
         }
       }
-      if (_userAddress) {
+      if (actorAddress) {
         const { castArtistLabel } = await import("@/lib/cast-artist-label");
-        return castArtistLabel(_userAddress, fid);
+        return castArtistLabel(actorAddress, fid);
       }
       return fallback;
     };

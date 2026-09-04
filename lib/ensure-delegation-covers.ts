@@ -29,8 +29,15 @@ export async function ensureDelegationCovers(
   fid?: number,
   /** Called just before a wallet prompt, so the UI can say what is coming. */
   notify?: (message: string) => void,
-  /** A live radio session proves ownership without another wallet prompt. */
-  radioSessionToken?: string | null,
+  /**
+   * Fetches a live radio session, which proves ownership without a wallet
+   * prompt. A FUNCTION, not a value: passing `await getSession()` at the call
+   * site runs it eagerly, so a session (and its signature prompt) was obtained
+   * even when a delegation already existed and nothing was needed. That is what
+   * left "Uploading your voice note" spinning against a pile of nonces that
+   * were generated and never consumed.
+   */
+  getRadioSession?: () => Promise<string | null>,
 ): Promise<void> {
   let holds = false;
   try {
@@ -68,6 +75,7 @@ export async function ensureDelegationCovers(
   // SURVIVES: the browser can discard this page while the wallet is open, which
   // is what has been killing the signature path on mobile. If one exists, use
   // it and never raise a prompt at all.
+  const radioSessionToken = getRadioSession ? await getRadioSession() : null;
   if (radioSessionToken) {
     const viaSession = await fetch("/api/create-delegation", {
       method: "POST",
