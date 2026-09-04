@@ -37,7 +37,38 @@ export interface WalletAuthOptions {
  * Returns {} when the wallet declines or anything goes wrong, so callers can
  * attach these opportunistically without a rejected prompt breaking the request.
  */
-export async function walletAuthHeaders({
+/**
+ * Only one wallet signature at a time.
+ *
+ * Two requests overlapping is not a hypothetical: on 2026-09-03 the radio
+ * asked for `radio-listen` and `create-delegation` three seconds apart, and the
+ * server logs show one nonce consumed and the other never used. A wallet --
+ * MetaMask on a phone especially -- surfaces a single prompt; the second is
+ * dropped, silently. The user approves what they can see, and the request they
+ * never saw fails with no explanation.
+ *
+ * Serialising costs a little latency when two requests genuinely coincide, and
+ * removes a failure that looks exactly like a broken button.
+ */
+let signatureQueue: Promise<unknown> = Promise.resolve();
+
+function queueSignature<T>(task: () => Promise<T>): Promise<T> {
+  const run = signatureQueue.then(task, task);
+  // Keep the chain alive even if this task rejects.
+  signatureQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+export async function walletAuthHeaders(
+  options: WalletAuthOptions,
+): Promise<Record<string, string>> {
+  return queueSignature(() => buildWalletAuthHeaders(options));
+}
+
+async function buildWalletAuthHeaders({
   address,
   signMessage,
   context,
