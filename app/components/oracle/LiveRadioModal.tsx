@@ -3,7 +3,31 @@
 import { authHeaders } from "@/lib/quick-auth-client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Radio, Music2, Mic, Play, Pause, SkipForward, Volume2, VolumeX, Loader2, Coins, Gift, Clock, TrendingUp, Flame, Plus, Check, Minus, Trophy, History, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import {
+  X,
+  Radio,
+  Music2,
+  Mic,
+  Play,
+  Pause,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  Loader2,
+  Coins,
+  Gift,
+  Clock,
+  TrendingUp,
+  Flame,
+  Plus,
+  Check,
+  Minus,
+  Trophy,
+  History,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+} from "lucide-react";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { useActionAuth } from "@/app/hooks/useActionAuth";
 import { RADIO_SESSION_CONTEXT } from "@/lib/radio-session-context";
@@ -155,7 +179,9 @@ export function LiveRadioModal({
   const [loadingSongs, setLoadingSongs] = useState(false);
   const [artistNames, setArtistNames] = useState<Record<string, string>>({}); // FID -> @username
   /** address -> display name, resolved server-side by /api/catalogue. */
-  const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({});
+  const [resolvedNames, setResolvedNames] = useState<Record<string, string>>(
+    {},
+  );
 
   /**
    * What to call an artist.
@@ -1016,7 +1042,11 @@ export function LiveRadioModal({
     try {
       // Check for MediaRecorder support
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Audio recording not supported on this device");
+        // navigator.mediaDevices is undefined on an insecure origin, so this
+        // also covers "works on the deployed site, dead over plain http".
+        throw new Error(
+          "Recording is not available in this browser. It needs a secure (https) page and microphone support.",
+        );
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1086,14 +1116,19 @@ export function LiveRadioModal({
       console.error("[LiveRadio] Failed to start recording:", error);
       setRecordingStatus("idle");
       setVoiceNoteType(null);
-      // Show error in UI (alert doesn't work in Farcaster)
+      // This computed a good message and then only logged it, so a failed
+      // getUserMedia -- a denied microphone, most often -- reset the state to
+      // idle and showed the user nothing at all. The button appeared dead.
       const errorMessage =
         error.name === "NotAllowedError"
-          ? "Microphone access denied. Please allow microphone permissions."
+          ? "Microphone access denied. Allow microphone access for this site in your browser settings, then try again."
           : error.name === "NotFoundError"
             ? "No microphone found on this device."
-            : error.message || "Could not start recording. Please try again.";
+            : error.name === "NotReadableError"
+              ? "Your microphone is in use by another app. Close it and try again."
+              : error.message || "Could not start recording. Please try again.";
       console.error("[LiveRadio] Recording error:", errorMessage);
+      showToast(errorMessage, "error");
     }
   };
 
