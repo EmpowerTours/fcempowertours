@@ -29,6 +29,8 @@ export async function ensureDelegationCovers(
   fid?: number,
   /** Called just before a wallet prompt, so the UI can say what is coming. */
   notify?: (message: string) => void,
+  /** A live radio session proves ownership without another wallet prompt. */
+  radioSessionToken?: string | null,
 ): Promise<void> {
   let holds = false;
   try {
@@ -61,6 +63,30 @@ export async function ensureDelegationCovers(
     authFor("create-delegation"),
     "The wallet did not respond. Open your wallet app, then try again.",
   );
+
+  // A radio session is already proof of ownership, and it is proof that
+  // SURVIVES: the browser can discard this page while the wallet is open, which
+  // is what has been killing the signature path on mobile. If one exists, use
+  // it and never raise a prompt at all.
+  if (radioSessionToken) {
+    const viaSession = await fetch("/api/create-delegation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-radio-session": radioSessionToken,
+      },
+      body: JSON.stringify({
+        userAddress,
+        authMethod: "wallet",
+        fid,
+        durationHours: 24,
+        maxTransactions: 100,
+        permissions: [...DELEGATION_PERMISSIONS],
+      }),
+    });
+    if (viaSession.ok) return;
+    // Fall through to the signature path rather than failing outright.
+  }
 
   // walletAuthHeaders swallows EVERY signature failure -- rejected, dismissed,
   // never delivered -- and returns {}. Posting that yields a 401 and a vague

@@ -233,7 +233,49 @@ export async function POST(req: NextRequest) {
     // prompting for a signature on every single action.
     let ownershipProven = false;
 
-    if (authMethod === "farcaster") {
+    /**
+     * A live radio session is proof of ownership, and on mobile it is often the
+     * ONLY proof obtainable.
+     *
+     * A session is issued only after verifyWalletAuth succeeded for this
+     * address, so it asserts exactly what a fresh signature would. It matters
+     * because on a phone the wallet is a separate app: switching to it can have
+     * the browser discard the page, and the awaited signature returns to
+     * something that no longer exists. The server logs show this precisely --
+     * nonce after nonce generated and never consumed, and no POST arriving --
+     * while radio-listen, requested at a moment that does not require the
+     * switch, succeeds.
+     *
+     * Same principle as letting bot-command accept a proven delegation instead
+     * of demanding its own signature: do not ask again for something already
+     * proven.
+     *
+     * Deliberately narrowed. A session token is a bearer credential, so it
+     * grants ONLY the radio permissions -- not minting, not the passport, not
+     * anything that spends at passport scale. Ownership is the same; the
+     * authority is not.
+     */
+    let sessionLimitedToRadio = false;
+    if (!ownershipProven) {
+      const { RADIO_SESSION_HEADER, resolveRadioSession } = await import(
+        "@/lib/radio-session"
+      );
+      const sessionAddress = await resolveRadioSession(
+        req.headers.get(RADIO_SESSION_HEADER),
+      );
+      if (
+        sessionAddress &&
+        sessionAddress === String(userAddress).toLowerCase()
+      ) {
+        ownershipProven = true;
+        sessionLimitedToRadio = true;
+        console.log(
+          `[Delegation] ✅ Ownership proven by live radio session: ${userAddress}`,
+        );
+      }
+    }
+
+    if (!ownershipProven && authMethod === "farcaster") {
       const authz = await authorizeUserAddress(
         req,
         userAddress,
@@ -294,7 +336,7 @@ export async function POST(req: NextRequest) {
     console.log("[Delegation] Creating for:", userAddress);
 
     // SECURITY: Build and verify signed message (skip for Farcaster-authenticated requests)
-    if (authMethod !== "farcaster") {
+    if (!ownershipProven && authMethod !== "farcaster") {
       const expectedMessage = buildDelegationMessage(
         userAddress,
         timestamp,
@@ -326,6 +368,23 @@ export async function POST(req: NextRequest) {
     // SECURITY: Filter and validate permissions
     let finalPermissions =
       permissions.length > 0 ? permissions : [...DEFAULT_PERMISSIONS];
+
+    // A radio session is a bearer token, so it buys only the radio. Ownership
+    // is proven to the same standard as a signature; the AUTHORITY is not the
+    // same, and a stolen session must not become a passport mint.
+    if (sessionLimitedToRadio) {
+      const RADIO_ONLY = [
+        "radio_skip_random",
+        "radio_voice_note",
+        "radio_queue_song",
+        "wrap_mon",
+      ];
+      finalPermissions = finalPermissions.filter((p: string) =>
+        RADIO_ONLY.includes(p),
+      );
+      if (finalPermissions.length === 0) finalPermissions = [...RADIO_ONLY];
+      console.log("[Delegation] Session-proven: limited to radio permissions");
+    }
 
     // Remove any high-risk permissions unless explicitly requested with signature
     const requestedHighRisk = finalPermissions.filter((p: string) =>

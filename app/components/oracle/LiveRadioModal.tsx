@@ -976,6 +976,7 @@ export function LiveRadioModal({
         authFor,
         user?.fid,
         (m) => showToast(m, "success"),
+        await ensureRadioSession(),
       );
 
       const paymentRes = await fetch("/api/execute-delegated", {
@@ -1175,6 +1176,7 @@ export function LiveRadioModal({
         authFor,
         user?.fid,
         (m) => showToast(m, "success"),
+        await ensureRadioSession(),
       );
 
       const paymentRes = await fetch("/api/execute-delegated", {
@@ -1297,6 +1299,10 @@ export function LiveRadioModal({
         "radio_skip_random",
         authFor,
         user?.fid,
+        (m) => showToast(m, "success"),
+        // The session already proved ownership, and unlike a signature it
+        // survives the browser discarding this page while the wallet is open.
+        await ensureRadioSession(),
       );
       setRadioReady(true);
       showToast(
@@ -1370,6 +1376,7 @@ export function LiveRadioModal({
         authFor,
         user?.fid,
         (m) => showToast(m, "success"),
+        await ensureRadioSession(),
       );
 
       const response = await fetch("/api/execute-delegated", {
