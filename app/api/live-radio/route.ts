@@ -755,14 +755,19 @@ export async function POST(req: NextRequest) {
         voiceNotes: parsedNotes,
       });
 
-      // Post to Farcaster via bot (non-blocking)
-      if (userFid) {
+      // Post to Farcaster via bot (non-blocking).
+      // Not gated on an fid: cast-nft names a wallet-only user from their
+      // registered artist name, and gating here made the bot silent for most
+      // real users. The address has to be SENT for that to work -- this call
+      // omitted it, so un-gating alone would have cast "Someone".
+      {
         fetch(`${APP_URL}/api/cast-nft`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             type: "voice_note",
             fid: userFid,
+            userAddress,
             txHash,
             params: {
               noteType: "shoutout",
@@ -842,13 +847,14 @@ export async function POST(req: NextRequest) {
       });
 
       // Post to Farcaster via bot (non-blocking)
-      if (userFid) {
+      {
         fetch(`${APP_URL}/api/cast-nft`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             type: "voice_note",
             fid: userFid,
+            userAddress,
             txHash,
             params: {
               noteType: "ad",

@@ -115,7 +115,10 @@ function stubClient(opts: {
           // cancel out an off-by-one and make the check below unable to fail.
           const id = Number(args[0]);
           if (opts.licenceOwners && id in opts.licenceOwners) {
-            return { status: "success" as const, result: opts.licenceOwners[id] };
+            return {
+              status: "success" as const,
+              result: opts.licenceOwners[id],
+            };
           }
           return (opts.legacyLicenceIds ?? []).includes(id)
             ? { status: "success" as const, result: "0xowner" }
@@ -283,7 +286,11 @@ const LICENCES = {
   1000002: { masterTokenId: 5, mintedAt: 1785704159, isCollector: true },
   1000003: { masterTokenId: 2, mintedAt: 1785804159, isCollector: false },
 };
-const LICENCE_OWNERS = { 1000001: "0xd6B6", 1000002: "0xaaaa", 1000003: "0xbbbb" };
+const LICENCE_OWNERS = {
+  1000001: "0xd6B6",
+  1000002: "0xaaaa",
+  1000003: "0xbbbb",
+};
 
 {
   const c = stubClient({
@@ -307,9 +314,11 @@ const LICENCE_OWNERS = { 1000001: "0xd6B6", 1000002: "0xaaaa", 1000003: "0xbbbb"
     recent.map((l) => l.licensee),
     ["0xbbbb", "0xaaaa", "0xd6B6"],
   );
-  check("newest first", recent.map((l) => l.mintedAt), [
-    1785804159, 1785704159, 1785604159,
-  ]);
+  check(
+    "newest first",
+    recent.map((l) => l.mintedAt),
+    [1785804159, 1785704159, 1785604159],
+  );
   check(
     "the collector flag survives per licence",
     recent.map((l) => l.isCollector),
@@ -344,7 +353,11 @@ const LICENCE_OWNERS = { 1000001: "0xd6B6", 1000002: "0xaaaa", 1000003: "0xbbbb"
 
 {
   const c = stubClient({ totalLicenses: 0n });
-  check("no licences is empty, not a phantom row", await getRecentLicenses(c, "0xregistry", 10), []);
+  check(
+    "no licences is empty, not a phantom row",
+    await getRecentLicenses(c, "0xregistry", 10),
+    [],
+  );
 }
 
 {

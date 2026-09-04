@@ -13,7 +13,7 @@
  *
  * Run: npx tsx tools/verify-errors-reach-the-user.ts
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 
@@ -27,6 +27,19 @@ function walk(dir: string, out: string[] = []): string[] {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
     else if (/\.tsx$/.test(entry)) out.push(full);
+  }
+  return out;
+}
+
+// Scans app/ AND components/. Components live in BOTH places in this repo, and
+// a check that only walked app/ missed "Pending TOURS" in
+// components/radio/ListenerRewardsClaim.tsx for a whole evening while I
+// repeatedly reported the surface clean.
+function walkRoots(root: string): string[] {
+  const out: string[] = [];
+  for (const dir of ["app", "components"]) {
+    const full = join(root, dir);
+    if (existsSync(full)) walk(full, out);
   }
   return out;
 }
@@ -48,7 +61,7 @@ function blockAt(code: string, open: number): string {
 const SHOWN =
   /\b(showToast|setError|setErrorMessage|setStatus|setSuccess|toast\.|alert\(|setGenerationError|setSearchError|setRecordingError)/;
 
-for (const file of walk(join(root, "app"))) {
+for (const file of walkRoots(root)) {
   const src = readFileSync(file, "utf8");
   // A server route cannot show a toast; this rule is about screens.
   if (!/^\s*["']use client["']/m.test(src)) continue;

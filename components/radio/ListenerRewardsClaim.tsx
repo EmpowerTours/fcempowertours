@@ -375,12 +375,11 @@ export default function ListenerRewardsClaim({
             {parseFloat(data?.wmon.totalClaimed || "0").toFixed(4)}
           </span>
         </div>
-        <div style={styles.stat}>
-          <span style={styles.statLabel}>Pending TOURS</span>
-          <span style={styles.statValueCyan}>
-            {data?.tours.pendingRewards?.toFixed(1) || "0"} TOURS
-          </span>
-        </div>
+        {/* "Pending TOURS" removed on 2026-09-03. The reward manager holds
+            1,000,000 TOURS but authorizedDistributors(V6) is false on chain,
+            so claimToursReward reverts -- this counted up a balance the
+            contract will not pay. The listener reward that IS real settles in
+            WMON, and is shown above. */}
         <div style={styles.stat}>
           <span style={styles.statLabel}>Songs Listened</span>
           <span style={styles.statValue}>

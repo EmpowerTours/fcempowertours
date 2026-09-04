@@ -18,7 +18,7 @@
  *
  * Run: npx tsx tools/verify-avatar-size-is-css-independent.ts
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 
@@ -71,7 +71,20 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-for (const file of walk(join(root, "app"))) {
+// Scans app/ AND components/. Components live in BOTH places in this repo, and
+// a check that only walked app/ missed "Pending TOURS" in
+// components/radio/ListenerRewardsClaim.tsx for a whole evening while I
+// repeatedly reported the surface clean.
+function walkRoots(root: string): string[] {
+  const out: string[] = [];
+  for (const dir of ["app", "components"]) {
+    const full = join(root, dir);
+    if (existsSync(full)) walk(full, out);
+  }
+  return out;
+}
+
+for (const file of walkRoots(root)) {
   const rel = relative(root, file);
   if (rel === AVATAR_COMPONENT) continue;
 

@@ -31,7 +31,7 @@
  * browser fails this the day it is written.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 
@@ -73,7 +73,20 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const clientFiles = walk(join(root, "app"))
+// Scans app/ AND components/. Components live in BOTH places in this repo, and
+// a check that only walked app/ missed "Pending TOURS" in
+// components/radio/ListenerRewardsClaim.tsx for a whole evening while I
+// repeatedly reported the surface clean.
+function walkRoots(root: string): string[] {
+  const out: string[] = [];
+  for (const dir of ["app", "components"]) {
+    const full = join(root, dir);
+    if (existsSync(full)) walk(full, out);
+  }
+  return out;
+}
+
+const clientFiles = walkRoots(root)
   .concat(walk(join(root, "lib")))
   // API routes are the server side of this; they are not the caller.
   .filter((f) => !f.includes(`${join("app", "api")}`));
@@ -165,7 +178,9 @@ if (/const shortArtist = `\$\{userAddress\.slice/.test(execRoute)) {
 // mint_music branch did; mint_collector did not, so a correctly signed collector
 // mint had its signature stripped in transit and was refused as "mintRequest
 // must be an object" — the same asymmetry as the client, on the other side.
-const botCmd = strip(readFileSync(join(root, "app/api/bot-command/route.ts"), "utf8"));
+const botCmd = strip(
+  readFileSync(join(root, "app/api/bot-command/route.ts"), "utf8"),
+);
 // Structural, not a count: `mintRequest: mintRequestFromRequest` also appears in
 // the destructuring at the top of the file, so counting occurrences let a branch
 // drop its relay and still pass. Check each dispatch's own params block.

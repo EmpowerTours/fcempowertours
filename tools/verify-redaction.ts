@@ -200,7 +200,8 @@ const ROOT = new URL("..", import.meta.url).pathname;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
-    if (entry === "node_modules" || entry === ".next" || entry.startsWith(".")) continue;
+    if (entry === "node_modules" || entry === ".next" || entry.startsWith("."))
+      continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
     else if (entry.endsWith(".ts") || entry.endsWith(".tsx")) out.push(full);
@@ -216,7 +217,8 @@ for (const dir of ["lib", "app"]) {
 
     // A console.* call whose argument object includes a bare `cause:` — the exact shape that
     // leaked. `redact({... cause ...})` is fine; the marker is redact( appearing first.
-    const re = /console\.(?:error|log|warn|info)\(([\s\S]{0,400}?)\n\s*\}\s*\)/g;
+    const re =
+      /console\.(?:error|log|warn|info)\(([\s\S]{0,400}?)\n\s*\}\s*\)/g;
     for (const m of src.matchAll(re)) {
       const body = m[1];
       if (!/\bcause\s*:/.test(body)) continue;

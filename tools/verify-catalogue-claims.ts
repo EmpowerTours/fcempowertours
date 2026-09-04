@@ -33,7 +33,7 @@
  * flagging it would push somebody to reword an accurate credit.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 
@@ -81,7 +81,20 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const files = [...walk(join(root, "app")), ...walk(join(root, "lib"))].filter(
+// Scans app/ AND components/. Components live in BOTH places in this repo, and
+// a check that only walked app/ missed "Pending TOURS" in
+// components/radio/ListenerRewardsClaim.tsx for a whole evening while I
+// repeatedly reported the surface clean.
+function walkRoots(root: string): string[] {
+  const out: string[] = [];
+  for (const dir of ["app", "components"]) {
+    const full = join(root, dir);
+    if (existsSync(full)) walk(full, out);
+  }
+  return out;
+}
+
+const files = [...walkRoots(root), ...walk(join(root, "lib"))].filter(
   // This file names every banned phrase in order to ban it.
   (f) => !f.endsWith("verify-catalogue-claims.ts"),
 );

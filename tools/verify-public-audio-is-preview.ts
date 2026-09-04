@@ -26,7 +26,10 @@ const strip = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 // Surfaces anyone can reach without a licence.
-for (const surface of ["app/discover/page.tsx", "app/artist/[address]/page.tsx"]) {
+for (const surface of [
+  "app/discover/page.tsx",
+  "app/artist/[address]/page.tsx",
+]) {
   const src = strip(readFileSync(join(root, surface), "utf8"));
   checks++;
   if (/animation_url:\s*t\.audioUrl/.test(src)) {
@@ -37,14 +40,14 @@ for (const surface of ["app/discover/page.tsx", "app/artist/[address]/page.tsx"]
   }
   checks++;
   if (!/animation_url:\s*t\.previewUrl/.test(src)) {
-    failures.push(
-      `${surface} does not bind previewUrl as its playable audio`,
-    );
+    failures.push(`${surface} does not bind previewUrl as its playable audio`);
   }
 }
 
 // The split itself has to survive: one field means everyone gets the full song.
-const cat = strip(readFileSync(join(root, "lib/catalogue-resolved.ts"), "utf8"));
+const cat = strip(
+  readFileSync(join(root, "lib/catalogue-resolved.ts"), "utf8"),
+);
 checks++;
 if (!/previewUrl:\s*rawPreview/.test(cat)) {
   failures.push(

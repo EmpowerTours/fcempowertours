@@ -88,7 +88,20 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-for (const file of walk(join(root, "app"))) {
+// Scans app/ AND components/. Components live in BOTH places in this repo, and
+// a check that only walked app/ missed "Pending TOURS" in
+// components/radio/ListenerRewardsClaim.tsx for a whole evening while I
+// repeatedly reported the surface clean.
+function walkRoots(root: string): string[] {
+  const out: string[] = [];
+  for (const dir of ["app", "components"]) {
+    const full = join(root, dir);
+    if (existsSync(full)) walk(full, out);
+  }
+  return out;
+}
+
+for (const file of walkRoots(root)) {
   const rel = relative(root, file);
   if (rel.startsWith("app/api/")) continue; // server routes, not upload callers
 

@@ -14,9 +14,9 @@
  *
  * Run: npx tsx tools/verify-casts-name-wallet-only-users.ts
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const failures: string[] = [];
@@ -59,21 +59,47 @@ for (const m of fidOnly) {
   );
 }
 
-// 4. Callers must not re-impose the gate the route just dropped.
-const exec = readFileSync(
-  join(root, "app/api/execute-delegated/route.ts"),
-  "utf8",
-)
-  .replace(/\/\*[\s\S]*?\*\//g, " ")
-  .replace(/(^|[^:])\/\/.*$/gm, "$1");
-checks++;
-if (
-  /if\s*\(\s*fid\s*\)\s*\{\s*fetch\(`\$\{APP_URL\}\/api\/cast-nft`/.test(exec)
-) {
-  failures.push(
-    "app/api/execute-delegated/route.ts gates a cast-nft call on `if (fid)`, " +
-      "which re-creates the exclusion at the call site",
-  );
+// 4. NO caller may re-impose the gate, and every caller must send an address.
+//
+// Checking two known files was not enough: /api/live-radio held a THIRD gate
+// (`if (userFid)`) on the voice-note cast, which is why shoutouts never posted
+// while skips and queues did. This walks every route instead of naming files.
+function walkApiRoutes(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walkApiRoutes(full, out);
+    else if (/^route\.tsx?$/.test(entry)) out.push(full);
+  }
+  return out;
+}
+
+for (const file of walkApiRoutes(join(root, "app/api"))) {
+  const rel = relative(root, file);
+  if (rel === ROUTE) continue; // the cast route itself, checked above
+  const caller = readFileSync(file, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+  if (!/\/api\/cast-nft/.test(caller)) continue;
+
+  checks++;
+  if (
+    /if\s*\(\s*(fid|userFid)\s*\)\s*\{[\s\S]{0,140}?\/api\/cast-nft/.test(
+      caller,
+    )
+  ) {
+    failures.push(
+      `${rel} gates a cast-nft call on an fid, re-creating the exclusion at ` +
+        "the call site",
+    );
+  }
+
+  checks++;
+  if (!/_?userAddress/.test(caller)) {
+    failures.push(
+      `${rel} posts to cast-nft without sending an address, so a user with no ` +
+        'fid is cast as "Someone"',
+    );
+  }
 }
 
 if (failures.length > 0) {
