@@ -1,6 +1,9 @@
 "use client";
 
-import { delegationCovers } from "@/lib/delegation-covered";
+import {
+  DELEGATION_PERMISSIONS,
+  delegationCovers,
+} from "@/lib/delegation-covered";
 import { ensureSafeRegistered } from "@/lib/ensure-safe-registered";
 import { describeMintFailure } from "@/lib/mint-failure";
 import { authHeaders } from "@/lib/quick-auth-client";
@@ -127,14 +130,12 @@ export function PassportMintModal({
             fid,
             durationHours: 24,
             maxTransactions: 100,
-            permissions: [
-              "mint_passport",
-              "wrap_mon",
-              "mint_music",
-              "swap_mon_for_tours",
-              "send_tours",
-              "buy_music",
-            ],
+            // The shared list, not a copy. Three places had to agree -- this
+            // literal, DELEGATION_PERMISSIONS, and create-delegation's
+            // DEFAULT_PERMISSIONS -- and they had drifted: send_tours was
+            // covered here but is HIGH_RISK and never granted, so the client
+            // skipped the prompt for a permission the delegation could not hold.
+            permissions: [...DELEGATION_PERMISSIONS],
           }),
         });
 

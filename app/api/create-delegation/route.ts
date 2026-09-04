@@ -32,8 +32,12 @@ import { authorizeUserAddress } from "@/lib/quick-auth";
 // artist's wallet now, so no delegated permission is involved.
 const DEFAULT_PERMISSIONS = [
   "mint_passport",
+  "wrap_mon",
   "mint_music",
   "buy_music",
+  "radio_skip_random",
+  "radio_voice_note",
+  "radio_queue_song",
   "stake_music",
   "unstake_music",
   "swap_mon_for_tours",

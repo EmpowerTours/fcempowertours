@@ -11,8 +11,25 @@ export const DELEGATION_PERMISSIONS = [
   "wrap_mon",
   "mint_music",
   "swap_mon_for_tours",
-  "send_tours",
+  // send_tours is NOT here on purpose. create-delegation classifies it
+  // HIGH_RISK and never grants it by default, so listing it made the client
+  // skip the wallet prompt for a permission the delegation does not hold --
+  // a 401 with nothing to click, which is the exact drift this file warns
+  // about. A transfer should cost a signature anyway.
   "buy_music",
+  // Added 2026-09-03. Every radio action asked for a fresh wallet signature on
+  // every press, because none was listed here -- so pressing Skip Random opened
+  // MetaMask with a message to sign and nothing to approve, which reads as a
+  // broken button.
+  //
+  // Not a meaningful broadening: skipping costs 1 MON, a shoutout 0.5, an ad 2,
+  // against a list that already authorises mint_passport at 150 WMON and
+  // buy_music at whatever a licence costs. The bound that matters is the
+  // delegation's own -- 24 hours, a capped transaction count, and a wallet
+  // signature to create it -- not the length of this list.
+  "radio_skip_random",
+  "radio_voice_note",
+  "radio_queue_song",
 ] as const;
 
 /**

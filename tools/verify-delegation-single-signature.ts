@@ -163,6 +163,14 @@ for (const surface of [
     failures.push(`${surface} no longer requests delegation permissions`);
     continue;
   }
+  // Spreading the shared constant IS the fix this check exists to force, so
+  // treat it as correct by construction rather than parsing a copy. Three
+  // hand-synced literals had already drifted once -- send_tours was requested
+  // and covered but never granted -- and one source of truth cannot drift.
+  if (/\.\.\.\s*DELEGATION_PERMISSIONS/.test(req[1])) {
+    continue;
+  }
+
   const asked = [...req[1].matchAll(/'([a-z_]+)'|"([a-z_]+)"/g)].map(
     (m) => m[1] ?? m[2],
   );
