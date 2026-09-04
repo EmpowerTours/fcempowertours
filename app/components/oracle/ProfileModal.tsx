@@ -667,7 +667,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
 
                   {/* Balances */}
-                  <div className="grid grid-cols-3 gap-2 mb-3">
+                  {/* Two tiles, two columns. Removing TOURS left this as
+                      grid-cols-3 holding two -- the third mismatch of its kind
+                      today. */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="bg-black/30 rounded-lg p-3 text-center">
                       <p className="text-xl font-bold text-white">
                         {parseFloat(safeBalance.monBalance).toFixed(2)}
@@ -680,15 +683,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       </p>
                       <p className="text-xs text-gray-400">WMON</p>
                     </div>
-                    <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-xl font-bold text-green-400">
-                        {(
-                          parseFloat(safeBalance.toursBalance) +
-                          parseFloat(safeBalance.toursWalletBalance)
-                        ).toFixed(0)}
-                      </p>
-                      <p className="text-xs text-gray-400">TOURS</p>
-                    </div>
+                    {/* The TOURS tile was removed on 2026-09-04. Nothing in
+                        this app is priced in TOURS -- licences, mints, the
+                        passport and subscriptions all settle in WMON -- so a
+                        balance here implied a token users were meant to hold
+                        and spend. It also read 101 for a wallet that has never
+                        been able to earn or spend any. */}
                   </div>
 
                   {/* Safe Address */}

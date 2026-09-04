@@ -226,13 +226,18 @@ export const CatalogueMigration: React.FC<Props> = ({
         ],
       });
 
-            // chainId is REQUIRED here. Without it useFarcasterContext sends
+      // chainId is REQUIRED here. Without it useFarcasterContext sends
       // eth_sendTransaction with chainId: undefined, so the Farcaster
       // wallet stays on whatever chain it is already on — Base by default
       // — and offers to sign a Monad transaction there. Confirming does
       // nothing: the contract does not exist on that chain.
       await switchChain({ chainId: activeChain.id });
-      const res = await sendTransaction({ to: sales, data, value: "0x0", chainId: activeChain.id });
+      const res = await sendTransaction({
+        to: sales,
+        data,
+        value: "0x0",
+        chainId: activeChain.id,
+      });
       const hash = res?.transactionHash ?? res?.hash ?? "";
       setDone((d) => ({ ...d, [m.id]: hash }));
       setStatus({ kind: "idle" });
@@ -265,9 +270,16 @@ export const CatalogueMigration: React.FC<Props> = ({
   // migration card to somebody whose catalogue is fully migrated is how the wrong impression
   // started — that the migration had not happened, when it had, under a different key.
   //
-  // Gated on `status.kind !== "loading"` so it does not flash away mid-read, and on there being
-  // legacy tracks at all: a wallet with none has nothing to be told about either.
-  if (status.kind !== "loading" && pending.length === 0) return null;
+  // Hidden while READING too. The loading gate was meant to stop the card
+  // vanishing mid-read; the effect was the opposite -- it flashed in on every
+  // profile load, said "Reading your catalogue...", then disappeared once the
+  // read came back empty. A panel that appears and vanishes reads as something
+  // breaking, especially right after a migration the user just completed.
+  //
+  // An ERROR still shows. A read that failed is not the same as a catalogue
+  // with nothing to move, and silently hiding it would leave somebody
+  // believing they were migrated when nobody checked.
+  if (status.kind !== "error" && pending.length === 0) return null;
   const card = isDarkMode
     ? "bg-gray-800/50 border-gray-700"
     : "bg-gray-50 border-gray-200";
