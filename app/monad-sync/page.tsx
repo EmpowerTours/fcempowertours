@@ -1,20 +1,21 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useFarcasterContext } from '@/app/hooks/useFarcasterContext';
-import PageTransition from '@/app/components/animations/PageTransition';
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import PageTransition from "@/app/components/animations/PageTransition";
 
 // Quiz questions with exact scoring from spec
 const QUIZ_QUESTIONS = [
   {
     id: 1,
-    question: "You open Farcaster first thing in the morning. What hits you first?",
+    question:
+      "You open Farcaster first thing in the morning. What hits you first?",
     answers: [
       { text: "Overwhelming noise, need coffee", score: -8 },
       { text: "Vibes and aesthetics", score: 4 },
-      { text: "Patterns and signal immediately", score: 12 }
-    ]
+      { text: "Patterns and signal immediately", score: 12 },
+    ],
   },
   {
     id: 2,
@@ -22,8 +23,8 @@ const QUIZ_QUESTIONS = [
     answers: [
       { text: "Crushed for days", score: -10 },
       { text: "Annoyed but laugh", score: 6 },
-      { text: "Instantly analyze why and improve", score: 14 }
-    ]
+      { text: "Instantly analyze why and improve", score: 14 },
+    ],
   },
   {
     id: 3,
@@ -31,8 +32,8 @@ const QUIZ_QUESTIONS = [
     answers: [
       { text: "I don't remember them", score: -12 },
       { text: "Wild and emotional", score: 5 },
-      { text: "Lucid or philosophical", score: 15 }
-    ]
+      { text: "Lucid or philosophical", score: 15 },
+    ],
   },
   {
     id: 4,
@@ -40,8 +41,8 @@ const QUIZ_QUESTIONS = [
     answers: [
       { text: "Scroll memes only", score: -6 },
       { text: "Read the funny parts", score: 3 },
-      { text: "Read every reply to extract truth", score: 13 }
-    ]
+      { text: "Read every reply to extract truth", score: 13 },
+    ],
   },
   {
     id: 5,
@@ -49,8 +50,8 @@ const QUIZ_QUESTIONS = [
     answers: [
       { text: "Shitposts & reactions", score: -5 },
       { text: "Aesthetic vibes & art", score: 7 },
-      { text: "Long threads & systems thinking", score: 16 }
-    ]
+      { text: "Long threads & systems thinking", score: 16 },
+    ],
   },
   {
     id: 6,
@@ -58,8 +59,8 @@ const QUIZ_QUESTIONS = [
     answers: [
       { text: "Never, I double down", score: -15 },
       { text: "Rarely, but possible", score: 8 },
-      { text: "Frequently if new evidence", score: 18 }
-    ]
+      { text: "Frequently if new evidence", score: 18 },
+    ],
   },
   {
     id: 7,
@@ -67,8 +68,8 @@ const QUIZ_QUESTIONS = [
     answers: [
       { text: "Partying with frens", score: 2 },
       { text: "Creating something beautiful", score: 10 },
-      { text: "Understanding a deep truth", score: 20 }
-    ]
+      { text: "Understanding a deep truth", score: 20 },
+    ],
   },
   {
     id: 8,
@@ -76,9 +77,9 @@ const QUIZ_QUESTIONS = [
     answers: [
       { text: "Chaotic and random", score: -20 },
       { text: "Beautiful but mysterious", score: 10 },
-      { text: "A perfectly synchronized harmony", score: 25 }
-    ]
-  }
+      { text: "A perfectly synchronized harmony", score: 25 },
+    ],
+  },
 ];
 
 const _PRICES = {
@@ -86,7 +87,7 @@ const _PRICES = {
   revealMonadMirrorNFT: 10,
   dailyPerceptionSpin: 2,
   harmonySyncWithSomeone: 3,
-  ascendClarityBoost7d: 25
+  ascendClarityBoost7d: 25,
 };
 
 interface MonadTier {
@@ -97,34 +98,41 @@ interface MonadTier {
 }
 
 const MONAD_TIERS: Record<string, MonadTier> = {
-  'Dominant Monad': {
-    name: 'Dominant Monad',
-    emoji: '👑',
-    color: 'from-yellow-400 via-orange-500 to-red-600',
-    description: 'Top 0.5% - The universe bends to your perception'
+  "Dominant Monad": {
+    name: "Dominant Monad",
+    emoji: "👑",
+    color: "from-yellow-400 via-orange-500 to-red-600",
+    description: "Top 0.5% - The universe bends to your perception",
   },
-  'Rational Monad': {
-    name: 'Rational Monad',
-    emoji: '🧠',
-    color: 'from-blue-400 via-purple-500 to-pink-600',
-    description: 'Top 20% - Systems thinker, pattern recognizer'
+  "Rational Monad": {
+    name: "Rational Monad",
+    emoji: "🧠",
+    color: "from-blue-400 via-purple-500 to-pink-600",
+    description: "Top 20% - Systems thinker, pattern recognizer",
   },
-  'Sensitive Monad': {
-    name: 'Sensitive Monad',
-    emoji: '🌸',
-    color: 'from-pink-300 via-rose-400 to-red-400',
-    description: '70% - Emotional, vibes-based, human'
+  "Sensitive Monad": {
+    name: "Sensitive Monad",
+    emoji: "🌸",
+    color: "from-pink-300 via-rose-400 to-red-400",
+    description: "70% - Emotional, vibes-based, human",
   },
-  'Bare Monad': {
-    name: 'Bare Monad',
-    emoji: '🌑',
-    color: 'from-gray-600 via-gray-700 to-gray-900',
-    description: '9.5% - Pure chaos, unrefined perception'
-  }
+  "Bare Monad": {
+    name: "Bare Monad",
+    emoji: "🌑",
+    color: "from-gray-600 via-gray-700 to-gray-900",
+    description: "9.5% - Pure chaos, unrefined perception",
+  },
 };
 
+/** The Mirror NFT contract is not deployed; the mint route refuses without it. */
+const MIRROR_NFT_CONFIGURED = Boolean(process.env.NEXT_PUBLIC_MONAD_MIRROR_NFT);
+
 export default function MonadSyncPage() {
-  const { user, walletAddress, isLoading: contextLoading } = useFarcasterContext();
+  const {
+    user,
+    walletAddress,
+    isLoading: contextLoading,
+  } = useFarcasterContext();
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -146,7 +154,9 @@ export default function MonadSyncPage() {
     if (!user?.fid) return;
 
     try {
-      const response = await fetch(`/api/monad-sync/get-user-monad?fid=${user.fid}`);
+      const response = await fetch(
+        `/api/monad-sync/get-user-monad?fid=${user.fid}`,
+      );
       if (response.ok) {
         const data = await response.json();
         if (data.monad) {
@@ -157,7 +167,7 @@ export default function MonadSyncPage() {
         }
       }
     } catch (error) {
-      console.error('Failed to load monad data:', error);
+      console.error("Failed to load monad data:", error);
     }
   };
 
@@ -185,14 +195,14 @@ export default function MonadSyncPage() {
       });
 
       // Get onchain multipliers from Neynar
-      const response = await fetch('/api/monad-sync/calculate-clarity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/monad-sync/calculate-clarity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fid: user?.fid,
           baseClarity,
-          walletAddress
-        })
+          walletAddress,
+        }),
       });
 
       const data = await response.json();
@@ -201,10 +211,10 @@ export default function MonadSyncPage() {
         setClarityScore(data.clarityScore);
         setMonadTier(data.tier);
       } else {
-        throw new Error(data.error || 'Failed to calculate clarity');
+        throw new Error(data.error || "Failed to calculate clarity");
       }
     } catch (error) {
-      console.error('Clarity calculation failed:', error);
+      console.error("Clarity calculation failed:", error);
       // Fallback to base score only
       let baseClarity = 100;
       quizAnswers.forEach((answerIndex, questionIndex) => {
@@ -217,10 +227,10 @@ export default function MonadSyncPage() {
       setClarityScore(finalClarity);
 
       // Determine tier
-      let tier = 'Bare Monad';
-      if (finalClarity >= 98.5) tier = 'Dominant Monad';
-      else if (finalClarity >= 85) tier = 'Rational Monad';
-      else if (finalClarity >= 40) tier = 'Sensitive Monad';
+      let tier = "Bare Monad";
+      if (finalClarity >= 98.5) tier = "Dominant Monad";
+      else if (finalClarity >= 85) tier = "Rational Monad";
+      else if (finalClarity >= 40) tier = "Sensitive Monad";
       setMonadTier(tier);
     }
 
@@ -231,15 +241,15 @@ export default function MonadSyncPage() {
     if (!walletAddress || !clarityScore || !monadTier) return;
 
     try {
-      const response = await fetch('/api/monad-sync/mint-mirror', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/monad-sync/mint-mirror", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userAddress: walletAddress,
           fid: user?.fid,
           clarityScore,
-          tier: monadTier
-        })
+          tier: monadTier,
+        }),
       });
 
       const data = await response.json();
@@ -251,8 +261,8 @@ export default function MonadSyncPage() {
         alert(`Failed to mint NFT: ${data.error}`);
       }
     } catch (error) {
-      console.error('Mint failed:', error);
-      alert('Failed to mint Monad Mirror NFT');
+      console.error("Mint failed:", error);
+      alert("Failed to mint Monad Mirror NFT");
     }
   };
 
@@ -262,7 +272,10 @@ export default function MonadSyncPage() {
     const tierInfo = MONAD_TIERS[monadTier];
     const text = `Just synced my monad on Monad Blockchain.\n\nI'm a ${monadTier} ${tierInfo.emoji} — ${clarityScore.toFixed(1)}% clarity\n\nOnly true Rational/Dominant souls can sync with me.\n\nTap below to see if we're pre-harmonized:\nhttps://fcempowertours.xyz/monad-sync`;
 
-    window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`, '_blank');
+    window.open(
+      `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`,
+      "_blank",
+    );
   };
 
   const resetQuiz = () => {
@@ -291,7 +304,8 @@ export default function MonadSyncPage() {
           <div className="text-6xl mb-4">⭕</div>
           <h1 className="text-3xl font-bold text-white mb-4">Monad Sync</h1>
           <p className="text-gray-300 mb-6">
-            Discover your eternal monad signature on Farcaster × Monad Blockchain.
+            Discover your eternal monad signature on Farcaster × Monad
+            Blockchain.
           </p>
           <p className="text-sm text-gray-400">
             This Mini App must be opened in Warpcast.
@@ -322,17 +336,25 @@ export default function MonadSyncPage() {
                 {tierInfo.emoji}
               </motion.div>
 
-              <h2 className="text-4xl font-bold text-white mb-2">{monadTier}</h2>
+              <h2 className="text-4xl font-bold text-white mb-2">
+                {monadTier}
+              </h2>
               <p className="text-gray-300 mb-4">{tierInfo.description}</p>
 
-              <div className={`inline-block bg-gradient-to-r ${tierInfo.color} text-white px-8 py-4 rounded-2xl text-6xl font-bold mb-4`}>
+              <div
+                className={`inline-block bg-gradient-to-r ${tierInfo.color} text-white px-8 py-4 rounded-2xl text-6xl font-bold mb-4`}
+              >
                 {clarityScore.toFixed(1)}%
               </div>
 
               <p className="text-sm text-gray-400">Perception Clarity</p>
             </div>
 
-            {!hasRevealedNFT && (
+            {/* The mint route requires NEXT_PUBLIC_MONAD_MIRROR_NFT and
+                refuses without it. Offering the button anyway spends a tap to
+                reach an error, and the price tag makes it look like the user's
+                balance is the problem. Hidden until the contract exists. */}
+            {!hasRevealedNFT && MIRROR_NFT_CONFIGURED && (
               <motion.button
                 onClick={handleRevealNFT}
                 className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg mb-4 hover:from-purple-700 hover:to-pink-700 transition-all"
@@ -345,8 +367,12 @@ export default function MonadSyncPage() {
 
             {hasRevealedNFT && nftTokenId && (
               <div className="mb-4 p-4 bg-green-500/20 border border-green-500/50 rounded-xl text-center">
-                <p className="text-green-300 font-bold">✅ Monad Mirror NFT Minted!</p>
-                <p className="text-sm text-gray-400 mt-1">Token #{nftTokenId}</p>
+                <p className="text-green-300 font-bold">
+                  ✅ Monad Mirror NFT Minted!
+                </p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Token #{nftTokenId}
+                </p>
               </div>
             )}
 
@@ -363,7 +389,7 @@ export default function MonadSyncPage() {
               onClick={resetQuiz}
               className="w-full py-4 bg-gray-800 text-white rounded-xl font-bold hover:bg-gray-700 transition-all"
             >
-              🔄 Retake Quiz (5 TOURS)
+              🔄 Retake Quiz
             </button>
           </motion.div>
         </div>
@@ -386,7 +412,9 @@ export default function MonadSyncPage() {
               <motion.div
                 className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full"
                 initial={{ width: 0 }}
-                animate={{ width: `${((currentQuestion + 1) / QUIZ_QUESTIONS.length) * 100}%` }}
+                animate={{
+                  width: `${((currentQuestion + 1) / QUIZ_QUESTIONS.length) * 100}%`,
+                }}
               />
             </div>
           </div>
@@ -434,7 +462,9 @@ export default function MonadSyncPage() {
             ⭕
           </motion.div>
           <p className="text-white text-xl">Calculating your clarity...</p>
-          <p className="text-gray-400 text-sm mt-2">Syncing with the Monad Blockchain</p>
+          <p className="text-gray-400 text-sm mt-2">
+            Syncing with the Monad Blockchain
+          </p>
         </div>
       </div>
     );
@@ -459,14 +489,20 @@ export default function MonadSyncPage() {
 
           <h1 className="text-5xl font-bold text-white mb-4">Monad Sync</h1>
           <p className="text-xl text-gray-300 mb-8">
-            Discover your eternal monad signature on Farcaster × Monad Blockchain
+            Discover your eternal monad signature on Farcaster × Monad
+            Blockchain
           </p>
 
           <div className="grid grid-cols-2 gap-4 mb-8 text-left">
             {Object.values(MONAD_TIERS).map((tier, index) => (
-              <div key={index} className={`p-4 bg-gradient-to-br ${tier.color} rounded-xl`}>
+              <div
+                key={index}
+                className={`p-4 bg-gradient-to-br ${tier.color} rounded-xl`}
+              >
                 <div className="text-3xl mb-2">{tier.emoji}</div>
-                <h3 className="text-white font-bold text-sm mb-1">{tier.name}</h3>
+                <h3 className="text-white font-bold text-sm mb-1">
+                  {tier.name}
+                </h3>
                 <p className="text-white/80 text-xs">{tier.description}</p>
               </div>
             ))}
@@ -481,8 +517,11 @@ export default function MonadSyncPage() {
             Begin Monad Sync 👁️
           </motion.button>
 
+          {/* "Retakes: 5 TOURS" was untrue in the unusual direction: resetQuiz
+              only resets local state, so a retake has always been free. A price
+              nobody charges still puts people off. */}
           <p className="text-gray-400 text-sm mt-4">
-            First sync free • Retakes: 5 TOURS
+            Retake it as often as you like
           </p>
         </motion.div>
       </div>
