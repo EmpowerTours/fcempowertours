@@ -157,6 +157,11 @@ export function LiveRadioModal({
   const [isMuted, setIsMuted] = useState(false);
   const [showQueueModal, setShowQueueModal] = useState(false);
   const [showVoiceNoteModal, setShowVoiceNoteModal] = useState(false);
+  // Whether this wallet already holds a delegation covering the radio actions.
+  // null while unknown, so the banner does not flash on open.
+  const [radioReady, setRadioReady] = useState<boolean | null>(null);
+  const [enablingRadio, setEnablingRadio] = useState(false);
+
   const [listenerStats, setListenerStats] = useState<ListenerStats | null>(
     null,
   );
@@ -1267,6 +1272,71 @@ export function LiveRadioModal({
     setVoiceNoteType(null);
   };
 
+  /**
+   * Ask for the delegation deliberately, instead of during an action.
+   *
+   * Doing it lazily inside Skip or Queue failed repeatedly, and the server logs
+   * showed why: a nonce was issued and never consumed. The prompt arrives while
+   * the user is looking at the radio, not at their wallet -- on a phone the
+   * wallet is a different app entirely -- so it is simply never seen. The
+   * radio-listen signature succeeds because it happens when somebody has just
+   * chosen to start listening and expects a wallet.
+   *
+   * So this is its own button, with its own copy, at a moment the user chose.
+   */
+  const enableRadioActions = async () => {
+    if (!walletAddress) return;
+    setEnablingRadio(true);
+    try {
+      showToast(
+        "Approve the signature in your wallet — it lasts 24 hours.",
+        "success",
+      );
+      await ensureDelegationCovers(
+        walletAddress,
+        "radio_skip_random",
+        authFor,
+        user?.fid,
+      );
+      setRadioReady(true);
+      showToast(
+        "Ready. Skip, queue and shoutouts work without prompts now.",
+        "success",
+      );
+    } catch (e) {
+      showToast(
+        (e as Error)?.message ?? "Could not enable radio actions.",
+        "error",
+      );
+    } finally {
+      setEnablingRadio(false);
+    }
+  };
+
+  // Check once whether the delegation already covers the radio.
+  useEffect(() => {
+    if (!walletAddress) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/delegation-status?address=${encodeURIComponent(walletAddress)}`,
+        );
+        const data = await res.json();
+        const ok = Boolean(
+          data?.delegation?.permissions?.includes("radio_skip_random") &&
+            data.delegation.ownershipProven === true,
+        );
+        if (!cancelled) setRadioReady(ok);
+      } catch {
+        if (!cancelled) setRadioReady(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [walletAddress]);
+
   // Handle voice shoutout button click
   const handleVoiceShoutout = async (type: "shoutout" | "ad") => {
     if (!walletAddress) {
@@ -1749,6 +1819,31 @@ export function LiveRadioModal({
                   </p>
                 )}
               </div>
+
+              {/* One signature, asked for plainly, at a moment the user chose.
+                  Without it every radio action opens a wallet prompt that is
+                  never seen and fails with no explanation. */}
+              {walletAddress && radioReady === false && (
+                <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-4">
+                  <p className="text-sm font-bold text-white mb-1">
+                    Enable skip, queue and shoutouts
+                  </p>
+                  <p className="text-xs text-gray-400 mb-3">
+                    One wallet signature, valid for 24 hours. After that these
+                    work without any prompt. Your wallet may open in a separate
+                    app — approve it there, then come back.
+                  </p>
+                  <button
+                    onClick={enableRadioActions}
+                    disabled={enablingRadio}
+                    className="w-full py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-sm font-semibold"
+                  >
+                    {enablingRadio
+                      ? "Waiting for your wallet…"
+                      : "Enable radio actions"}
+                  </button>
+                </div>
+              )}
 
               {/* Pending Voice Shoutouts */}
               {voiceNotes.length > 0 && (
