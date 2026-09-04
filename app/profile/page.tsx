@@ -963,76 +963,53 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <motion.div
-              className="p-5 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-              whileHover={{ scale: 1.03, y: -5 }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-xs text-gray-600 mb-1 font-medium">
-                    MON Balance
-                  </p>
-                  <motion.p
-                    className="text-2xl font-bold text-yellow-700"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.7, type: "spring", stiffness: 200 }}
-                  >
-                    {balances.mon}
-                  </motion.p>
-                  <div className="mt-2 space-y-0.5">
-                    <p className="text-xs text-gray-500">
-                      💳 Wallet: {balances.monWallet || "0.0000"}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      🔒 Safe: {balances.monSafe || "0.0000"}
-                    </p>
-                  </div>
+          {/* Two cards, so two columns. grid-cols-3 held two, which is why they
+              were narrow and uneven -- the same mismatch as the stat row.
+
+              min-w-0 and truncate on the amount: a flex child will not shrink
+              below its content by default, so a long balance pushed straight
+              out of the card. tabular-nums keeps the digits from jittering as
+              the value updates.
+
+              No gradients, no border-2 pastels, no perpetually spinning emoji,
+              no hover-lift, no spring pop on the number. A balance is something
+              you read, not an animation. */}
+          <div className="grid grid-cols-2 gap-3 mb-8">
+            <div className="p-4 rounded-xl border border-gray-200 bg-white">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                MON
+              </p>
+              <p className="text-2xl font-semibold text-gray-900 tabular-nums truncate mt-0.5">
+                {balances.mon}
+              </p>
+              <dl className="mt-3 space-y-1 text-xs text-gray-500">
+                <div className="flex justify-between gap-2">
+                  <dt>Wallet</dt>
+                  <dd className="tabular-nums truncate">
+                    {balances.monWallet || "0.0000"}
+                  </dd>
                 </div>
-                <motion.div
-                  className="text-3xl"
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                >
-                  💰
-                </motion.div>
-              </div>
-            </motion.div>
-            <motion.div
-              className="p-5 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border-2 border-blue-200 shadow-sm"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.55 }}
-              whileHover={{ scale: 1.03, y: -5 }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-xs text-gray-600 mb-1 font-medium">
-                    WMON Balance
-                  </p>
-                  <motion.p
-                    className="text-2xl font-bold text-blue-700"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.75, type: "spring", stiffness: 200 }}
-                  >
-                    {balances.wmon}
-                  </motion.p>
-                  <p className="text-xs text-gray-500 mt-1">Wrapped MON</p>
+                <div className="flex justify-between gap-2">
+                  <dt>Safe</dt>
+                  <dd className="tabular-nums truncate">
+                    {balances.monSafe || "0.0000"}
+                  </dd>
                 </div>
-                <motion.div
-                  className="text-3xl"
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                >
-                  🔷
-                </motion.div>
-              </div>
-            </motion.div>
+              </dl>
+            </div>
+
+            <div className="p-4 rounded-xl border border-gray-200 bg-white">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                WMON
+              </p>
+              <p className="text-2xl font-semibold text-gray-900 tabular-nums truncate mt-0.5">
+                {balances.wmon}
+              </p>
+              <p className="mt-3 text-xs text-gray-500">
+                Wrapped MON — what licences and subscriptions are paid in.
+              </p>
+            </div>
+
             {/* The TOURS balance card was removed on 2026-09-02. TOURS is not
                 part of the current economy — licences, mints and the passport
                 all settle in WMON — so showing a balance implied a token users

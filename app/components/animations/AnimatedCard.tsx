@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
-import { ReactNode } from 'react';
+import { motion } from "framer-motion";
+import { ReactNode } from "react";
 
 interface AnimatedCardProps {
   children: ReactNode;
@@ -14,9 +14,9 @@ interface AnimatedCardProps {
 export default function AnimatedCard({
   children,
   delay = 0,
-  className = '',
+  className = "",
   onClick,
-  hoverScale = true
+  hoverScale = true,
 }: AnimatedCardProps) {
   return (
     <motion.div
@@ -25,13 +25,17 @@ export default function AnimatedCard({
       transition={{
         duration: 0.5,
         delay,
-        ease: [0.22, 1, 0.36, 1]
+        ease: [0.22, 1, 0.36, 1],
       }}
-      whileHover={hoverScale ? {
-        scale: 1.03,
-        y: -5,
-        transition: { duration: 0.2 }
-      } : {}}
+      whileHover={
+        hoverScale
+          ? {
+              scale: 1.03,
+              y: -5,
+              transition: { duration: 0.2 },
+            }
+          : {}
+      }
       whileTap={onClick ? { scale: 0.98 } : {}}
       onClick={onClick}
       className={className}
@@ -46,47 +50,38 @@ export function AnimatedStatCard({
   value,
   label,
   delay = 0,
-  color = 'purple'
+  color = "purple",
 }: {
   value: number;
   label: string;
   delay?: number;
-  color?: 'purple' | 'blue' | 'pink' | 'yellow' | 'teal';
+  color?: "purple" | "blue" | "pink" | "yellow" | "teal";
 }) {
-  const colors = {
-    purple: 'bg-purple-50 text-purple-600',
-    blue: 'bg-blue-50 text-blue-600',
-    pink: 'bg-pink-50 text-pink-600',
-    yellow: 'bg-amber-50 text-amber-600',
-    teal: 'bg-teal-50 text-teal-600'
+  // One surface, not five pastel fills. The colour now touches the NUMBER only,
+  // which is the part carrying meaning -- a card tinted end to end just says
+  // "this is a card". The `color` prop stays so callers do not change.
+  const accent = {
+    purple: "text-purple-600",
+    blue: "text-blue-600",
+    pink: "text-pink-600",
+    yellow: "text-amber-600",
+    teal: "text-teal-600",
   };
 
   return (
+    // A short fade only. The spring pop on the number and the hover scale made
+    // a static figure behave like a notification; tabular-nums stops the digits
+    // shifting when a count changes.
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{
-        duration: 0.5,
-        delay,
-        ease: [0.22, 1, 0.36, 1]
-      }}
-      whileHover={{ scale: 1.05 }}
-      className={`${colors[color]} rounded-lg p-4 text-center cursor-default`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25, delay }}
+      className="rounded-lg border border-gray-200 bg-white p-4 text-center"
     >
-      <motion.p
-        className="text-3xl font-bold"
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{
-          duration: 0.5,
-          delay: delay + 0.2,
-          type: 'spring',
-          stiffness: 200
-        }}
-      >
+      <p className={`text-2xl font-semibold tabular-nums ${accent[color]}`}>
         {value}
-      </motion.p>
-      <p className="text-sm text-gray-600 mt-1">{label}</p>
+      </p>
+      <p className="text-xs text-gray-500 mt-1">{label}</p>
     </motion.div>
   );
 }
@@ -95,7 +90,7 @@ export function AnimatedStatCard({
 export function MusicNFTCard({
   children,
   delay = 0,
-  className = ''
+  className = "",
 }: {
   children: ReactNode;
   delay?: number;
@@ -108,16 +103,16 @@ export function MusicNFTCard({
       transition={{
         duration: 0.6,
         delay,
-        ease: [0.22, 1, 0.36, 1]
+        ease: [0.22, 1, 0.36, 1],
       }}
       whileHover={{
         y: -10,
         rotateX: 5,
-        boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
-        transition: { duration: 0.3 }
+        boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
+        transition: { duration: 0.3 },
       }}
       className={className}
-      style={{ transformStyle: 'preserve-3d' }}
+      style={{ transformStyle: "preserve-3d" }}
     >
       {children}
     </motion.div>
