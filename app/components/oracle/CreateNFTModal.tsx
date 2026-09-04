@@ -775,7 +775,7 @@ export function CreateNFTModal({
   const modalContent = (
     <div
       ref={scrollRef}
-      className={`fixed inset-0 z-[9999] flex items-center justify-center p-2 overflow-y-auto ${isDarkMode ? "dark" : ""}`}
+      className={`fixed inset-0 z-[9999] flex items-center justify-center p-2 ${isDarkMode ? "dark" : ""}`}
       style={{
         position: "fixed",
         top: 0,
@@ -847,7 +847,7 @@ export function CreateNFTModal({
       )}
 
       <div
-        className={`w-full max-w-lg rounded-2xl shadow-2xl my-4 relative overflow-hidden ${isDarkMode ? "bg-gray-900 border border-cyan-500/30" : "bg-white border border-gray-300"}`}
+        className={`w-full max-w-lg rounded-2xl shadow-2xl relative max-h-[92vh] overflow-y-auto ${isDarkMode ? "bg-gray-900 border border-cyan-500/30" : "bg-white border border-gray-300"}`}
       >
         <div className="relative p-4">
           {/* Header */}

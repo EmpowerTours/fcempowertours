@@ -260,7 +260,7 @@ export function PassportMintModal({
 
   const modalContent = (
     <div
-      className={`fixed inset-0 modal-backdrop flex items-center justify-center p-4 overflow-y-auto`}
+      className={`fixed inset-0 modal-backdrop flex items-center justify-center p-4`}
       style={{
         zIndex: 9999,
         backgroundColor: isDarkMode
@@ -269,7 +269,7 @@ export function PassportMintModal({
       }}
     >
       <div
-        className={`w-full max-w-lg rounded-3xl shadow-2xl border-2 ${isDarkMode ? "border-cyan-500/50 shadow-cyan-500/20" : "border-purple-300 shadow-purple-200/50"}`}
+        className={`w-full max-w-lg rounded-3xl shadow-2xl border-2 max-h-[92vh] overflow-y-auto ${isDarkMode ? "border-cyan-500/50 shadow-cyan-500/20" : "border-purple-300 shadow-purple-200/50"}`}
         style={{ backgroundColor: isDarkMode ? "#0a0a0f" : "#ffffff" }}
       >
         <div className="p-6">
