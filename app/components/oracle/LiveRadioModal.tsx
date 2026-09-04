@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { ensureDelegationCovers } from "@/lib/ensure-delegation-covers";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { useActionAuth } from "@/app/hooks/useActionAuth";
 import { RADIO_SESSION_CONTEXT } from "@/lib/radio-session-context";
@@ -961,6 +962,16 @@ export function LiveRadioModal({
         "tokenId:",
         song.tokenId,
       );
+      // The stored delegation may predate this permission, in which case the
+      // client would skip the prompt and the server would answer 403 with
+      // nothing to click. Repair it first -- one signature, not a dead end.
+      await ensureDelegationCovers(
+        walletAddress,
+        "radio_queue_song",
+        authFor,
+        user?.fid,
+      );
+
       const paymentRes = await fetch("/api/execute-delegated", {
         method: "POST",
         headers: {
@@ -1149,6 +1160,16 @@ export function LiveRadioModal({
     try {
       // Step 1: Process WMON payment via delegated transaction
       console.log("[LiveRadio] Processing payment for", voiceNoteType);
+      // The stored delegation may predate this permission, in which case the
+      // client would skip the prompt and the server would answer 403 with
+      // nothing to click. Repair it first -- one signature, not a dead end.
+      await ensureDelegationCovers(
+        walletAddress,
+        "radio_voice_note",
+        authFor,
+        user?.fid,
+      );
+
       const paymentRes = await fetch("/api/execute-delegated", {
         method: "POST",
         headers: {
@@ -1267,6 +1288,16 @@ export function LiveRadioModal({
     setSkippingToRandom(true);
     try {
       console.log("[LiveRadio] Requesting random song via Pyth Entropy...");
+
+      // The stored delegation may predate this permission, in which case the
+      // client would skip the prompt and the server would answer 403 with
+      // nothing to click. Repair it first -- one signature, not a dead end.
+      await ensureDelegationCovers(
+        walletAddress,
+        "radio_skip_random",
+        authFor,
+        user?.fid,
+      );
 
       const response = await fetch("/api/execute-delegated", {
         method: "POST",

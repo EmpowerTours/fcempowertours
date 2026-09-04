@@ -4,6 +4,7 @@ import {
   DELEGATION_PERMISSIONS,
   delegationCovers,
 } from "@/lib/delegation-covered";
+import { ensureDelegationCovers } from "@/lib/ensure-delegation-covers";
 import { ensureSafeRegistered } from "@/lib/ensure-safe-registered";
 import { describeMintFailure } from "@/lib/mint-failure";
 import { authHeaders } from "@/lib/quick-auth-client";
@@ -180,6 +181,17 @@ export function PassportMintModal({
           responseData.wmonNeeded,
         );
         setError("Wrapping MON to WMON...");
+
+        // wrap_mon was added to the granted permissions after these delegations
+        // were issued, and the validity check above only asks about
+        // mint_passport -- so an existing delegation passes that check and
+        // then 403s here, with no prompt to recover from.
+        await ensureDelegationCovers(
+          walletAddress,
+          "wrap_mon",
+          authFor,
+          undefined,
+        );
 
         const wrapRes = await fetch("/api/execute-delegated", {
           method: "POST",
