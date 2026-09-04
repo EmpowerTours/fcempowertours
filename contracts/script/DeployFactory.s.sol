@@ -14,7 +14,6 @@ import "../DeploymentNFT.sol";
  *     -vvvv
  *
  * Requires env vars:
- *   DEPLOYER_PRIVATE_KEY
  *   TIMELOCK_ADDRESS
  *   TOURS_TOKEN
  *   TREASURY_ADDRESS
@@ -23,15 +22,14 @@ import "../DeploymentNFT.sol";
  */
 contract DeployFactory is Script {
     function run() external {
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envOr("DEPLOYER_ADDRESS", msg.sender);
         address timelock = vm.envAddress("TIMELOCK_ADDRESS");
         address toursToken = vm.envAddress("TOURS_TOKEN");
         address treasury = vm.envAddress("TREASURY_ADDRESS");
         address entropyAddr = vm.envAddress("ENTROPY_ADDRESS");
         address feeRecipient = vm.envOr("FEE_RECIPIENT", deployer); // defaults to deployer
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast();
 
         // 1. Deploy DeploymentNFT
         DeploymentNFT nft = new DeploymentNFT();

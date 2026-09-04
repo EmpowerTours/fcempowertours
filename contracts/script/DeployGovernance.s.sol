@@ -16,16 +16,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *     -vvvv
  *
  * Requires:
- *   DEPLOYER_PRIVATE_KEY in env
  *   TOURS_TOKEN address in env
  */
 contract DeployGovernance is Script {
     function run() external {
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address toursToken = vm.envAddress("TOURS_TOKEN");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envOr("DEPLOYER_ADDRESS", msg.sender);
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast();
 
         // 1. Deploy VotingTOURS (wraps TOURS → vTOURS)
         VotingTOURS votingTours = new VotingTOURS(IERC20(toursToken));

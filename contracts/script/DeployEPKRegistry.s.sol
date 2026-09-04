@@ -13,15 +13,13 @@ import "../EPKRegistry.sol";
  *     -vvvv
  *
  * Requires env vars:
- *   DEPLOYER_PRIVATE_KEY
  *   WMON_TOKEN  (0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A on Monad mainnet)
  */
 contract DeployEPKRegistry is Script {
     function run() external {
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address wmonToken = vm.envAddress("WMON_TOKEN");
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast();
 
         EPKRegistryV2 registry = new EPKRegistryV2(wmonToken);
         console.log("EPKRegistryV2 deployed:", address(registry));
@@ -32,7 +30,7 @@ contract DeployEPKRegistry is Script {
         console.log("=== EPK REGISTRY V2 DEPLOYED ===");
         console.log("EPKRegistryV2: ", address(registry));
         console.log("WMON Token:    ", wmonToken);
-        console.log("Owner:         ", vm.addr(deployerKey));
+        console.log("Owner:         ", vm.envOr("DEPLOYER_ADDRESS", msg.sender));
         console.log("");
         console.log("NEXT STEPS:");
         console.log("  1. transferOwnership(platformSafe) on the new contract");

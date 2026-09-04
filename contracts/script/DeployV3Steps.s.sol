@@ -59,12 +59,8 @@ import "../PassportNFTV4.sol";
  * pointed at the wrong place.
  */
 abstract contract StepBase is Script {
-    function pk() internal view returns (uint256) {
-        return vm.envUint("DEPLOYER_PRIVATE_KEY");
-    }
-
     function deployer() internal view returns (address) {
-        return vm.addr(pk());
+        return vm.envOr("DEPLOYER_ADDRESS", msg.sender);
     }
 
     function governance() internal view returns (address) {
@@ -90,7 +86,7 @@ abstract contract StepBase is Script {
 
 contract Step1_LicenseRegistry is StepBase {
     function run() external returns (address) {
-        vm.startBroadcast(pk());
+        vm.startBroadcast();
         LicenseRegistry registry = new LicenseRegistry(governance());
         vm.stopBroadcast();
 
@@ -106,7 +102,7 @@ contract Step2_SalesController is StepBase {
     function run() external returns (address) {
         LicenseRegistry registry = LicenseRegistry(req("REGISTRY"));
 
-        vm.startBroadcast(pk());
+        vm.startBroadcast();
         SalesController sales = new SalesController(
             registry, IERC20(req("WMON")), governance(), req("TREASURY")
         );
@@ -135,7 +131,7 @@ contract Step2b_SetController is StepBase {
             "governance is not the deployer - call setController from whoever holds it"
         );
 
-        vm.startBroadcast(pk());
+        vm.startBroadcast();
         registry.setController(sales);
         // Moderation fast path: takes content dark in seconds. Only governance can make a
         // takedown permanent, so this key is deliberately the weaker of the two.
@@ -152,7 +148,7 @@ contract Step2b_SetController is StepBase {
 
 contract Step3_MusicSubscriptionV6 is StepBase {
     function run() external returns (address) {
-        vm.startBroadcast(pk());
+        vm.startBroadcast();
         MusicSubscriptionV6 subscription = new MusicSubscriptionV6(
             req("WMON"),
             req("REWARD_MANAGER"),
@@ -172,7 +168,7 @@ contract Step3_MusicSubscriptionV6 is StepBase {
 
 contract Step4_ProfileRegistry is StepBase {
     function run() external returns (address) {
-        vm.startBroadcast(pk());
+        vm.startBroadcast();
         ProfileRegistry profiles = new ProfileRegistry(governance());
         vm.stopBroadcast();
 
@@ -186,7 +182,7 @@ contract Step4_ProfileRegistry is StepBase {
 
 contract Step5_PassportNFTV4 is StepBase {
     function run() external returns (address) {
-        vm.startBroadcast(pk());
+        vm.startBroadcast();
         PassportNFTV4 passport =
             new PassportNFTV4(req("WMON"), req("ORACLE"), req("TREASURY"));
         vm.stopBroadcast();
@@ -205,7 +201,7 @@ contract Step6_SubscriptionReferrals is StepBase {
         // extra field, so aiming this at the old contract reads the wrong slot without erroring.
         address subscription = req("SUBSCRIPTION");
 
-        vm.startBroadcast(pk());
+        vm.startBroadcast();
         SubscriptionReferrals referrals = new SubscriptionReferrals(
             IMusicSubscription(subscription),
             IERC20(req("WMON")),

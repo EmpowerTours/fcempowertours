@@ -31,8 +31,7 @@ import "../PassportNFTV4.sol";
  *
  * | var | meaning |
  * |---|---|
- * | `DEPLOYER_PRIVATE_KEY` | pays for the deployment; becomes the initial governance |
- * | `WMON`                 | the payment token |
+ * | ` * | `WMON`                 | the payment token |
  * | `REWARD_MANAGER`       | ToursRewardManagerV2 |
  * | `TREASURY`             | receives the platform fee |
  * | `ORACLE`               | PlayOracleV3, the only address allowed to record plays |
@@ -67,8 +66,7 @@ contract DeployV3 is Script {
     }
 
     function run() external returns (Deployed memory out) {
-        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(pk);
+        address deployer = vm.envOr("DEPLOYER_ADDRESS", msg.sender);
 
         address wmon = vm.envAddress("WMON");
         address rewardManager = vm.envAddress("REWARD_MANAGER");
@@ -87,7 +85,7 @@ contract DeployV3 is Script {
         console2.log("deployer  ", deployer);
         console2.log("governance", governance);
 
-        vm.startBroadcast(pk);
+        vm.startBroadcast();
 
         // 1. The registry. Governance starts as `governance` so it can set the controller below.
         LicenseRegistry registry = new LicenseRegistry(governance);

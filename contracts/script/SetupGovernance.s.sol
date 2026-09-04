@@ -16,21 +16,19 @@ import "../EmpowerToursTimelock.sol";
  *     -vvvv
  *
  * Requires env vars:
- *   DEPLOYER_PRIVATE_KEY
  *   GOVERNOR_ADDRESS
  *   TIMELOCK_ADDRESS
  *   (TOURS_TOKEN not needed — V1 token has no setDAOTimelock)
  */
 contract SetupGovernance is Script {
     function run() external {
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envOr("DEPLOYER_ADDRESS", msg.sender);
         address governor = vm.envAddress("GOVERNOR_ADDRESS");
         address timelockAddr = vm.envAddress("TIMELOCK_ADDRESS");
 
         EmpowerToursTimelock timelock = EmpowerToursTimelock(payable(timelockAddr));
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast();
 
         // 1. Grant PROPOSER_ROLE to Governor
         bytes32 proposerRole = timelock.PROPOSER_ROLE();
