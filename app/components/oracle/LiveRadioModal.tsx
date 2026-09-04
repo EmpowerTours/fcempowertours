@@ -26,7 +26,6 @@ import {
   History,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
 } from "lucide-react";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { useActionAuth } from "@/app/hooks/useActionAuth";
@@ -157,12 +156,9 @@ export function LiveRadioModal({
   const [isMuted, setIsMuted] = useState(false);
   const [showQueueModal, setShowQueueModal] = useState(false);
   const [showVoiceNoteModal, setShowVoiceNoteModal] = useState(false);
-  const [pendingRewards, setPendingRewards] = useState("0");
   const [listenerStats, setListenerStats] = useState<ListenerStats | null>(
     null,
   );
-  const [claimingRewards, setClaimingRewards] = useState(false);
-  const [lastClaimTxHash, setLastClaimTxHash] = useState<string | null>(null);
   const [queueing, setQueueing] = useState(false);
   const [skippingToRandom, setSkippingToRandom] = useState(false);
   // Subscription requirement
@@ -444,7 +440,6 @@ export function LiveRadioModal({
       const data = await response.json();
       if (data.success && data.stats) {
         setListenerStats(data.stats);
-        setPendingRewards(data.stats.pendingRewards?.toString() || "0");
       }
     } catch (error) {
       console.error("[LiveRadio] Failed to fetch listener stats:", error);
@@ -560,7 +555,6 @@ export function LiveRadioModal({
       const data = await response.json();
       if (data.success && data.stats) {
         setListenerStats(data.stats);
-        setPendingRewards(data.stats.pendingRewards?.toString() || "0");
       }
     } catch (error) {
       console.error("[LiveRadio] Heartbeat failed:", error);
@@ -1260,76 +1254,11 @@ export function LiveRadioModal({
   };
 
   // Claim rewards
-  const handleClaimRewards = async () => {
-    if (
-      !walletAddress ||
-      pendingRewards === "0" ||
-      parseFloat(pendingRewards) <= 0
-    )
-      return;
-
-    setClaimingRewards(true);
-    try {
-      console.log("[LiveRadio] Claiming rewards:", pendingRewards, "TOURS");
-
-      // Step 1: Execute TOURS transfer via delegated transaction
-      const paymentRes = await fetch("/api/execute-delegated", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authFor("execute-delegated:radio_claim_rewards")),
-        },
-        body: JSON.stringify({
-          userAddress: walletAddress,
-          action: "radio_claim_rewards",
-          params: { amount: pendingRewards },
-        }),
-      });
-
-      const paymentData = await paymentRes.json();
-      if (!paymentData.success) {
-        throw new Error(paymentData.error || "Claim failed");
-      }
-
-      const txHash = paymentData.txHash;
-      console.log("[LiveRadio] Rewards claim TX:", txHash);
-
-      // Step 2: Mark rewards as claimed in backend
-      const claimRes = await fetch("/api/live-radio", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({
-          action: "claim_rewards",
-          userAddress: walletAddress,
-          txHash,
-          amount: pendingRewards,
-        }),
-      });
-
-      const claimData = await claimRes.json();
-      if (claimData.success) {
-        // Update local state
-        setPendingRewards("0");
-        if (claimData.stats) {
-          setListenerStats(claimData.stats);
-        }
-
-        // Store tx hash for clickable link
-        setLastClaimTxHash(txHash);
-        showToast(`Claimed ${pendingRewards} TOURS!`, "success");
-      } else {
-        throw new Error(claimData.error || "Failed to mark rewards as claimed");
-      }
-    } catch (error: any) {
-      console.error("[LiveRadio] Claim failed:", error);
-      showToast("Failed to claim: " + error.message, "error");
-    } finally {
-      setClaimingRewards(false);
-    }
-  };
+  // handleClaimRewards was removed on 2026-09-03 along with the TOURS UI.
+  // It transferred TOURS via execute-delegated, but the reward manager does not
+  // list V6 as an authorized distributor, so the on-chain path it depended on
+  // reverts. Keeping a claim button for a reward that cannot be paid is how the
+  // burn page came to tell people they had received 5 TOURS.
 
   // Skip to random song using Pyth Entropy (on-chain verifiable randomness)
   const handleSkipToRandom = async () => {
@@ -1846,9 +1775,11 @@ export function LiveRadioModal({
                       <Gift className="w-4 h-4 text-yellow-400" />
                       Your Rewards
                     </h3>
-                    <span className="text-xs text-yellow-400 font-bold">
-                      {pendingRewards} TOURS
-                    </span>
+                    {/* The TOURS figure was removed on 2026-09-03. The reward
+                        manager holds 1,000,000 TOURS but
+                        authorizedDistributors(V6) is false on chain, so
+                        claimToursReward reverts -- the app advertised a reward
+                        the contract refuses to pay. */}
                   </div>
                   <div className="grid grid-cols-3 gap-2 mb-3 text-center">
                     <div>
@@ -1871,51 +1802,50 @@ export function LiveRadioModal({
                       <p className="text-xs text-gray-400">Shoutouts</p>
                     </div>
                   </div>
-                  <button
-                    onClick={handleClaimRewards}
-                    disabled={
-                      claimingRewards ||
-                      !pendingRewards ||
-                      parseFloat(pendingRewards) <= 0
-                    }
-                    className="w-full py-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-lg font-semibold text-sm transition-all disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {claimingRewards ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Claiming...
-                      </>
-                    ) : parseFloat(pendingRewards) > 0 ? (
-                      <>
-                        <Coins className="w-4 h-4" />
-                        Claim {pendingRewards} TOURS
-                      </>
-                    ) : (
-                      <>
-                        <Coins className="w-4 h-4" />
-                        No Rewards to Claim
-                      </>
-                    )}
-                  </button>
-                  {lastClaimTxHash && (
-                    <button
-                      onClick={() =>
-                        window.open(
-                          `https://monadscan.com/tx/${lastClaimTxHash}`,
-                          "_blank",
-                        )
-                      }
-                      className="w-full mt-2 py-1.5 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 text-green-400 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2"
-                    >
-                      <Check className="w-3 h-3" />
-                      Last Claim: {lastClaimTxHash.slice(0, 8)}...
-                      {lastClaimTxHash.slice(-6)}
-                      <ExternalLink className="w-3 h-3" />
-                    </button>
-                  )}
                   <p className="text-xs text-gray-500 text-center mt-2">
-                    Earn 0.1 TOURS/song • 10 TOURS for 7-day streak • WMON from
-                    20% reserve (monthly)
+                    Shoutouts play after each song ends
+                  </p>
+                </div>
+              )}
+
+              {/* Rewards Section */}
+              {walletAddress && (
+                <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Gift className="w-4 h-4 text-yellow-400" />
+                      Your Rewards
+                    </h3>
+                    {/* The TOURS figure was removed on 2026-09-03. The reward
+                        manager holds 1,000,000 TOURS but
+                        authorizedDistributors(V6) is false on chain, so
+                        claimToursReward reverts -- the app advertised a reward
+                        the contract refuses to pay. */}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+                    <div>
+                      <p className="text-lg font-bold text-white">
+                        {listenerStats?.totalSongsListened || 0}
+                      </p>
+                      <p className="text-xs text-gray-400">Songs</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-white flex items-center justify-center gap-1">
+                        <Flame className="w-4 h-4 text-orange-400" />
+                        {listenerStats?.currentStreak || 0}
+                      </p>
+                      <p className="text-xs text-gray-400">Day Streak</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-white">
+                        {listenerStats?.voiceNotesPlayed || 0}
+                      </p>
+                      <p className="text-xs text-gray-400">Shoutouts</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    Listening earns a share of the 20% listener reserve, paid in
+                    WMON when the month is distributed.
                   </p>
                 </div>
               )}
