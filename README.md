@@ -37,9 +37,8 @@ governance — both have deployed contracts and no working path. Each says so in
 its own section.
 
 **Removed:** Agent World, Dev Studio, Rock Climbing UI, AI Vaults, the coinflip
-game, itineraries/experiences, event sponsorship UI, and music staking. Several
-of these advertised TOURS rewards that were never paid; that is why they are
-called out individually rather than quietly deleted.
+game, itineraries/experiences, event sponsorship UI, and music staking. Listed
+individually because some were documented here as working features.
 
 ## Table of Contents
 
@@ -148,10 +147,9 @@ payout keeper, so moving it turns that into a manual multisig ceremony.
 
 ### Event Sponsorship — REMOVED
 
-Deleted 2026-09-03. `EventOracle` was mounted nowhere, `/api/events/list`,
-`/create` and `/checkin` never existed, nothing linked to `/event/invite/[code]`,
-and no event contract was configured. It advertised "X TOURS + Travel Stamp" and
-popped "Rewards claimed! You received N TOURS" from endpoints that 404'd.
+Deleted 2026-09-03. `EventOracle` was mounted nowhere, `/api/events/*` never
+existed, nothing linked to `/event/invite/[code]`, and no event contract was
+configured.
 
 `/api/sponsorship/*` routes remain but no UI reaches them.
 
@@ -529,10 +527,7 @@ artists they had "received 5 TOURS" while burning nothing.
 **Everything users actually earn or spend settles in WMON** — licences, mints,
 the passport, subscriptions, radio actions, listener rewards and referrals.
 
-The intended future for TOURS is a **consumable layer in a separate game**
-(lures, hints, re-rolls), which is a sink. A music app gives it nothing to be
-spent on, and a faucet without a sink dilutes a token rather than making it
-worth holding. TOURS V2 remains deployed and untouched at 100B supply.
+TOURS V2 remains deployed and untouched at 100B supply.
 
 ---
 
@@ -1034,11 +1029,8 @@ forge script script/DeployV3.s.sol --account <name> --rpc-url monad --broadcast
 forge script script/DeployV3.s.sol --ledger --rpc-url monad --broadcast
 ```
 
-Importing a key into a keystore is a one-off human step, done outside any agent
-or script. Nothing reads a private key from `.env` any more — that key owns every
-contract, and in an environment variable it is readable by any dependency,
-postinstall script or backup. `tools/verify-deploy-signer-from-cli.ts` fails the
-build if a script goes back to reading one.
+Nothing reads a private key from `.env`. `tools/verify-deploy-signer-from-cli.ts`
+fails the build if a script goes back to reading one.
 
 The deployer ADDRESS is still needed before broadcasting, for governance
 defaults and logging, and comes from `vm.envOr("DEPLOYER_ADDRESS", msg.sender)`
