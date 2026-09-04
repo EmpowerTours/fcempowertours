@@ -313,8 +313,12 @@ export async function POST(req: NextRequest) {
       }
       // Fall through to delegation creation below
     }
-    // SECURITY: Standard wallet signature auth
-    else if (!signature || !timestamp || !nonce) {
+    // SECURITY: Standard wallet signature auth.
+    // Skipped when ownership is ALREADY proven -- a radio session carries the
+    // same assertion and has no signature to offer. Without this guard the
+    // request 400s immediately after logging that ownership was proven, which
+    // is exactly what it did.
+    else if (!ownershipProven && (!signature || !timestamp || !nonce)) {
       return NextResponse.json(
         {
           success: false,
