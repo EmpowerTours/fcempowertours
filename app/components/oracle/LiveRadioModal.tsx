@@ -970,6 +970,7 @@ export function LiveRadioModal({
         "radio_queue_song",
         authFor,
         user?.fid,
+        (m) => showToast(m, "success"),
       );
 
       const paymentRes = await fetch("/api/execute-delegated", {
@@ -1168,6 +1169,7 @@ export function LiveRadioModal({
         "radio_voice_note",
         authFor,
         user?.fid,
+        (m) => showToast(m, "success"),
       );
 
       const paymentRes = await fetch("/api/execute-delegated", {
@@ -1297,6 +1299,7 @@ export function LiveRadioModal({
         "radio_skip_random",
         authFor,
         user?.fid,
+        (m) => showToast(m, "success"),
       );
 
       const response = await fetch("/api/execute-delegated", {

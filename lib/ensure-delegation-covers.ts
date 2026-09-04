@@ -19,11 +19,16 @@ import { DELEGATION_PERMISSIONS } from "@/lib/delegation-covered";
  * permission, create a fresh one. That costs one signature, once, instead of a
  * dead end.
  */
+/** Anything longer than this and the wallet prompt is not coming. */
+const SIGNATURE_TIMEOUT_MS = 90_000;
+
 export async function ensureDelegationCovers(
   userAddress: string,
   action: string,
   authFor: (context: string) => Promise<Record<string, string>>,
   fid?: number,
+  /** Called just before a wallet prompt, so the UI can say what is coming. */
+  notify?: (message: string) => void,
 ): Promise<void> {
   let holds = false;
   try {
@@ -44,11 +49,24 @@ export async function ensureDelegationCovers(
 
   if (holds) return;
 
+  // Say so BEFORE the wallet opens. A prompt that appears with no explanation
+  // reads as the app misbehaving, and on mobile the wallet is a different app
+  // entirely -- the user may not even see it come to the foreground.
+  notify?.("Approve the signature in your wallet to enable gasless actions.");
+
+  // A wallet request that never surfaces used to hang forever, leaving a
+  // spinner and no way back. On mobile the request is deep-linked to another
+  // app and can simply not arrive; a stuck promise must become an error.
+  const headers = await withTimeout(
+    authFor("create-delegation"),
+    "The wallet did not respond. Open your wallet app, then try again.",
+  );
+
   const res = await fetch("/api/create-delegation", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(await authFor("create-delegation")),
+      ...headers,
     },
     body: JSON.stringify({
       userAddress,
@@ -68,4 +86,13 @@ export async function ensureDelegationCovers(
       data?.error || "Could not set up gasless transactions. Please try again.",
     );
   }
+}
+
+function withTimeout<T>(p: Promise<T>, message: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(message)), SIGNATURE_TIMEOUT_MS),
+    ),
+  ]);
 }
