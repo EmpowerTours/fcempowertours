@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
       ? '🎲 Tune In - Live Radio'
       : action === 'voice_note'
       ? '🎤 Tune In - Live Radio'
+      : action === 'queue_song'
+      ? '📻 Tune In - Live Radio'
       : '🎧 Tune In - Live Radio';
 
     // Mini app frame data — launches directly into the radio modal

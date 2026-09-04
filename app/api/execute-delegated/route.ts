@@ -4361,6 +4361,42 @@ ${enjoyText}
         );
         console.log("✅ Queue song on-chain TX:", radioQueueTxHash);
 
+        // Queuing is the most public thing on the radio -- somebody putting a
+        // track in front of everyone listening -- and it was the one action
+        // that posted nothing, for any account. Non-blocking and never fatal:
+        // a cast that fails must not turn a successful queue into an error.
+        void (async () => {
+          try {
+            const { getResolvedCatalogue } = await import(
+              "@/lib/catalogue-resolved"
+            );
+            const { tracks } = await getResolvedCatalogue();
+            const track = tracks.find(
+              (t) => String(t.tokenId) === String(masterTokenId),
+            );
+
+            await fetch(`${APP_URL}/api/cast-nft`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "radio_queue_song",
+                fid: params?.fid || (userFid !== "0" ? userFid : undefined),
+                txHash: radioQueueTxHash,
+                _userAddress: userAddress,
+                params: {
+                  songName: track?.name,
+                  artistLabel: track?.artist
+                    ? await castArtistLabel(track.artist)
+                    : undefined,
+                  tipAmount,
+                },
+              }),
+            });
+          } catch (err: unknown) {
+            console.error("[RadioQueue] Cast failed:", (err as Error)?.message);
+          }
+        })();
+
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
           success: true,

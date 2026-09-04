@@ -11,7 +11,7 @@ const BOT_SIGNER_UUID = process.env.BOT_SIGNER_UUID || "";
 export async function POST(req: NextRequest) {
   try {
     const {
-      type, // 'passport' | 'music_mint' | 'music_purchase' | 'play_recorded' | 'top_artist' | 'radio_skip_random' | 'voice_note'
+      type, // 'passport' | 'music_mint' | 'music_purchase' | 'play_recorded' | 'top_artist' | 'radio_skip_random' | 'voice_note' | 'radio_queue_song'
       fid, // Farcaster ID
       tokenId, // NFT token ID
       txHash, // Transaction hash
@@ -234,6 +234,34 @@ TX: https://monadscan.com/tx/${txHash}
 
       embeds = [{ url: radioUrl }];
       console.log("📢 Voice note cast text:", castText);
+    }
+
+    // ==================== QUEUED A SONG ON LIVE RADIO ====================
+    else if (type === "radio_queue_song") {
+      const { songName: queuedName, artistLabel, tipAmount } = params || {};
+      const radioUrl = `${APP_URL}/api/frames/radio?action=queue_song`;
+
+      const queuerDisplay = await displayFor("Someone");
+
+      // A tip is optional, so it is only mentioned when there is one. A line
+      // reading "Tipped 0 WMON" says less than no line at all.
+      const tip = Number(tipAmount || 0);
+      const tipLine =
+        tip > 0 ? `\n💸 Tipped ${tipAmount} WMON to the artist` : "";
+      const byLine = artistLabel ? ` by ${artistLabel}` : "";
+
+      castText = `📻 ${queuerDisplay} queued a track on @empowertours Live Radio!
+
+"${queuedName || "Untitled"}"${byLine}${tipLine}
+
+🎧 Tune in — it plays next.
+
+TX: https://monadscan.com/tx/${txHash}
+
+@empowertours`;
+
+      embeds = [{ url: radioUrl }];
+      console.log("📢 Queue song cast text:", castText);
     }
 
     // ==================== TOP ARTIST CAST (Weekly/Daily Highlight) ====================
