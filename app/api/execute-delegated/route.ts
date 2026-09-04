@@ -4580,8 +4580,10 @@ ${enjoyText}
           console.error("🎲 Skip API call failed:", skipErr.message);
         }
 
-        // Post Farcaster cast about the skip (non-blocking)
-        if (fid) {
+        // Cast regardless of fid: cast-nft names a wallet-only user from their
+        // registered artist name, so gating here made the bot silent for most
+        // real users. Non-blocking either way.
+        {
           fetch(`${APP_URL}/api/cast-nft`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
