@@ -17,11 +17,29 @@ EmpowerTours is a **Farcaster Mini App** on Monad, focused on music. Artists pub
 
 ### Project status
 
-The app was **refocused on music streaming in July 2026**. Several earlier surfaces — Agent World, DAO governance UI, Dev Studio, Rock Climbing, AI Vaults and the coinflip game — were removed from the app during that pivot.
+Last verified against Monad mainnet and the running deployment on **2026-09-04**.
+Figures in this README are read from the chain, not from memory; where something
+is not active, it says so rather than describing the intent.
 
-Their **contracts remain deployed on Monad mainnet** and a few delegated actions still resolve (`dao_vote_proposal`, `create_climb`, `purchase_climb`), but there is no UI for them and they are not maintained. Travel and social features are retained and will be developed after music.
+**Live and in use:** passports, music and art minting (standard + collector
+editions), licence purchase, the resale link flow, Live Radio (queue, skip,
+voice shoutouts, play tracking), monthly subscriptions, artist payouts,
+per-track pricing and removal controls, EPK, wallet-only artist names via
+ProfileRegistry, and gasless actions through per-user Safes.
 
----
+**Built but not switched on:** subscription referrals accrue only while the
+reward pool is funded (`SubscriptionReferrals.fund`); `referrerBps` is 3000 and
+the routing is live. Quick Auth is implemented but inert until
+`ENFORCE_QUICK_AUTH=true`.
+
+**Not active, despite contracts existing:** TOURS rewards (§8) and DAO
+governance — both have deployed contracts and no working path. Each says so in
+its own section.
+
+**Removed:** Agent World, Dev Studio, Rock Climbing UI, AI Vaults, the coinflip
+game, itineraries/experiences, event sponsorship UI, and music staking. Several
+of these advertised TOURS rewards that were never paid; that is why they are
+called out individually rather than quietly deleted.
 
 ## Table of Contents
 
@@ -98,33 +116,89 @@ taste one — `MusicSubscriptionV5` enforces a 300-second replay cooldown per us
 song, so a consecutive repeat of a 3-4 minute track lands inside the cooldown and
 records **no play at all**, costing the artist their credit for it.
 
-### Rock Climbing Adventures (ClimbingLocationsV2)
+### Rock Climbing Adventures — NO UI
 
-Web3-powered rock climbing community with dual NFT system.
+`ClimbingLocationsV2` is deployed and `create_climb` / `purchase_climb` still
+resolve as delegated actions, but there is no page, no API route and no
+component. Nothing in the app reaches it. The journal rewards described here
+paid TOURS, which is not distributed (see §8).
 
-- **Create Locations** - Build climbing routes with GPS coordinates, photos, and descriptions (35 WMON)
-- **Purchase Access Badges** - Buy access to climbing locations at creator-set WMON prices (AccessBadge NFT)
-- **Journal Climbs** - Log ascents with photos and earn 1-10 TOURS rewards (ClimbProof NFT via Pyth Entropy)
-- **Cross-Platform** - Works in both Farcaster Mini App and Telegram Bot
+### DAO Governance — NOT WIRED
 
-### DAO Governance
+Contracts exist; nothing is connected to them. Verified on chain 2026-09-04:
 
-Decentralized governance for platform decisions and content moderation.
+```
+MusicSubscriptionV6.daoTimelock() = 0x0000000000000000000000000000000000000000
+```
 
-- **TOURS to vTOURS** - Wrap TOURS tokens into voting-enabled vTOURS
-- **Delegation** - Delegate voting power to yourself or other community members
-- **Proposals** - Create and vote on governance proposals (100 vTOURS threshold)
-- **Content Moderation** - DAO members vote to burn stolen/infringing NFTs
-- **Parameters** - 1 day voting delay, 1 week voting period, 4% quorum, 2 day timelock
+`governance()` / `owner()` on **all six live v3 contracts** is a single hot EOA
+(`0x8dF64bACf…`), not a Safe and not a timelock. There is no voting UI, and with
+TOURS not distributed there are no vTOURS holders to vote.
 
-### Event Sponsorship
+What that key can do: `setTreasury` (redirect all revenue), `setTreasuryFeeBps`,
+`setReferrerBps`, `purgeMaster`, `pause`, `setController`, `withdrawUnreserved`.
+Two powers are bounded — `emergencyWithdraw` refuses money owed to artists, and
+`purgeMaster` suspends rather than burns.
 
-Create and sponsor community events with on-chain accountability.
+Moving governance to the 2-of-3 Platform Safe is the open item. Four of the six
+use a **two-step** transfer (`setGovernance` then `acceptGovernance`), so they
+cannot be bricked — the recipient must act, which proves it can. The other two
+are one-step `transferOwnership`. Note that V6's owner runs the monthly artist
+payout keeper, so moving it turns that into a manual multisig ceremony.
 
-- **Create Events** - Host events with check-in codes and invite links
-- **Sponsorship** - Brands sponsor events with WMON escrow
-- **Verification Voting** - Checked-in attendees vote on whether sponsor was mentioned
-- **Auto-Settlement** - Funds released to host or refunded to sponsor based on vote outcome
+### Event Sponsorship — REMOVED
+
+Deleted 2026-09-03. `EventOracle` was mounted nowhere, `/api/events/list`,
+`/create` and `/checkin` never existed, nothing linked to `/event/invite/[code]`,
+and no event contract was configured. It advertised "X TOURS + Travel Stamp" and
+popped "Rewards claimed! You received N TOURS" from endpoints that 404'd.
+
+`/api/sponsorship/*` routes remain but no UI reaches them.
+
+### Licence Resale (direct links)
+
+A licence holder sets a price and signs a `SaleOrder` off chain — free, no gas,
+no transaction — which produces a link. Whoever opens it and pays gets the
+licence.
+
+- **No marketplace.** There is no listing board; you send the link to a person.
+- **Royalty is automatic.** ERC-2981, snapshotted per token at mint, so a later
+  governance change cannot alter a licence somebody already bought.
+  **50%** on a standard licence, **7.5%** on a limited edition.
+- **A link preview cannot spend it.** `executeSale` requires payment from the
+  caller and burns the nonce on chain.
+- **No cancel button.** The only way to void a signed order is to spend its
+  nonce, so orders expire after 30 days by default.
+
+Every reason a sale can fail — expired, nonce spent, seller no longer owns it,
+you are the seller — is checked against the chain before a wallet opens.
+
+### Subscription Referrals
+
+`SubscriptionReferrals` — [`0x5A1c34124eF5b4eC09Bdf0da5b2cbaEE5BE409B3`](https://monadscan.com/address/0x5A1c34124eF5b4eC09Bdf0da5b2cbaEE5BE409B3)
+
+Share a link; when somebody subscribes through it you earn a share of the
+**platform's** fee, recurring for as long as they keep paying, for 365 days.
+
+| | |
+|---|---|
+| Rate | `referrerBps` **3000** — 30% of the 10% platform fee |
+| Monthly subscription (300 WMON) | referrer earns **9 WMON** per payment |
+| Paid from | the platform's cut — **never** the artist's |
+| Claiming | accrues and is claimed (`claimReferral`), never pushed |
+
+Commission accrues only up to what the pool backs, so **an unfunded pool pays
+nobody, silently** — `fund()` is unpermissioned and any WMON sent to the
+contract counts. Attribution binds on a subscriber's **first ever** payment and
+never changes; it cannot be added retroactively.
+
+### Profile pictures and artist names
+
+Wallet-only artists register a display name on `ProfileRegistry`, which is how
+they are found in search and credited in casts. Avatars are stored as
+`avatarURI` on the same profile, capped at one change per 30 days (the limit is
+on pinning, which is what costs; `setProfile` itself is ungated and has no
+cooldown). Only IPFS content the app recognises is rendered.
 
 ### Electronic Press Kit (EPKRegistryV2)
 
@@ -155,22 +229,12 @@ On-chain artist press kits with AI-assisted generation and WMON escrow booking. 
 4. After the event, artist completes booking → WMON released to artist
 5. If unconfirmed, organizer can request full refund anytime
 
-### Dev Studio (AI Smart Contract Generation)
+### Dev Studio, Experiences & Itineraries — REMOVED
 
-AI-powered smart contract generation and deployment through DAO governance.
-
-- **AI Contract Generation** - Describe a smart contract in natural language, AI generates Solidity code
-- **Contract Types** - Token, NFT, DeFi, VRF Game, DAO, Vesting, SAFT, Bonding Curve, or Custom
-- **DAO Proposal Pipeline** - Generated contracts go through DAO governance vote before deployment
-- **Deployment NFTs** - Each deployed contract mints a provenance NFT as on-chain proof
-- **Credit System** - Purchase credits with TOURS tokens to generate contracts
-- **Whitelist** - Early access whitelist with NFT minting
-
-### Experiences & Itineraries
-
-- **Experiences** - Create and purchase location-based experiences as NFTs
-- **Itinerary NFTs** - AI-generated travel itineraries minted on-chain
-- **Itinerary Market** - Browse and purchase community itineraries
+No pages, no API routes, no components. The itinerary handler was deleted
+2026-09-01 after it was found to have no caller; its cast types were removed at
+the same time, including one promising "Earn rewards for completing" that
+nothing paid.
 
 ### AI Oracle
 
@@ -195,8 +259,8 @@ Every payment on EmpowerTours is handled by verified smart contracts on Monad. A
 | Detail | Value |
 |--------|-------|
 | Minimum price | 35 WMON |
-| Artist share | **70%** |
-| Platform share | **30%** |
+| Artist share | **90%** |
+| Platform share | **10%** (`treasuryFeeBps` = 1000) |
 
 **Collector Edition (Limited Run):**
 
@@ -204,23 +268,30 @@ Every payment on EmpowerTours is handled by verified smart contracts on Monad. A
 |--------|-------|
 | Minimum collector price | 500 WMON |
 | Max editions | 1–1,000 |
-| Artist share | **70%** |
-| Platform share | **30%** |
+| Artist share | **90%** |
+| Platform share | **10%** (`treasuryFeeBps` = 1000) |
 | Creation fee (music collectors) | 5 WMON (covers AI art generation) |
 | Creation fee (art collectors) | Free |
 
+> The split is **read from the contract**, never hardcoded. `SalesController._settle`
+> pays the treasury `price * treasuryFeeBps / 10_000` and the artist the rest;
+> `treasuryFeeBps` is **1000** on mainnet. This README previously said 70/30, and
+> two API routes hardcoded the same wrong number — a 1 WMON sale that paid the
+> artist 0.9 was reported to them as 0.7. See `lib/artist-cut.ts` and
+> `tools/verify-payout-splits-come-from-chain.ts`.
+
 **Worked example (standard):**
 > Fan buys a music license at 35 WMON.
-> - Artist receives **24.5 WMON** (70%)
-> - Platform receives **10.5 WMON** (30%)
+> - Artist receives **31.5 WMON** (90%)
+> - Platform receives **3.5 WMON** (10%)
 >
 > Artist wallet is credited instantly in the same transaction.
 
 **Worked example (collector edition):**
 > Artist creates a collector edition with 100 editions at 500 WMON each.
 > - Fan buys collector edition for 500 WMON
-> - Artist receives **350 WMON** (70%)
-> - Platform receives **150 WMON** (30%)
+> - Artist receives **450 WMON** (90%)
+> - Platform receives **50 WMON** (10%)
 >
 > Music collector editions include AI-enhanced cover art (golden borders, holographic textures, limited edition badge). Art collector editions use the artist's original art with no modifications.
 
@@ -434,38 +505,34 @@ Journal entries earn TOURS rewards with a random 1–10x multiplier.
 
 ---
 
-### 8. TOURS Rewards
+### 8. TOURS Rewards — NOT ACTIVE
 
 **Contract**: `ToursRewardManagerV2` — [`0x056452a44d81AB502e24510b2e4FB1789C6faf85`](https://monadscan.com/address/0x056452a44d81AB502e24510b2e4FB1789C6faf85)
 
-TOURS is the platform reward token with a **Bitcoin-style halving** schedule.
+**No TOURS is earned or paid in this app today, and none can be.** Verified on
+chain 2026-09-04:
 
-**Listener / Fan Rewards:**
+```
+ToursRewardManagerV2.authorizedDistributors(MusicSubscriptionV6) = false
+```
 
-| Action | TOURS Earned |
-|--------|-------------|
-| Listen to a song | 0.1 |
-| First listen of the day | 5 |
-| Submit a voice note | 1 |
-| 7-day listening streak | 10 |
-| Complete an itinerary | 50 |
+The manager holds **1,000,000 TOURS**, funded and waiting, but the subscription
+contract is not authorised to distribute from it, so `claimToursReward`
+reverts. Turning it on is one owner transaction — `setDistributor(V6, true)` —
+and until that happens any earn rate published here is a promise the chain will
+refuse.
 
-**Artist Rewards:**
+The UI that advertised it has been removed: the radio's "Claim N TOURS" panel
+and earn rates, the profile's TOURS balance tile, and the burn page that told
+artists they had "received 5 TOURS" while burning nothing.
 
-| Action | TOURS Earned | Requirements |
-|--------|-------------|--------------|
-| Monthly artist reward | 1 | ≥10 Masters uploaded + ≥100 lifetime plays |
+**Everything users actually earn or spend settles in WMON** — licences, mints,
+the passport, subscriptions, radio actions, listener rewards and referrals.
 
-**Venue Operator Rewards:**
-
-| Action | TOURS Earned | Details |
-|--------|-------------|---------|
-| Venue hosts a song play | 0.05 | Per song played through venue, combo multiplier up to 3x |
-
-**Halving schedule:**
-- Rewards halve every ~365 days (epoch-based)
-- Minimum reward floor prevents dust amounts
-- DAO can override rates via governance
+The intended future for TOURS is a **consumable layer in a separate game**
+(lures, hints, re-rolls), which is a sink. A music app gives it nothing to be
+spent on, and a faucet without a sink dilutes a token rather than making it
+worth holding. TOURS V2 remains deployed and untouched at 100B supply.
 
 ---
 
@@ -952,6 +1019,34 @@ railway login
 railway link
 railway up
 ```
+
+### Contracts
+
+The deploy scripts take their signer **from the command line**, never from a key
+in the environment. `vm.startBroadcast()` is called with no argument, so forge
+supplies it:
+
+```bash
+# encrypted keystore, passphrase typed at the prompt
+forge script script/DeployV3.s.sol --account <name> --rpc-url monad --broadcast
+
+# or a hardware wallet, where the key never leaves the device
+forge script script/DeployV3.s.sol --ledger --rpc-url monad --broadcast
+```
+
+Importing a key into a keystore is a one-off human step, done outside any agent
+or script. Nothing reads a private key from `.env` any more — that key owns every
+contract, and in an environment variable it is readable by any dependency,
+postinstall script or backup. `tools/verify-deploy-signer-from-cli.ts` fails the
+build if a script goes back to reading one.
+
+The deployer ADDRESS is still needed before broadcasting, for governance
+defaults and logging, and comes from `vm.envOr("DEPLOYER_ADDRESS", msg.sender)`
+— a public address is safe in `.env`.
+
+Contract verification needs `ETHERSCAN_API_KEY` in the environment, or set
+directly in `contracts/foundry.toml`, which is gitignored. It is used only by
+`--verify` and cannot sign anything.
 
 ---
 
