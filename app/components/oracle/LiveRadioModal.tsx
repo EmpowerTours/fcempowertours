@@ -1801,47 +1801,9 @@ export function LiveRadioModal({
                 </div>
               )}
 
-              {/* Rewards Section */}
-              {walletAddress && (
-                <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Gift className="w-4 h-4 text-yellow-400" />
-                      Your Rewards
-                    </h3>
-                    {/* The TOURS figure was removed on 2026-09-03. The reward
-                        manager holds 1,000,000 TOURS but
-                        authorizedDistributors(V6) is false on chain, so
-                        claimToursReward reverts -- the app advertised a reward
-                        the contract refuses to pay. */}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 mb-3 text-center">
-                    <div>
-                      <p className="text-lg font-bold text-white">
-                        {listenerStats?.totalSongsListened || 0}
-                      </p>
-                      <p className="text-xs text-gray-400">Songs</p>
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-white flex items-center justify-center gap-1">
-                        <Flame className="w-4 h-4 text-orange-400" />
-                        {listenerStats?.currentStreak || 0}
-                      </p>
-                      <p className="text-xs text-gray-400">Day Streak</p>
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-white">
-                        {listenerStats?.voiceNotesPlayed || 0}
-                      </p>
-                      <p className="text-xs text-gray-400">Shoutouts</p>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    Shoutouts play after each song ends
-                  </p>
-                </div>
-              )}
-
+              {/* There were TWO identical "Your Rewards" panels rendered back
+                  to back -- same heading, same three stats, differing only in
+                  their closing line. One is gone. */}
               {/* Rewards Section */}
               {walletAddress && (
                 <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl p-4">

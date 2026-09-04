@@ -62,6 +62,18 @@ export async function ensureDelegationCovers(
     "The wallet did not respond. Open your wallet app, then try again.",
   );
 
+  // walletAuthHeaders swallows EVERY signature failure -- rejected, dismissed,
+  // never delivered -- and returns {}. Posting that yields a 401 and a vague
+  // "could not set up gasless transactions", when the real cause is specific
+  // and the user can act on it. Empty headers outside Farcaster mean exactly
+  // one thing: the signature did not happen.
+  if (!fid && Object.keys(headers).length === 0) {
+    throw new Error(
+      "The signature was not approved. Open your wallet app, approve the " +
+        "signature request, then try again.",
+    );
+  }
+
   const res = await fetch("/api/create-delegation", {
     method: "POST",
     headers: {

@@ -4464,91 +4464,10 @@ ${enjoyText}
       }
 
       // ==================== LIVE RADIO: CLAIM LISTENER REWARDS ====================
-      case "radio_claim_rewards": {
-        console.log("📻 Action: radio_claim_rewards");
-
-        // SECURITY: the payout amount is read from the server-side listener
-        // ledger, NOT from the client. This handler previously transferred
-        // params.amount verbatim from the platform Safe, so anyone could claim
-        // an arbitrary number of TOURS out of the treasury. The client's
-        // amount is now ignored entirely.
-        //
-        // The ledger is owned by /api/live-radio (LISTENER_STATS_KEY); we read
-        // and reset it here so the transfer and the entitlement reset are a
-        // single server operation. Resetting BEFORE the transfer closes the
-        // replay window where the same pending balance could be claimed twice.
-        const { redis: listenerRedis } = await import("@/lib/redis");
-        const LISTENER_STATS_KEY = "live-radio:listener-stats";
-        const listenerKey = userAddress.toLowerCase();
-
-        const listenerStats = await listenerRedis.hget<{
-          pendingRewards?: number;
-        }>(LISTENER_STATS_KEY, listenerKey);
-
-        const claimable = Number(listenerStats?.pendingRewards ?? 0);
-        if (!listenerStats || !(claimable > 0)) {
-          return NextResponse.json(
-            { success: false, error: "No rewards to claim" },
-            { status: 400 },
-          );
-        }
-
-        // Reserve: zero the pending balance before sending so a concurrent or
-        // replayed request finds nothing to claim.
-        await listenerRedis.hset(LISTENER_STATS_KEY, {
-          [listenerKey]: { ...listenerStats, pendingRewards: 0 },
-        });
-
-        const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
-        const rewardAmountWei = parseEther(claimable.toString());
-
-        // Send rewards to user's Safe, not their wallet
-        const userSafe = await getUserSafeAddress(userAddress as Address);
-        console.log("📻 Claiming radio rewards (server-verified):", {
-          claimable,
-          TOURS_TOKEN,
-          userAddress,
-          userSafe,
-        });
-
-        // Transfer TOURS from platform Safe to user's Safe
-        const radioRewardCalls: Call[] = [
-          {
-            to: TOURS_TOKEN,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function transfer(address to, uint256 amount) external returns (bool)",
-              ]),
-              functionName: "transfer",
-              args: [userSafe as Address, rewardAmountWei],
-            }) as Hex,
-          },
-        ];
-
-        let radioRewardTxHash: string;
-        try {
-          // Use platform Safe for rewards distribution
-          radioRewardTxHash = await sendSafeTransaction(radioRewardCalls);
-        } catch (transferErr) {
-          // Transfer failed — restore the reserved balance so it isn't lost.
-          await listenerRedis.hset(LISTENER_STATS_KEY, {
-            [listenerKey]: { ...listenerStats, pendingRewards: claimable },
-          });
-          throw transferErr;
-        }
-        console.log("✅ Radio rewards claimed TX:", radioRewardTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: radioRewardTxHash,
-          action,
-          userAddress,
-          amount: claimable.toString(),
-          message: `Claimed ${claimable} TOURS listening rewards!`,
-        });
-      }
+      // radio_claim_rewards removed on 2026-09-03 with the TOURS UI it served.
+      // It paid TOURS, nothing in the app called it once the claim button was
+      // removed, and the reward manager does not list V6 as an authorized
+      // distributor -- so the transfer it attempted could not settle anyway.
 
       // ==================== LIVE RADIO: SKIP TO RANDOM ====================
       case "radio_skip_random": {

@@ -48,7 +48,6 @@ const DEFAULT_PERMISSIONS = [
   "unstake_tours",
   "stake_music_yield",
   "unstake_music_yield",
-  "claim_rewards",
   "create_tanda_group",
   "join_tanda_group",
   "contribute_tanda",
