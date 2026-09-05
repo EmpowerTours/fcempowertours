@@ -57,7 +57,7 @@ export default function InvestorDeck() {
       <div className="tags">
         <span className="tag tag-cyan">Monad Blockchain</span>
         <span className="tag tag-purple">20 Live Contracts</span>
-        <span className="tag tag-green">70% Creator Payouts</span>
+        <span className="tag tag-green">90% Creator Payouts</span>
       </div>
       <p className="prepared">
         Prepared for <strong>Faisal Al Hammadi</strong>
@@ -94,7 +94,7 @@ export default function InvestorDeck() {
             <div className="stat-label">Verified Contracts</div>
           </div>
           <div className="card">
-            <div className="stat">70%</div>
+            <div className="stat">90%</div>
             <div className="stat-label">Creator Payout</div>
           </div>
           <div className="card">
@@ -175,7 +175,7 @@ export default function InvestorDeck() {
         <div className="card card-accent">
           <h3 className="green">Instant Settlement</h3>
           <p>
-            Artist receives 70% in the same transaction as purchase. No delays,
+            Artist receives 90% in the same transaction as purchase. No delays,
             no minimums.
           </p>
           <div className="highlight-box green">
@@ -248,7 +248,7 @@ export default function InvestorDeck() {
 
     // Slide 6: Revenue
     <div key="6" className="slide">
-      <h2>Revenue Model: 30% Platform Commission</h2>
+      <h2>Revenue Model: 10% Platform Commission</h2>
       <div className="grid-2">
         <div className="card">
           <table>
@@ -262,7 +262,7 @@ export default function InvestorDeck() {
             <tbody>
               <tr>
                 <td>Music License Sales</td>
-                <td className="highlight">70/30</td>
+                <td className="highlight">90/10</td>
                 <td>Same-tx</td>
               </tr>
               <tr>
@@ -279,11 +279,6 @@ export default function InvestorDeck() {
                 <td>EPK Bookings</td>
                 <td>Escrow</td>
                 <td>On completion</td>
-              </tr>
-              <tr>
-                <td>Climbing Locations</td>
-                <td className="highlight">70/30</td>
-                <td>Same-tx</td>
               </tr>
             </tbody>
           </table>
@@ -331,10 +326,12 @@ export default function InvestorDeck() {
           <tbody>
             <tr>
               <td>
-                <strong>EmpowerToursNFTV2</strong>
+                <strong>LicenseRegistry</strong> (v3)
               </td>
-              <td>Music license NFT sales (70/30)</td>
-              <td className="mono">0xB9B3...B73F</td>
+              <td>
+                Masters + licences; soulbound masters, transferable licences
+              </td>
+              <td className="mono">0x42Eb...9480</td>
             </tr>
             <tr>
               <td>
@@ -345,7 +342,7 @@ export default function InvestorDeck() {
             </tr>
             <tr>
               <td>
-                <strong>MusicSubscriptionV5</strong>
+                <strong>MusicSubscriptionV6</strong>
               </td>
               <td>Monthly artist pool (70/20/10)</td>
               <td className="mono">0x5372...5f19</td>
@@ -368,7 +365,10 @@ export default function InvestorDeck() {
               <td>
                 <strong>ToursRewardManagerV2</strong>
               </td>
-              <td>TOURS rewards + halving schedule</td>
+              <td>
+                TOURS rewards — deployed, not distributing (V6 not an authorised
+                distributor)
+              </td>
               <td className="mono">0x0564...f85</td>
             </tr>
             <tr>
@@ -382,14 +382,14 @@ export default function InvestorDeck() {
               <td>
                 <strong>ItineraryNFTV2</strong>
               </td>
-              <td>Travel itinerary marketplace</td>
+              <td>Travel itineraries — contract only, removed from the app</td>
               <td className="mono">0x9752...b020</td>
             </tr>
             <tr>
               <td>
                 <strong>ClimbingLocationsV2</strong>
               </td>
-              <td>Climbing locations + dual-NFT</td>
+              <td>Climbing locations — contract only, no UI</td>
               <td className="mono">0x23e4...CBc3</td>
             </tr>
             <tr>
@@ -424,28 +424,37 @@ export default function InvestorDeck() {
               <td>
                 <strong>VotingTOURS</strong>
               </td>
-              <td>vTOURS governance voting token</td>
+              <td>
+                vTOURS governance voting token — deployed, not wired
+                (daoTimelock is 0x0)
+              </td>
               <td className="mono">0xe537...c44c</td>
             </tr>
             <tr>
               <td>
                 <strong>EmpowerToursGovernor</strong>
               </td>
-              <td>DAO governance + proposals</td>
+              <td>
+                DAO governance + proposals — deployed, not wired (daoTimelock is
+                0x0)
+              </td>
               <td className="mono">0x4d05...2fa3</td>
             </tr>
             <tr>
               <td>
                 <strong>EmpowerToursTimelock</strong>
               </td>
-              <td>Timelock controller for governance</td>
+              <td>
+                Timelock controller for governance — deployed, not wired
+                (daoTimelock is 0x0)
+              </td>
               <td className="mono">0x4f7f...bd79</td>
             </tr>
             <tr>
               <td>
                 <strong>DAOContractFactory</strong>
               </td>
-              <td>DAO-governed deployment pipeline</td>
+              <td>DAO-governed deployment pipeline — deployed, not wired</td>
               <td className="mono">0x627a...7968</td>
             </tr>
             <tr>
@@ -479,39 +488,10 @@ export default function InvestorDeck() {
       </div>
     </div>,
 
-    // Slide 8: Agent World
-    <div key="8" className="slide">
-      <h2>Agent World: AI Economic Participants</h2>
-      <div className="grid-2 align-center">
-        <div className="screenshot-container">
-          <img
-            src="/investor-deck/05-agent-world.png"
-            alt="Agent World"
-            className="screenshot"
-          />
-        </div>
-        <div>
-          <p>
-            Autonomous AI agents can register, pay entry fees, and participate
-            in the economy.
-          </p>
-          <div className="card" style={{ marginTop: "16px" }}>
-            <h3 className="white">Agent Capabilities</h3>
-            <ul>
-              <li>Purchase music NFTs autonomously</li>
-              <li>Queue songs on Live Radio</li>
-              <li>Vote on DAO proposals</li>
-              <li>Tip artists based on AI preferences</li>
-              <li>Compete on TOURS leaderboard</li>
-            </ul>
-          </div>
-          <div className="highlight-box purple" style={{ marginTop: "12px" }}>
-            <strong>Entry:</strong> 1 MON | <strong>API:</strong> 7 endpoints
-          </div>
-        </div>
-      </div>
-    </div>,
-
+    // Slide 8 (Agent World) was removed on 2026-09-04. It presented autonomous
+    // AI agents as a live economic layer -- "Entry: 1 MON | API: 7 endpoints" --
+    // and there are zero agent API routes and zero components in the app. The
+    // feature was cut in the July 2026 music pivot; the slide outlived it.
     // Slide 9: Investment
     <div key="9" className="slide">
       <h2>Investment Opportunity</h2>
@@ -525,7 +505,6 @@ export default function InvestorDeck() {
           <ul className="small-list">
             <li>Direct treasury participation</li>
             <li>Transparent on-chain allocation</li>
-            <li>DAO voting rights included</li>
           </ul>
         </div>
         <div className="card card-accent">
@@ -543,13 +522,14 @@ export default function InvestorDeck() {
         <div className="card card-accent">
           <h3>Token Allocation</h3>
           <p>
-            TOURS governance tokens with vesting. Real voting power over
-            platform.
+            TOURS token allocation with vesting. TOURS confers no voting rights
+            today: governance is not wired (daoTimelock is 0x0) and the token is
+            not being distributed.
           </p>
           <ul className="small-list">
             <li>12-24 month vesting</li>
-            <li>Governance + utility</li>
-            <li>Bitcoin-style halving</li>
+            <li>Utility intended as a consumable layer, not yet built</li>
+            <li>Halving schedule implemented in ToursRewardManagerV2</li>
           </ul>
         </div>
       </div>
@@ -625,12 +605,12 @@ export default function InvestorDeck() {
           <p>All contracts on MonadScan</p>
           <div className="qr-row">
             <img
-              src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://monadscan.com/address/0xB9B3acf33439360B55d12429301E946f34f3B73F"
+              src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://monadscan.com/address/0x42EbcD44C2295702130f0A641633c691bA5f9480"
               alt="QR"
               className="qr"
             />
             <div>
-              <p className="cyan">NFT Contract</p>
+              <p className="cyan">LicenseRegistry (v3)</p>
               <p className="mono">monadscan.com/...</p>
             </div>
           </div>
