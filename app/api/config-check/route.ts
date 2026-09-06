@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi, type Address } from "viem";
 import { activeChain } from "@/app/chains";
+import { isQuickAuthEnforced } from "@/lib/quick-auth";
 
 /**
  * Config Health Check
@@ -76,6 +77,22 @@ export async function GET() {
     // impossible one, and it was previously only knowable by reading .env on the
     // server — so diagnosing it meant guessing which contract was in play.
     contractsV3: process.env.NEXT_PUBLIC_CONTRACTS_V3 === "true",
+
+    // Whether Quick Auth actually rejects anything.
+    //
+    // Verification always runs and always logs, but a failed or absent token is
+    // only REFUSED when ENFORCE_QUICK_AUTH=true (lib/quick-auth.ts). So the
+    // deployed states "auth is working" and "auth is observing and letting
+    // everything through" are indistinguishable from outside — which is the
+    // exact shape of every outage listed at the top of this file, except that
+    // this one fails open on a security control rather than closed on a
+    // feature. Reported so the answer is a GET rather than someone's memory of
+    // which Railway variable got set.
+    //
+    // Imported rather than re-writing `=== "true"` here: two copies of the
+    // predicate would drift, and the copy that drifts wrong is the one
+    // reporting whether a security control is on.
+    quickAuthEnforced: isQuickAuthEnforced(),
     nftContract: process.env.NEXT_PUBLIC_NFT_CONTRACT as Address | undefined,
     salesController: process.env.NEXT_PUBLIC_SALES_CONTROLLER as
       | Address
@@ -83,6 +100,16 @@ export async function GET() {
   };
 
   const checks: Check[] = [];
+
+  // Not a chain read, so it runs outside the try below and is always reported
+  // even when the RPC is unreachable.
+  checks.push({
+    name: "Quick Auth enforcement",
+    ok: env.quickAuthEnforced,
+    detail: env.quickAuthEnforced
+      ? "ENFORCE_QUICK_AUTH=true — an absent or invalid token is refused"
+      : 'ENFORCE_QUICK_AUTH is not "true" — tokens are verified and logged but NEVER refused, so any caller can assert any userAddress on the routes that trust it',
+  });
 
   try {
     const client = createPublicClient({
