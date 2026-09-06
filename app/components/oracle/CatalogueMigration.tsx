@@ -5,7 +5,7 @@ import { createPublicClient, encodeFunctionData, http, parseAbi } from "viem";
 import { activeChain } from "@/app/chains";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { isV3Contracts } from "@/lib/contract-generation";
-import { migratedAs } from "@/lib/migration-status";
+import { migrationState, type MigrationState } from "@/lib/migration-status";
 
 /**
  * Re-publish an artist's existing masters into the v3 registry.
@@ -60,7 +60,7 @@ interface LegacyMaster {
   price: bigint;
   collectorPrice: bigint;
   /** Set once we find the same tokenURI already present in v3. */
-  migratedAs?: number;
+  state: MigrationState;
 }
 
 type Status =
@@ -115,9 +115,13 @@ export const CatalogueMigration: React.FC<Props> = ({
       // Matching is on the fid the contract stores as well as the address, and the fid comparison
       // happens against each legacy row's own fid below — so a track counts as migrated if the v3
       // copy belongs to this wallet OR carries the same fid the legacy row does.
+      // Every master at a URI, not just one. A re-publish deliberately creates a
+      // second master at the same URI, so keeping one meant keeping whichever the
+      // loop wrote last — right for the tracks already re-published, wrong for the
+      // rest, by accident of iteration order rather than by any rule.
       const alreadyThere = new Map<
         string,
-        { id: number; artist: string; fid: bigint }
+        { id: number; artist: string; fid: bigint }[]
       >();
       const total = Number(
         await client.readContract({
@@ -144,7 +148,11 @@ export const CatalogueMigration: React.FC<Props> = ({
             functionName: "tokenURI",
             args: [BigInt(id)],
           })) as string;
-          if (uri) alreadyThere.set(uri, { id, artist: owner, fid });
+          if (uri) {
+            const at = alreadyThere.get(uri);
+            if (at) at.push({ id, artist: owner, fid });
+            else alreadyThere.set(uri, [{ id, artist: owner, fid }]);
+          }
         } catch {
           // A purged or missing id — skip it rather than abandoning the scan.
         }
@@ -174,9 +182,10 @@ export const CatalogueMigration: React.FC<Props> = ({
             nftType: Number(r[11]),
             price: r[4] as bigint,
             collectorPrice: r[5] as bigint,
-            // Already in v3 if the copy at this URI is owned by this wallet, or carries the same
-            // fid this legacy row does. Either is proof it has been re-published.
-            migratedAs: migratedAs(
+            // Three outcomes, not two: a copy this wallet owns is done, a copy
+            // somebody else minted under this fid is present but miscredited and
+            // still needs re-publishing, and nothing at all is pending.
+            state: migrationState(
               alreadyThere.get(uri),
               { fid: r[0] as bigint },
               walletAddress,
@@ -264,7 +273,11 @@ export const CatalogueMigration: React.FC<Props> = ({
     );
   }
 
-  const pending = masters.filter((m) => !m.migratedAs);
+  // Misattributed tracks are actionable: the recording is in v3 but credited to
+  // whoever minted it, and re-publishing is what puts the artist's own address on
+  // it. Excluding them is what left two of unify34's tracks invisible with the
+  // deployer's address on them.
+  const pending = masters.filter((m) => m.state.kind !== "migrated");
 
   // Nothing to move: hide, which is what the call site already says this does. Showing a
   // migration card to somebody whose catalogue is fully migrated is how the wrong impression
@@ -316,7 +329,8 @@ export const CatalogueMigration: React.FC<Props> = ({
       )}
 
       {masters.map((m) => {
-        const migrated = Boolean(m.migratedAs);
+        const migrated = m.state.kind === "migrated";
+        const misattributed = m.state.kind === "misattributed";
         const sending = status.kind === "sending" && status.id === m.id;
         return (
           <div
@@ -324,7 +338,9 @@ export const CatalogueMigration: React.FC<Props> = ({
             className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${
               migrated
                 ? "border-green-500/30 bg-green-500/5"
-                : "border-gray-600/40"
+                : misattributed
+                  ? "border-amber-500/40 bg-amber-500/5"
+                  : "border-gray-600/40"
             }`}
           >
             <div className="min-w-0">
@@ -338,6 +354,14 @@ export const CatalogueMigration: React.FC<Props> = ({
                 {m.maxCollectorEditions > 0 &&
                   ` · ${m.maxCollectorEditions} collector editions`}
               </p>
+              {misattributed && m.state.kind === "misattributed" && (
+                // Say what is actually wrong. "Not migrated" would be a lie — the
+                // recording IS in v3 — and a bare tick was what hid this for weeks.
+                <p className="text-[11px] text-amber-400">
+                  in v3 as #{m.state.id}, but credited to whoever minted it —
+                  re-publish to put your address on it
+                </p>
+              )}
               {done[m.id] && (
                 <p className="text-[11px] text-green-400 font-mono truncate">
                   {done[m.id].slice(0, 14)}…
@@ -347,7 +371,7 @@ export const CatalogueMigration: React.FC<Props> = ({
 
             {migrated ? (
               <span className="text-[11px] text-green-400 whitespace-nowrap">
-                in v3 as #{m.migratedAs}
+                in v3 as #{m.state.kind === "migrated" ? m.state.id : ""}
               </span>
             ) : (
               <button

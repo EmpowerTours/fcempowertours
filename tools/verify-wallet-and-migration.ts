@@ -13,12 +13,20 @@
  * believes it. So the logic moved into `lib/` where it can be called with real inputs, and these
  * assert what it DOES.
  *
- * ## 1. "Move your catalogue" offered work that was already done
+ * ## 1. "Move your catalogue" offered work that was already done — then hid work that was not
  *
- * The card asked whether a v3 master with this tokenURI is owned by the connected wallet. The v3
- * re-publish ran from the deployer key, so `artist` is the deployer and the wallet is the artist.
- * Nothing matched, all five tracks read as pending, and accepting would have minted a second copy
- * of every track.
+ * First failure: the card asked whether a v3 master with this tokenURI is owned by the connected
+ * wallet. The v3 re-publish ran from the deployer key, so `artist` is the deployer and the wallet
+ * is the artist. Nothing matched, all five tracks read as pending, and accepting would have
+ * minted a second copy of every track.
+ *
+ * The fix — count a deployer-minted copy carrying the artist's fid as migrated — overshot. A copy
+ * the platform minted says the PLATFORM is the artist, which is the exact thing v3 exists to stop.
+ * "Money Making Machine" and "Suddenly" sat in v3 under the deployer's address behind a green
+ * tick, with no way in the UI to correct them.
+ *
+ * So presence and attribution are separate now, and these check that a mis-credited copy reads as
+ * actionable rather than as done.
  *
  * ## 2. Every client-signed transaction failed
  *
@@ -29,7 +37,7 @@
  * is why it stayed hidden.
  */
 
-import { migratedAs } from "../lib/migration-status.ts";
+import { migrationState } from "../lib/migration-status.ts";
 import { resolveWalletProvider } from "../lib/wallet-provider.ts";
 
 const failures: string[] = [];
@@ -49,39 +57,74 @@ const WALLET = "0x33fFCcb1802e13a7eead232BCd4706a2269582b0";
 const DEPLOYER = "0x8dF64bACf6b70F7787f8d14429b258B3fF958ec1";
 const FID = 765994n;
 
-// ------------------------------------------------------- already migrated, under another key
+// ------------------------------------------------------------- attribution, not just presence
 
 check(
-  "the live case: minted by the deployer, same fid — already migrated",
-  migratedAs({ id: 3, artist: DEPLOYER, fid: FID }, { fid: FID }, WALLET),
-  3,
+  "the live case: minted by the deployer under the artist's fid — present but MIScredited",
+  migrationState([{ id: 3, artist: DEPLOYER, fid: FID }], { fid: FID }, WALLET),
+  { kind: "misattributed", id: 3 },
 );
 check(
-  "minted by the wallet itself is also migrated",
-  migratedAs({ id: 3, artist: WALLET, fid: 0n }, { fid: FID }, WALLET),
-  3,
+  "minted by the wallet itself is migrated and done",
+  migrationState([{ id: 3, artist: WALLET, fid: 0n }], { fid: FID }, WALLET),
+  { kind: "migrated", id: 3 },
 );
+
+// The case a single-copy map got right only by luck. A re-publish leaves BOTH masters at the URI,
+// and the artist's own must win regardless of which order they are seen in.
+check(
+  "deployer copy AND the artist's re-publish: the artist's own wins",
+  migrationState(
+    [
+      { id: 3, artist: DEPLOYER, fid: FID },
+      { id: 8, artist: WALLET, fid: FID },
+    ],
+    { fid: FID },
+    WALLET,
+  ),
+  { kind: "migrated", id: 8 },
+);
+check(
+  "same pair in the opposite order still resolves to the artist's own",
+  migrationState(
+    [
+      { id: 8, artist: WALLET, fid: FID },
+      { id: 3, artist: DEPLOYER, fid: FID },
+    ],
+    { fid: FID },
+    WALLET,
+  ),
+  { kind: "migrated", id: 8 },
+);
+
 check(
   "address comparison ignores case",
-  migratedAs(
-    { id: 7, artist: WALLET.toUpperCase().replace("0X", "0x"), fid: 0n },
+  migrationState(
+    [{ id: 7, artist: WALLET.toUpperCase().replace("0X", "0x"), fid: 0n }],
     { fid: 0n },
     WALLET.toLowerCase(),
   ),
-  7,
+  { kind: "migrated", id: 7 },
 );
 
 // --------------------------------------------------------------- and when it is NOT migrated
 
 check(
-  "no v3 copy at all means not migrated",
-  migratedAs(undefined, { fid: FID }, WALLET),
-  undefined,
+  "no v3 copy at all means pending",
+  migrationState(undefined, { fid: FID }, WALLET),
+  { kind: "pending" },
 );
+check("an empty list means pending", migrationState([], { fid: FID }, WALLET), {
+  kind: "pending",
+});
 check(
   "a different artist's copy of the same URI is not YOUR migration",
-  migratedAs({ id: 9, artist: DEPLOYER, fid: 111111n }, { fid: FID }, WALLET),
-  undefined,
+  migrationState(
+    [{ id: 9, artist: DEPLOYER, fid: 111111n }],
+    { fid: FID },
+    WALLET,
+  ),
+  { kind: "pending" },
 );
 
 // The subtle one. fid is optional on both contracts, so 0 must never match 0 — otherwise every
@@ -89,8 +132,8 @@ check(
 // silently refuses to migrate real tracks.
 check(
   "two missing fids do not count as the same fid",
-  migratedAs({ id: 9, artist: DEPLOYER, fid: 0n }, { fid: 0n }, WALLET),
-  undefined,
+  migrationState([{ id: 9, artist: DEPLOYER, fid: 0n }], { fid: 0n }, WALLET),
+  { kind: "pending" },
 );
 
 // ------------------------------------------------------------------ the miniapp wallet lookup
