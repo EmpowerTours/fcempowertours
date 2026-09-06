@@ -55,7 +55,13 @@ cd "$(dirname "$0")"
 RPC="${MONAD_RPC:-https://rpc.monad.xyz}"
 REG="${LICENSE_REGISTRY:-0x42EbcD44C2295702130f0A641633c691bA5f9480}"
 BROADCAST="${BROADCAST:-}"
-REASON="${REASON:-superseded by a re-publish at the same tokenURI}"
+# Says the same AUDIO, not the same tokenURI. The two differ and the difference is
+# the whole reason this script groups the way it does: a re-publish writes a NEW
+# metadata document, so the superseded master and its replacement have different
+# tokenURIs and identical audio. The first four suspensions (#3 #4 #5 #7, 2026-09-05)
+# went out with the tokenURI wording, which is wrong; it is recorded on-chain and not
+# worth a transaction to correct.
+REASON="${REASON:-superseded by a re-publish of the same audio}"
 
 TOTAL=$(cast call "$REG" "totalMasters()(uint256)" --rpc-url "$RPC" | awk '{print $1}')
 echo "registry $REG"
