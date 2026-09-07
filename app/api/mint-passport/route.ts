@@ -24,6 +24,7 @@ import {
   preflightPassportMint,
   buildPassportMintCalls,
 } from "@/lib/passport-mint";
+import { pinPassportMetadata } from "@/lib/passport/token-uri";
 
 const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as string;
 const IPINFO_TOKEN = process.env.IPINFO_TOKEN;
@@ -88,8 +89,6 @@ async function getCountryFromIP(
 }
 const NEYNAR_API_KEY = (process.env.NEYNAR_API_KEY ||
   process.env.NEXT_PUBLIC_NEYNAR_API_KEY)!;
-const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
-const PINATA_JWT = process.env.PINATA_JWT!;
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
   "https://fcempowertours-production-6551.up.railway.app";
@@ -192,37 +191,15 @@ const PASSPORT_VIEM_ABI = [
   },
 ] as const;
 
+// Delegates to lib/passport/token-uri, which is also what the delegated mint path
+// uses. Two copies of "produce a passport tokenURI" is how #1-#4 ended up blank:
+// this one was correct and the other silently passed "".
 async function uploadMetadataToPinata(
   metadata: any,
   countryCode: string,
   tokenId: number,
 ) {
-  try {
-    const response = await axios.post(
-      PINATA_API_URL,
-      {
-        pinataContent: metadata,
-        pinataMetadata: {
-          name: `passport-${countryCode}-${tokenId}`,
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${PINATA_JWT}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-    const cid = response.data.IpfsHash;
-    console.log(`✅ Metadata uploaded to IPFS: ipfs://${cid}`);
-    return `ipfs://${cid}`;
-  } catch (error: any) {
-    console.error(
-      "❌ Pinata upload error:",
-      error.response?.data || error.message,
-    );
-    throw new Error(`Pinata upload failed: ${error.message}`);
-  }
+  return pinPassportMetadata(metadata, countryCode, tokenId);
 }
 
 export async function POST(req: NextRequest) {

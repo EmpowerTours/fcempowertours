@@ -46,6 +46,7 @@ import {
 } from "@/lib/rights-declaration";
 import { authorizeUserAddress } from "@/lib/quick-auth";
 import { getResolvedTrack } from "@/lib/catalogue-resolved";
+import { buildPassportTokenURI } from "@/lib/passport/token-uri";
 
 // Shared by ERC-20 and ERC-721: Transfer(address,address,uint256).
 // ERC-721 indexes the tokenId, so a mint has 4 topics with topics[1] == 0x0;
@@ -700,6 +701,18 @@ export async function POST(req: NextRequest) {
           await new Promise((r) => setTimeout(r, 2000));
         }
 
+        // The tokenURI is NOT defaulted. Every other argument here has a
+        // sensible fallback, and the one field that cannot be reconstructed
+        // afterwards used to fall back to "" — which minted passports #1-#4 with
+        // no metadata at all, rendering in MetaMask as a grey box with a number.
+        // A mint that cannot produce metadata must fail, not succeed blankly.
+        const passportUri =
+          params?.uri ||
+          (await buildPassportTokenURI(
+            params?.countryCode || "US",
+            params?.countryName || "United States",
+          ));
+
         // Step 2: Call mintFor (now as single call, not batched with approve)
         mintCalls.push({
           to: PASSPORT_NFT,
@@ -716,7 +729,7 @@ export async function POST(req: NextRequest) {
               params?.countryName || "United States",
               params?.region || "Americas",
               params?.continent || "North America",
-              params?.uri || "",
+              passportUri,
             ],
           }) as Hex,
         });
