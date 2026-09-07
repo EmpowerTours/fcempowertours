@@ -41,6 +41,7 @@
  */
 
 import type { Redis } from "@upstash/redis";
+import { refreshPassportMetadata } from "@/lib/passport/refresh";
 
 const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT ?? "";
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC ?? "https://rpc.monad.xyz";
@@ -218,6 +219,12 @@ export async function stampDiscovery(
       0,
     );
     await tx.wait();
+
+    // The stamp is on chain but INVISIBLE until the artwork is rebuilt around it,
+    // because tokenURI stores a snapshot. Awaited so the picture is current by the
+    // time this returns; refreshPassportMetadata never throws, so a failed refresh
+    // cannot undo a stamp that already succeeded.
+    await refreshPassportMetadata(tokenId);
 
     return {
       stamped: true,

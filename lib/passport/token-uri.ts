@@ -60,6 +60,44 @@ export async function buildPassportTokenURI(
 }
 
 /**
+ * Pin an SVG as its own file and return a fetchable https:// URL.
+ *
+ * The artwork must be a real file, not a data: URI inside the metadata. MetaMask
+ * refuses both halves — a data: tokenURI and a data: image — so the passport is
+ * only visible when the JSON and the artwork are each a plain https:// URL.
+ */
+export async function pinPassportSVG(
+  svg: string,
+  countryCode: string,
+  tokenId = 0,
+): Promise<string> {
+  const jwt = process.env.PINATA_JWT;
+  if (!jwt) {
+    throw new Error("PINATA_JWT is not set — cannot pin passport artwork");
+  }
+  const form = new FormData();
+  form.append(
+    "file",
+    new Blob([svg], { type: "image/svg+xml" }),
+    `passport-${countryCode}-${tokenId}.svg`,
+  );
+  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${jwt}` },
+    body: form,
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Pinata artwork upload failed (${res.status}): ${(await res.text()).slice(0, 200)}`,
+    );
+  }
+  const body = (await res.json()) as { IpfsHash?: string };
+  if (!body.IpfsHash)
+    throw new Error("Pinata returned no IpfsHash for the artwork");
+  return `${PINATA_GATEWAY}${body.IpfsHash}`;
+}
+
+/**
  * Pin an already-built metadata document. Separate from the above because a
  * passport is re-pinned after the mint with its real tokenId baked into the
  * artwork, and at that point the document already exists.

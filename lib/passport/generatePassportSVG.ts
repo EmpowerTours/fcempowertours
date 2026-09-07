@@ -425,9 +425,16 @@ export function generatePassportMetadata(
 
   return {
     name: `EmpowerTours Passport - ${countryName}`,
-    description: `Digital passport NFT for ${countryName}. Collect venue stamps as you explore events and climbing locations. Unlock exclusive benefits. Part of a collection representing all 195 countries on Monad.`,
+    // Describes what the passport DOES. The previous copy promised venue stamps,
+    // climbing locations and "exclusive benefits" — none of which existed, and
+    // this text is the most widely rendered string in the project, shown by every
+    // wallet and explorer that ever loads one.
+    description: `Digital passport for ${countryName} on Monad. Records where you have been across EmpowerTours: artists discovered, shows attended, places climbed. One of 195 countries.`,
     image: imageDataURI, // SVG embedded as base64
-    external_url: `https://fcempowertours-production-6551.up.railway.app/passport/${tokenId}`,
+    // /passport/<id> does not exist and returned 404 for every passport ever
+    // minted. /passport is the real page. Kept overridable so the URL is not
+    // pinned to one deployment host.
+    external_url: `${process.env.NEXT_PUBLIC_URL ?? "https://fcempowertours-production-6551.up.railway.app"}/passport`,
     attributes: [
       {
         trait_type: "Country",
