@@ -40,36 +40,64 @@ googleMapsUri, latitude, longitude)` already models exactly this. It was never
 4. **Self-recording.** Anyone may log a show they attended; it stamps with
    `verified: false` and renders pencilled.
 
-### THE CAP, and why these numbers
+### What ships NOW, with the contract that is already deployed
 
-Only `owner()` or `oracle()` can honestly set `verified: true` — if a fan calls
-`addVenueStamp` themselves they choose that flag, which is a self-stamp wearing a
-false badge. So attested stamps come from the oracle, **and the oracle pays**.
+**Self-recorded stamps work today and cost the platform nothing.**
 
-Measured on mainnet 2026-09-07: `addVenueStamp` costs **292,236 gas**, which at
-102 gwei is **0.0298 MON per stamp**.
+`addVenueStamp` permits `msg.sender == _ownerOf(tokenId)`. Verified on mainnet
+2026-09-07: the holder of #4 can stamp their own passport; a stranger is refused
+with `Unauthorized`. So a fan records a show they attended, signs it themselves,
+and pays their own gas. No oracle, no cap, no platform spend, no contract change.
 
-    100 fans      3 MON
-    1,000 fans   30 MON
-    10,000 fans 298 MON
+Those render pencilled, which is honest — nobody attested them. Shipping only
+pencilled stamps first is coherent rather than a compromise: the struck ones
+arrive later and mean something precisely because they were scarce from the start.
 
-The deployer holds ~92 MON, so one stadium show would exceed the treasury. Start
-with, in the same shape as the Hunt payout caps that already work:
+**Cost: 0.0198 MON**, not the 0.0298 quoted earlier — leaving `placeId` and
+`googleMapsUri` empty drops the write from 292,236 gas to 194,248. A third cheaper
+for free, because those two strings are most of the cost and the app does not use
+Google Maps data. Do not populate them.
 
-- **150 attested stamps per show** (~4.5 MON). Comfortably covers any room this
-  app will fill in the next year, and one runaway show cannot drain anything.
-- **300 attested stamps per rolling 24h** across all shows (~9 MON). The blast
-  radius if the claim endpoint is ever fooled at scale.
-- **30 MON total programme budget** (~1,000 stamps) before someone re-approves.
+So phase one is a UI to record a show and a transaction the fan signs. That is it.
 
-Past the cap, claims still succeed — they record as pencilled rather than being
-refused. A fan who showed up should never be told "no"; they should be told
-"recorded", and the artist's attestation is what is scarce.
+### Attested stamps: per-artist pre-pay, NOT a platform cap
 
-Revisit the numbers when a show actually sells more than 150 tickets. Until then
-they are ceilings, not forecasts.
+An earlier draft of this file set a platform-wide ceiling of 150 attested stamps
+per show. That was the wrong shape, and `lib/platform-gas-budget.ts` already
+explains why in its own header: a per-caller limit bounds one caller and "does not
+bound what _everyone_ can do". A per-SHOW cap has the same defect one level up —
+ten artists each running a show inside the limit costs ten times as much, and none
+of them did anything wrong.
 
----
+**The artist pre-pays for their own show.** Opening a show for N attested stamps
+moves `N x 0.0198 MON` from the artist's Safe to the oracle's gas wallet, and the
+show's ceiling is simply what they bought. Self-limiting by construction rather
+than by a number somebody picked, and the platform's exposure does not grow with
+the roster. It also matches the existing economics: the Safe is already the
+account fees are charged from, even though sale proceeds land in the artist's
+wallet.
+
+Two constraints on building it:
+
+- Only `owner()` or `oracle()` may set `verified: true`, so the artist's Safe
+  cannot be the caller. The oracle still stamps; the artist has funded it.
+- Safes hold MON, so a WMON charge has to wrap first. That step exists whatever
+  currency the pre-pay is billed in.
+
+Keep `platform-gas-budget` behind it as a backstop. A bug in the pre-pay
+accounting is exactly the case its fail-closed default was written for.
+
+### The honesty hole, and its real size
+
+With this contract, `verified` is whatever the caller passes. A technical user can
+call `addVenueStamp` directly with `verified: true` and self-award a struck stamp,
+bypassing the app entirely. There is no on-chain fix without a redeploy.
+
+The app can cross-check a struck stamp against a known show grant and render an
+unmatched one as pencilled, which handles the honest majority. Past that: a stamp
+carries no money, so faking one earns a picture of a circle on your own passport.
+That is the bound, and it is why this is acceptable to ship before V5 rather than
+after.
 
 ## PassportNFTV5 — fold three fixes into one redeploy
 
@@ -84,8 +112,8 @@ rather than as three redeploys.
    at all because a caller passed `""` (fixed app-side in `27224ff`, but the
    contract still permits it). A mint that cannot produce metadata should revert.
 3. **Cheaper stamps.** `placeId` and `googleMapsUri` are stored as full strings and
-   are most of the 292k gas. If Google Maps data is not actually used, dropping
-   them cuts the cost substantially.
+   are most of the cost — passing them empty already drops the write from 292,236
+   to 194,248 gas, so removing the fields entirely is the rest of that saving.
 
 ### Migration is already solved — do not redesign it
 
