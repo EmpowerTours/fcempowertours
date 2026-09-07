@@ -1,14 +1,16 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { Wallet } from 'lucide-react';
+import React from "react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { Wallet } from "lucide-react";
 
 interface ConnectWalletButtonProps {
   className?: string;
 }
 
-export default function ConnectWalletButton({ className }: ConnectWalletButtonProps) {
+export default function ConnectWalletButton({
+  className,
+}: ConnectWalletButtonProps) {
   return (
     <ConnectButton.Custom>
       {({
@@ -25,8 +27,12 @@ export default function ConnectWalletButton({ className }: ConnectWalletButtonPr
         return (
           <div
             {...(!ready && {
-              'aria-hidden': true,
-              style: { opacity: 0, pointerEvents: 'none' as const, userSelect: 'none' as const },
+              "aria-hidden": true,
+              style: {
+                opacity: 0,
+                pointerEvents: "none" as const,
+                userSelect: "none" as const,
+              },
             })}
             className={className}
           >
@@ -35,7 +41,7 @@ export default function ConnectWalletButton({ className }: ConnectWalletButtonPr
                 return (
                   <button
                     onClick={openConnectModal}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-[#836EF9] hover:bg-[#6d5ae0] text-white font-semibold rounded-xl transition-colors text-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-foil hover:bg-foil-bright text-ink font-semibold tracking-wide transition-colors text-sm"
                   >
                     <Wallet className="w-4 h-4" />
                     Connect Wallet
@@ -57,9 +63,9 @@ export default function ConnectWalletButton({ className }: ConnectWalletButtonPr
               return (
                 <button
                   onClick={openAccountModal}
-                  className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/15 text-white rounded-xl transition-colors text-sm border border-white/10"
+                  className="flex items-center gap-2 px-3 py-2 bg-ink-raised hover:border-foil-dim text-paper doc-mono text-xs transition-colors border border-rule"
                 >
-                  <div className="w-2 h-2 rounded-full bg-green-400" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-good" />
                   <span className="font-mono text-xs">
                     {account.displayName}
                   </span>

@@ -13,6 +13,96 @@
 
 @theme {
   --animate-fadeIn: fadeIn 0.3s ease-in-out;
+
+  /* ------------------------------------------------------------------ *
+   * The document palette.
+   *
+   * Taken from the passport artwork (lib/passport/generatePassportSVG.ts)
+   * so the app and the NFT it mints look like the same object. That art is
+   * an engraved document: a deep ink ground, one foil accent spent
+   * sparingly, hairline rules, and paper-white text.
+   *
+   * What this replaces, and why: near-black with an acid-cyan glow,
+   * purple-to-blue gradient buttons, and a colour on every element. The
+   * accent stopped meaning anything because everything was an accent.
+   *
+   * The rule for using these: `foil` marks ONE thing per view — the action
+   * the screen exists for. Everything else is paper, muted, or rule.
+   * ------------------------------------------------------------------ */
+
+  --color-ink: #0e1418;        /* ground */
+  --color-ink-raised: #141c22; /* panels sitting on the ground */
+  --color-ink-sunk: #0a0f12;   /* wells, inputs */
+
+  --color-foil: #b08d57;       /* the single accent */
+  --color-foil-bright: #d4b87f;/* foil on hover / emphasis */
+  --color-foil-dim: #6d5836;   /* foil at rest, borders */
+
+  --color-paper: #f2eee6;      /* primary text */
+  --color-muted: #8a9299;      /* secondary text, labels */
+  --color-faint: #5b646c;      /* tertiary, disabled */
+
+  --color-rule: #23303a;       /* hairline separators */
+  --color-rule-soft: #1a242b;
+
+  /* Semantic, kept distinct from the accent so status never competes
+     with the action. */
+  --color-good: #7f9c72;
+  --color-warn: #c08a4a;
+  --color-bad: #a35c56;
+
+  --font-display: Georgia, "Times New Roman", Times, serif;
+  --font-data: "Courier New", Courier, monospace;
+}
+
+/* ---------------------------------------------------------------- *
+ * Document primitives.
+ *
+ * A passport gets its structure from rules and letterspacing, not from
+ * borders and shadows on every block. These are the three devices the
+ * artwork uses, available to the app so surfaces match it.
+ * ---------------------------------------------------------------- */
+
+/* A section label: small, letterspaced, with a rule running to the edge.
+   Replaces coloured headings with emoji markers. */
+.doc-label {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.doc-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-rule);
+}
+
+/* A panel is defined by a hairline, not a fill plus a radius plus a shadow. */
+.doc-panel {
+  background: var(--color-ink-raised);
+  border: 1px solid var(--color-rule);
+}
+
+/* Data set the way the passport sets it: label above value. */
+.doc-field-label {
+  font-family: var(--font-display);
+  font-size: 0.5625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.doc-value {
+  font-family: var(--font-display);
+  color: var(--color-paper);
+}
+.doc-mono {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes fadeIn {

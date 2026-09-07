@@ -588,11 +588,11 @@ export default function OraclePage() {
           {/* Logo Left */}
           <div className="flex items-center flex-shrink-0">
             <Globe
-              className={`w-7 h-7 animate-[spin_60s_linear_infinite] ${isDarkMode ? "text-cyan-400" : "text-cyan-600"}`}
+              className={`w-7 h-7 ${isDarkMode ? "text-foil" : "text-foil-dim"}`}
             />
             <div className="ml-2">
               <span
-                className={`font-bold text-sm tracking-wide ${isDarkMode ? "text-cyan-400" : "text-gray-800"}`}
+                className={`text-sm font-display tracking-[0.18em] ${isDarkMode ? "text-foil-bright" : "text-gray-800"}`}
               >
                 EMPOWERTOURS
               </span>
@@ -630,7 +630,7 @@ export default function OraclePage() {
                   />
                 ) : (
                   <div
-                    className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold"
+                    className="rounded-full bg-ink-raised border border-foil-dim flex items-center justify-center text-foil-bright text-[10px] doc-mono"
                     style={{
                       width: "24px",
                       height: "24px",
@@ -664,7 +664,7 @@ export default function OraclePage() {
                 className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? "bg-gray-800/80" : "bg-gray-100/80 border border-gray-200"}`}
               >
                 <div
-                  className="rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold"
+                  className="rounded-full bg-ink-raised border border-foil-dim flex items-center justify-center text-foil-bright text-[10px] doc-mono"
                   style={{
                     width: "24px",
                     height: "24px",
@@ -802,13 +802,13 @@ export default function OraclePage() {
           {/* Input Field - Sleek floating design */}
           <div className="w-full max-w-xl px-6 mt-8">
             <div
-              className={`relative rounded-full p-1 ${isDarkMode ? "bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-cyan-500/20" : "bg-gradient-to-r from-cyan-200/50 via-purple-200/50 to-cyan-200/50"}`}
+              className={`relative rounded-full p-px ${isDarkMode ? "bg-rule" : "bg-gray-300"}`}
             >
               <div
                 className={`flex items-center gap-2 rounded-full px-4 py-2 ${isDarkMode ? "bg-black/80" : "bg-white/90"}`}
               >
                 <Sparkles
-                  className={`w-4 h-4 ${isDarkMode ? "text-cyan-400" : "text-cyan-600"}`}
+                  className={`w-4 h-4 ${isDarkMode ? "text-foil-dim" : "text-gray-500"}`}
                 />
                 <input
                   type="text"
@@ -826,7 +826,7 @@ export default function OraclePage() {
                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                     isThinking || !input.trim()
                       ? "bg-gray-600 cursor-not-allowed"
-                      : "bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400"
+                      : "bg-foil hover:bg-foil-bright text-ink"
                   }`}
                 >
                   <Send className="w-4 h-4 text-white" />
@@ -849,7 +849,7 @@ export default function OraclePage() {
               </button>
               <button
                 onClick={() => openModal(() => setShowDashboardModal(true))}
-                className={`group flex shrink-0 items-center gap-1 sm:gap-1.5 whitespace-nowrap px-2.5 sm:px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10" : "text-gray-500 hover:text-cyan-600 hover:bg-cyan-50"}`}
+                className={`group flex shrink-0 items-center gap-1 sm:gap-1.5 whitespace-nowrap px-2.5 sm:px-4 py-2 text-xs tracking-wide transition-colors ${isDarkMode ? "text-muted hover:text-foil-bright" : "text-gray-500 hover:text-gray-900"}`}
               >
                 <BarChart3 className="w-3.5 h-3.5" />
                 Dashboard
@@ -879,26 +879,21 @@ export default function OraclePage() {
           {/* NFT List - Easy access to all NFTs */}
           {!loadingNFTs && nftList.length > 0 && (
             <div className="w-full max-w-4xl px-6 mt-8 mb-16">
-              <h3
-                className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDarkMode ? "text-cyan-400" : "text-cyan-600"}`}
-              >
-                <Sparkles className="w-5 h-5" />
-                Available NFTs
-              </h3>
+              <h3 className="doc-label mb-4">Available NFTs</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {nftList.map((nft) => {
                   const isPlaying = playingTokenId === nft.tokenId;
                   return (
                     <div
                       key={nft.id}
-                      className={`rounded-xl overflow-hidden transition-all cursor-pointer group ${
+                      className={`overflow-hidden transition-colors cursor-pointer group ${
                         isDarkMode
-                          ? `bg-gray-800 border ${isPlaying ? "border-cyan-500 shadow-lg shadow-cyan-500/50" : "border-gray-700 hover:border-gray-600"}`
-                          : `bg-white border ${isPlaying ? "border-cyan-500 shadow-lg shadow-cyan-500/30" : "border-gray-300 hover:border-gray-400"}`
+                          ? `bg-ink-raised border ${isPlaying ? "border-foil" : "border-rule hover:border-foil-dim"}`
+                          : `bg-white border ${isPlaying ? "border-foil-dim" : "border-gray-300 hover:border-gray-400"}`
                       }`}
                       onClick={() => handleNFTClick(nft)}
                     >
-                      <div className="aspect-square bg-gradient-to-br from-cyan-500/20 to-purple-600/20 overflow-hidden relative">
+                      <div className="aspect-square bg-ink-sunk overflow-hidden relative">
                         {nft.imageUrl ? (
                           <img
                             src={nft.imageUrl}
@@ -955,15 +950,13 @@ export default function OraclePage() {
                         )}
                       </div>
                       <div className="p-2">
-                        <p className="text-xs font-semibold truncate text-white">
+                        <p className="text-xs truncate text-paper font-display tracking-wide">
                           {nft.name}
                         </p>
                         <div className="flex items-center justify-between mt-1">
-                          <span className="text-[10px] text-gray-400">
-                            {nft.type}
-                          </span>
+                          <span className="doc-field-label">{nft.type}</span>
                           {isPlaying && (
-                            <span className="text-[10px] text-cyan-400 animate-pulse">
+                            <span className="text-[10px] text-foil-bright doc-mono">
                               Playing
                             </span>
                           )}
@@ -972,7 +965,7 @@ export default function OraclePage() {
                         <div className="flex items-center justify-between mt-2 gap-1">
                           {nft.price !== "0" && nft.price !== "0.00" ? (
                             <>
-                              <span className="text-[10px] text-green-400 font-bold">
+                              <span className="text-[10px] text-paper doc-mono">
                                 {nft.price} WMON
                               </span>
                               <button
@@ -982,7 +975,7 @@ export default function OraclePage() {
                                     `Buy ${nft.type} NFT #${nft.tokenId}`,
                                   );
                                 }}
-                                className="px-2 py-1 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-[10px] rounded-lg font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
+                                className="px-2.5 py-1 bg-foil hover:bg-foil-bright text-ink text-[10px] font-semibold tracking-wide transition-colors"
                               >
                                 Buy
                               </button>
