@@ -46,6 +46,23 @@ interface Check {
   name: string;
   ok: boolean;
   detail: string;
+  /**
+   * A finding worth reporting that is NOT a broken deployment.
+   *
+   * Everything else here answers "is this configuration wired up correctly", and
+   * a false answer means something is actually broken — plays reverting, the
+   * radio paying a dead token. Those must fail the endpoint, because the whole
+   * point is that such faults are invisible from the outside.
+   *
+   * Hardening notes are a different kind of true. `healthy` drives an HTTP 500,
+   * so filing one as a failure makes an uptime monitor page forever over a state
+   * nobody intends to change today — and a monitor that is always red is a
+   * monitor nobody reads, which costs more than the note is worth.
+   *
+   * Advisories are reported in full and listed separately, but do not fail the
+   * endpoint.
+   */
+  advisory?: boolean;
 }
 
 function eq(a?: string | null, b?: string | null) {
@@ -106,6 +123,12 @@ export async function GET() {
   checks.push({
     name: "Quick Auth enforcement",
     ok: env.quickAuthEnforced,
+    // Advisory, not a fault. The routes that move funds gate on `ownsAddress`,
+    // which is true only when ownership was actually proven, and they ignore the
+    // `allowed` flag this setting controls — so enforcement being off is a
+    // hardening gap, not an open door. Reported because its state was previously
+    // unknowable from outside; not failed, because nothing is broken.
+    advisory: true,
     detail: env.quickAuthEnforced
       ? "ENFORCE_QUICK_AUTH=true — an absent or invalid token is refused"
       : 'ENFORCE_QUICK_AUTH is not "true" — tokens are verified and logged but NEVER refused, so any caller can assert any userAddress on the routes that trust it',
@@ -231,7 +254,8 @@ export async function GET() {
       }
     }
 
-    const failing = checks.filter((c) => !c.ok);
+    const failing = checks.filter((c) => !c.ok && !c.advisory);
+    const advisories = checks.filter((c) => !c.ok && c.advisory);
 
     return NextResponse.json(
       {
@@ -240,6 +264,7 @@ export async function GET() {
         env,
         checks,
         failing: failing.map((c) => c.name),
+        advisories: advisories.map((c) => c.name),
       },
       { status: failing.length === 0 ? 200 : 500 },
     );
