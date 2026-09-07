@@ -49,6 +49,7 @@ const ABI = parseAbi([
   "function owner() view returns (address)",
   "function tokenURI(uint256) view returns (string)",
   "function setTokenURI(uint256 tokenId, string uri)",
+  "function getPassportStamps(uint256) view returns ((string location,string eventType,address artist,uint256 timestamp,bool verified,string placeId,string googleMapsUri,int256 latitude,int256 longitude)[])",
   "function getPassportData(uint256) view returns ((uint256,string,string,string,string,uint256,bool,string,uint256))",
 ]);
 
@@ -69,6 +70,44 @@ function envFromDotEnv(key: string): string | undefined {
     /* no .env is fine */
   }
   return undefined;
+}
+
+/**
+ * Pin a file (not JSON) and return its ipfs:// URI.
+ *
+ * The SVG is pinned SEPARATELY from the metadata that references it, so the
+ * `image` field is an ipfs:// URI rather than a base64 data URI. That second
+ * layer matters as much as the first: MetaMask Mobile fails to render base64
+ * images inside metadata even when the metadata itself is fetched over IPFS
+ * (metamask-mobile #2236), so pinning only the JSON would leave the passport
+ * blank for exactly the reason it is blank today.
+ *
+ * The shape to match is the music NFTs, which render correctly in the same
+ * wallet: ipfs:// at the tokenURI AND ipfs:// at the image.
+ */
+async function pinFile(
+  data: string,
+  filename: string,
+  contentType: string,
+): Promise<string> {
+  const jwt = process.env.PINATA_JWT ?? envFromDotEnv("PINATA_JWT");
+  if (!jwt) throw new Error("PINATA_JWT is not set");
+  const form = new FormData();
+  form.append("file", new Blob([data], { type: contentType }), filename);
+  form.append("pinataMetadata", JSON.stringify({ name: filename }));
+  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${jwt}` },
+    body: form,
+  });
+  if (!res.ok)
+    throw new Error(
+      `Pinata file ${res.status}: ${(await res.text()).slice(0, 200)}`,
+    );
+  const body = (await res.json()) as { IpfsHash?: string };
+  if (!body.IpfsHash)
+    throw new Error("Pinata returned no IpfsHash for the file");
+  return `ipfs://${body.IpfsHash}`;
 }
 
 async function pin(metadata: unknown, name: string): Promise<string> {
@@ -95,6 +134,34 @@ async function pin(metadata: unknown, name: string): Promise<string> {
 }
 
 const client = createPublicClient({ chain, transport: http(RPC) });
+
+/** The stamps this passport carries, so the artwork can be rebuilt around them. */
+async function readStamps(id: number) {
+  try {
+    const raw = (await client.readContract({
+      address: PASSPORT,
+      abi: ABI,
+      functionName: "getPassportStamps",
+      args: [BigInt(id)],
+    })) as readonly {
+      location: string;
+      eventType: string;
+      artist: string;
+      timestamp: bigint;
+      verified: boolean;
+    }[];
+    return raw.map((s) => ({
+      locationName: s.location,
+      city: s.location,
+      country: "",
+      stampedAt: Number(s.timestamp),
+      experienceType: s.eventType,
+      verified: s.verified,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 const total = Number(
   await client.readContract({
@@ -130,9 +197,12 @@ for (let id = 1; id <= total; id++) {
     console.log(`  #${id}  does not exist, skipping`);
     continue;
   }
-  if (existing.length > 0) {
+  // REFRESH=1 rewrites a passport that already has a URI. Needed because all four
+  // carry on-chain data: URIs, and the point of a refresh run is replacing those
+  // with ipfs:// so MetaMask Mobile can render them at all.
+  if (existing.length > 0 && !process.env.REFRESH) {
     console.log(
-      `  #${id}  already has a tokenURI (${existing.length} bytes), skipping`,
+      `  #${id}  already has a tokenURI (${existing.length} bytes) - set REFRESH=1 to replace it`,
     );
     continue;
   }
@@ -156,11 +226,41 @@ for (let id = 1; id <= total; id++) {
   const countryCode = d[1];
   const countryName = d[2];
 
-  const metadata = generatePassportMetadata(countryCode, countryName, id);
-  const uri = ONCHAIN
-    ? "data:application/json;base64," +
-      Buffer.from(JSON.stringify(metadata)).toString("base64")
-    : await pin(metadata, `passport-${countryCode}-${id}`);
+  // Regenerate WITH the stamps the passport now carries. tokenURI stores a
+  // snapshot, so a stamp written on chain stays invisible until the artwork is
+  // rebuilt - passport #4 has carried a discovery stamp since 2026-09-07 that no
+  // wallet can see.
+  const stamps = await readStamps(id);
+  const metadata = generatePassportMetadata(
+    countryCode,
+    countryName,
+    id,
+    stamps,
+  ) as Record<string, unknown>;
+
+  let uri: string;
+  if (ONCHAIN) {
+    uri =
+      "data:application/json;base64," +
+      Buffer.from(JSON.stringify(metadata)).toString("base64");
+  } else {
+    // Pin the ARTWORK first, then point the metadata at it. Pinning only the
+    // JSON would leave `image` as a base64 data URI, which MetaMask Mobile fails
+    // to render even when the metadata itself came over IPFS - the passport would
+    // stay blank for the same reason it is blank today.
+    const image = String(metadata.image ?? "");
+    if (image.startsWith("data:image/svg+xml;base64,")) {
+      const svg = Buffer.from(image.split(",", 2)[1], "base64").toString(
+        "utf8",
+      );
+      metadata.image = await pinFile(
+        svg,
+        `passport-${countryCode}-${id}.svg`,
+        "image/svg+xml",
+      );
+    }
+    uri = await pin(metadata, `passport-${countryCode}-${id}`);
+  }
 
   console.log(
     `  #${id}  ${countryCode} ${countryName} -> ${uri.length} bytes  ${uri.slice(0, 48)}…`,
