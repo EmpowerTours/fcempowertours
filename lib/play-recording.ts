@@ -1,4 +1,5 @@
-import { Redis } from '@upstash/redis';
+import { stampDiscovery } from "@/lib/discovery-stamp";
+import { Redis } from "@upstash/redis";
 
 /**
  * Shared Play Recording Helper
@@ -13,7 +14,7 @@ import { Redis } from '@upstash/redis';
 const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE;
 const MUSIC_SUBSCRIPTION_ADDRESS = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION;
 const ORACLE_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
+const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz";
 
 /**
  * Record a single play on-chain for a specific user/address.
@@ -21,37 +22,50 @@ const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 export async function recordPlay(
   userAddress: string,
   tokenId: string,
-  duration: number
+  duration: number,
 ): Promise<string | null> {
   if (!PLAY_ORACLE_ADDRESS || !ORACLE_PRIVATE_KEY) {
-    console.log('[PlayRecording] Skipping: missing PLAY_ORACLE or DEPLOYER_PRIVATE_KEY');
+    console.log(
+      "[PlayRecording] Skipping: missing PLAY_ORACLE or DEPLOYER_PRIVATE_KEY",
+    );
     return null;
   }
 
   try {
-    const { JsonRpcProvider, Wallet, Contract } = await import('ethers');
+    const { JsonRpcProvider, Wallet, Contract } = await import("ethers");
     const provider = new JsonRpcProvider(MONAD_RPC);
     const wallet = new Wallet(ORACLE_PRIVATE_KEY, provider);
 
     const oracleAbi = [
-      'function recordPlay(address user, uint256 masterTokenId, uint256 duration) external',
-      'function canPlay(address user, uint256 masterTokenId) view returns (bool)',
+      "function recordPlay(address user, uint256 masterTokenId, uint256 duration) external",
+      "function canPlay(address user, uint256 masterTokenId) view returns (bool)",
     ];
     const oracle = new Contract(PLAY_ORACLE_ADDRESS, oracleAbi, wallet);
 
     // Check canPlay (anti-replay)
     const canPlay = await oracle.canPlay(userAddress, tokenId);
     if (!canPlay) {
-      console.log(`[PlayRecording] canPlay=false for ${userAddress.slice(0, 10)}... tokenId=${tokenId}`);
+      console.log(
+        `[PlayRecording] canPlay=false for ${userAddress.slice(0, 10)}... tokenId=${tokenId}`,
+      );
       return null;
     }
 
-    const tx = await oracle.recordPlay(userAddress, tokenId, Math.min(duration, 600));
+    const tx = await oracle.recordPlay(
+      userAddress,
+      tokenId,
+      Math.min(duration, 600),
+    );
     await tx.wait();
-    console.log(`[PlayRecording] Recorded play for ${userAddress.slice(0, 10)}... tokenId=${tokenId} tx=${tx.hash.slice(0, 10)}`);
+    console.log(
+      `[PlayRecording] Recorded play for ${userAddress.slice(0, 10)}... tokenId=${tokenId} tx=${tx.hash.slice(0, 10)}`,
+    );
     return tx.hash;
   } catch (err: any) {
-    console.error(`[PlayRecording] Error for ${userAddress.slice(0, 10)}:`, err.message?.slice(0, 120));
+    console.error(
+      `[PlayRecording] Error for ${userAddress.slice(0, 10)}:`,
+      err.message?.slice(0, 120),
+    );
     return null;
   }
 }
@@ -65,24 +79,26 @@ export async function recordPlaysForListeners(
   tokenId: string,
   duration: number,
   activeListenersKey: string,
-  heartbeatExpiry: number
+  heartbeatExpiry: number,
 ): Promise<{ recorded: number; total: number }> {
   if (!PLAY_ORACLE_ADDRESS || !ORACLE_PRIVATE_KEY) {
-    console.log('[PlayRecording] Skipping batch: missing PLAY_ORACLE or DEPLOYER_PRIVATE_KEY');
+    console.log(
+      "[PlayRecording] Skipping batch: missing PLAY_ORACLE or DEPLOYER_PRIVATE_KEY",
+    );
     return { recorded: 0, total: 0 };
   }
 
   try {
-    const { JsonRpcProvider, Wallet, Contract } = await import('ethers');
+    const { JsonRpcProvider, Wallet, Contract } = await import("ethers");
     const provider = new JsonRpcProvider(MONAD_RPC);
     const wallet = new Wallet(ORACLE_PRIVATE_KEY, provider);
 
     const oracleAbi = [
-      'function recordPlay(address user, uint256 masterTokenId, uint256 duration) external',
-      'function canPlay(address user, uint256 masterTokenId) view returns (bool)',
+      "function recordPlay(address user, uint256 masterTokenId, uint256 duration) external",
+      "function canPlay(address user, uint256 masterTokenId) view returns (bool)",
     ];
     const subscriptionAbi = [
-      'function hasActiveSubscription(address user) view returns (bool)',
+      "function hasActiveSubscription(address user) view returns (bool)",
     ];
     const oracle = new Contract(PLAY_ORACLE_ADDRESS, oracleAbi, wallet);
     const subscription = MUSIC_SUBSCRIPTION_ADDRESS
@@ -90,15 +106,19 @@ export async function recordPlaysForListeners(
       : null;
 
     // Get active listeners from ZSET
-    const cutoff = Date.now() - (heartbeatExpiry * 1000);
-    const listeners = await redis.zrange(activeListenersKey, cutoff, '+inf', { byScore: true }) as string[];
+    const cutoff = Date.now() - heartbeatExpiry * 1000;
+    const listeners = (await redis.zrange(activeListenersKey, cutoff, "+inf", {
+      byScore: true,
+    })) as string[];
 
     if (listeners.length === 0) {
-      console.log('[PlayRecording] No active listeners');
+      console.log("[PlayRecording] No active listeners");
       return { recorded: 0, total: 0 };
     }
 
-    console.log(`[PlayRecording] Recording plays for ${listeners.length} listeners, tokenId=${tokenId}`);
+    console.log(
+      `[PlayRecording] Recording plays for ${listeners.length} listeners, tokenId=${tokenId}`,
+    );
 
     let recorded = 0;
     for (const listener of listeners) {
@@ -111,18 +131,42 @@ export async function recordPlaysForListeners(
         const canPlay = await oracle.canPlay(listener, tokenId);
         if (!canPlay) continue;
 
-        const tx = await oracle.recordPlay(listener, tokenId, Math.min(duration, 600));
+        const tx = await oracle.recordPlay(
+          listener,
+          tokenId,
+          Math.min(duration, 600),
+        );
         await tx.wait();
         recorded++;
+
+        // A discovery stamp rides on a play that already succeeded, so it must
+        // never be able to fail one. stampDiscovery swallows its own errors and
+        // is idempotent in three layers; awaiting it keeps the ordering honest
+        // without putting the play at risk.
+        const d = await stampDiscovery(redis, listener, tokenId);
+        if (d.stamped) {
+          console.log(
+            `[Discovery] ${listener.slice(0, 10)} first heard ${d.artistName} - ${d.txHash?.slice(0, 12)}`,
+          );
+        } else if (d.needsPassport) {
+          console.log(
+            `[Discovery] ${listener.slice(0, 10)} discovered ${d.artist?.slice(0, 10)} but holds no passport - prompt queued`,
+          );
+        }
       } catch (err: any) {
-        console.warn(`[PlayRecording] Failed for ${listener.slice(0, 10)}:`, err.message?.slice(0, 80));
+        console.warn(
+          `[PlayRecording] Failed for ${listener.slice(0, 10)}:`,
+          err.message?.slice(0, 80),
+        );
       }
     }
 
-    console.log(`[PlayRecording] Recorded ${recorded}/${listeners.length} plays for tokenId=${tokenId}`);
+    console.log(
+      `[PlayRecording] Recorded ${recorded}/${listeners.length} plays for tokenId=${tokenId}`,
+    );
     return { recorded, total: listeners.length };
   } catch (err: any) {
-    console.error('[PlayRecording] Batch error:', err.message?.slice(0, 120));
+    console.error("[PlayRecording] Batch error:", err.message?.slice(0, 120));
     return { recorded: 0, total: 0 };
   }
 }
@@ -132,17 +176,20 @@ export async function recordPlaysForListeners(
  */
 export async function recordVenuePlay(
   tokenId: string,
-  duration: number
+  duration: number,
 ): Promise<string | null> {
   if (!PLAY_ORACLE_ADDRESS || !ORACLE_PRIVATE_KEY) return null;
 
   try {
-    const { JsonRpcProvider, Wallet } = await import('ethers');
+    const { JsonRpcProvider, Wallet } = await import("ethers");
     const provider = new JsonRpcProvider(MONAD_RPC);
     const wallet = new Wallet(ORACLE_PRIVATE_KEY, provider);
     return await recordPlay(wallet.address, tokenId, duration);
   } catch (err: any) {
-    console.error('[PlayRecording] Venue play error:', err.message?.slice(0, 120));
+    console.error(
+      "[PlayRecording] Venue play error:",
+      err.message?.slice(0, 120),
+    );
     return null;
   }
 }

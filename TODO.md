@@ -162,3 +162,32 @@ keeper, so moving it means the keeper needs Safe signatures every month.
 
 This is the largest unmitigated risk in the app and the only one that cannot be
 undone after the fact.
+
+---
+
+## Stamps do not appear until the artwork is regenerated
+
+`tokenURI` stores a snapshot of the artwork, and the artwork is generated FROM the
+stamps. So writing a stamp on chain does not change what a wallet shows — passport
+#4 carries a real `discovery` stamp for unify34 (tx `0x03f0353d`, 2026-09-07) and
+its stored image was generated when the passport had zero stamps.
+
+Every stamp therefore needs a second write to refresh `setTokenURI`, which doubles
+its cost. That is the hidden half of the per-stamp price and it was not in the
+earlier gas figures.
+
+Three ways out, cheapest first:
+
+- **Refresh via IPFS.** Re-pin the metadata and `setTokenURI` to an `ipfs://` URI:
+  a ~60-byte write instead of a ~6,900-byte one. Needed anyway, because MetaMask
+  Mobile cannot render the `data:` URIs currently stored.
+- **Refresh lazily.** Regenerate when the holder next opens their passport rather
+  than on every stamp. A stamp earned is recorded on chain immediately; the picture
+  catching up a few minutes later costs nothing real.
+- **Serve tokenURI from an endpoint** that renders live from `getPassportStamps`.
+  One write ever, and the artwork is always current — but the metadata stops being
+  self-contained, which is the property the on-chain `data:` URI was chosen for.
+
+Lazy refresh over IPFS is probably right: it keeps writes rare, fixes the MetaMask
+Mobile problem in the same move, and the artwork is only ever looked at by someone
+who opened it.
