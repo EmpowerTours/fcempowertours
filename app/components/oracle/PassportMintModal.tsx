@@ -176,10 +176,7 @@ export function PassportMintModal({
 
       // If needs WMON wrap, do that first then retry mint
       if (!response.ok && responseData.needsWrap) {
-        console.log(
-          "🔄 Need to wrap MON first, amount:",
-          responseData.wmonNeeded,
-        );
+        console.log("Need to wrap MON first, amount:", responseData.wmonNeeded);
         setError("Wrapping MON to WMON...");
 
         // wrap_mon was added to the granted permissions after these delegations
@@ -211,7 +208,7 @@ export function PassportMintModal({
           throw new Error(wrapData.error || "Failed to wrap MON");
         }
 
-        console.log("✅ Wrapped MON, now minting...");
+        console.log("Wrapped MON, now minting...");
         setError("Minting passport...");
 
         // Retry mint
@@ -269,7 +266,7 @@ export function PassportMintModal({
       }}
     >
       <div
-        className={`w-full max-w-lg rounded-3xl shadow-2xl border-2 max-h-[92vh] overflow-y-auto ${isDarkMode ? "border-cyan-500/50 shadow-cyan-500/20" : "border-purple-300 shadow-purple-200/50"}`}
+        className={`w-full max-w-lg rounded-none shadow-2xl border-2 max-h-[92vh] overflow-y-auto ${isDarkMode ? "border-rule shadow-cyan-500/20" : "border-rule shadow-purple-200/50"}`}
         style={{ backgroundColor: isDarkMode ? "#0a0a0f" : "#ffffff" }}
       >
         <div className="p-6">
@@ -299,7 +296,7 @@ export function PassportMintModal({
           {success ? (
             <div className="text-center py-8">
               <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check className="w-10 h-10 text-green-400" />
+                <Check className="w-10 h-10 text-good" />
               </div>
               <h2
                 className={`text-2xl font-bold mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}
@@ -317,14 +314,14 @@ export function PassportMintModal({
                   href={`https://monadscan.com/tx/${success.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 font-medium"
+                  className="inline-block px-4 py-2 bg-ink-raised text-white rounded-lg hover:bg-ink-raised font-medium"
                 >
                   View Transaction
                 </a>
               )}
               <button
                 onClick={onClose}
-                className={`w-full mt-6 px-6 py-3 rounded-xl font-bold transition-all ${isDarkMode ? "bg-gray-800 text-white hover:bg-gray-700" : "bg-gray-200 text-gray-900 hover:bg-gray-300"}`}
+                className={`w-full mt-6 px-6 py-3 rounded-sm font-bold transition-all ${isDarkMode ? "bg-ink-raised text-white hover:bg-gray-700" : "bg-gray-200 text-gray-900 hover:bg-gray-300"}`}
               >
                 Close
               </button>
@@ -332,22 +329,22 @@ export function PassportMintModal({
           ) : (
             <>
               {/* Free Mint Badge */}
-              <div className="mb-6 p-3 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg border border-green-500/30">
-                <p className="text-sm font-bold text-green-400 text-center">
+              <div className="mb-6 p-3 bg-ink-raised rounded-lg border border-rule">
+                <p className="text-sm font-bold text-good text-center">
                   FREE Mint - We pay all gas fees
                 </p>
               </div>
 
               {/* User Info */}
               {(walletAddress || user) && (
-                <div className="mb-4 p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+                <div className="mb-4 p-3 bg-ink-raised rounded-lg border border-rule">
                   {isFarcaster && user && (
-                    <p className="text-sm text-cyan-400">
+                    <p className="text-sm text-muted">
                       <strong>Farcaster:</strong> @{user.username || "User"}
                     </p>
                   )}
                   {walletAddress && (
-                    <p className="text-sm text-cyan-400 mt-1 font-mono text-xs">
+                    <p className="text-sm text-muted mt-1 font-mono text-xs">
                       <strong>Wallet:</strong> {walletAddress.slice(0, 6)}...
                       {walletAddress.slice(-4)}
                     </p>
@@ -384,7 +381,7 @@ export function PassportMintModal({
               {/* Detected Country */}
               {selectedCountryCode ? (
                 <div
-                  className={`mb-6 p-4 rounded-lg text-center border ${isDarkMode ? "bg-purple-500/10 border-purple-500/30" : "bg-purple-50 border-purple-200"}`}
+                  className={`mb-6 p-4 rounded-lg text-center border ${isDarkMode ? "bg-ink-raised border-rule" : "bg-ink-raised border-rule"}`}
                 >
                   <p
                     className={`text-xs mb-1 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
@@ -411,7 +408,7 @@ export function PassportMintModal({
               {!walletAddress && (
                 <button
                   onClick={requestWallet}
-                  className="w-full mb-4 px-6 py-3 bg-yellow-500 text-black rounded-xl font-bold hover:bg-yellow-400 transition-all"
+                  className="w-full mb-4 px-6 py-3 bg-yellow-500 text-black rounded-sm font-bold hover:bg-yellow-400 transition-all"
                 >
                   Connect Wallet First
                 </button>
@@ -421,7 +418,7 @@ export function PassportMintModal({
               <button
                 onClick={handleMint}
                 disabled={isLoading || !selectedCountryCode || !walletAddress}
-                className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                className="w-full px-6 py-4 bg-foil hover:bg-foil-bright text-ink rounded-sm font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <>

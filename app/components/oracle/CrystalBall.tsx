@@ -1,16 +1,16 @@
 // CORE VISUAL COMPONENT: Renders 3D Earth, Orbiting Planes & Clickable NFTs
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 
 export enum OracleState {
-  IDLE = 'IDLE',
-  PROCESSING = 'PROCESSING',
-  SPEAKING = 'SPEAKING',
-  GAMING = 'GAMING'
+  IDLE = "IDLE",
+  PROCESSING = "PROCESSING",
+  SPEAKING = "SPEAKING",
+  GAMING = "GAMING",
 }
 
 interface NFTObject {
   id: string;
-  type: 'ART' | 'MUSIC' | 'EXPERIENCE';
+  type: "ART" | "MUSIC" | "EXPERIENCE";
   tokenId: string;
   name: string;
   imageUrl: string;
@@ -24,23 +24,29 @@ interface CrystalBallProps {
   isDarkMode?: boolean;
 }
 
-export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isDarkMode = true }) => {
+export const CrystalBall: React.FC<CrystalBallProps> = ({
+  state,
+  onNFTClick,
+  isDarkMode = true,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoveredNFTRef = useRef<NFTObject | null>(null);
-  const [hoveredNFTDisplay, setHoveredNFTDisplay] = useState<NFTObject | null>(null);
+  const [hoveredNFTDisplay, setHoveredNFTDisplay] = useState<NFTObject | null>(
+    null,
+  );
   const [nftObjects, setNFTObjects] = useState<NFTObject[]>([]);
 
   // Fetch NFTs from Envio indexer
   useEffect(() => {
     const fetchNFTs = async () => {
       try {
-        const response = await fetch('/api/nfts');
+        const response = await fetch("/api/nfts");
         const data = await response.json();
         if (data.success) {
           setNFTObjects(data.nfts);
         }
       } catch (error) {
-        console.error('Failed to fetch NFTs:', error);
+        console.error("Failed to fetch NFTs:", error);
       }
     };
 
@@ -50,7 +56,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     // Self-hosted. This used to hot-link a Wikimedia thumbnail of Blue_Marble_2002.png, which
@@ -58,11 +64,15 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
     // it at every size, so `onload` never fired and the sphere rendered as the bare #050510
     // fill below — a black void. Equirectangular, NASA-derived, public domain.
     const earthTexture = new Image();
-    earthTexture.src = '/textures/earth.jpg';
+    earthTexture.src = "/textures/earth.jpg";
     let textureLoaded = false;
-    earthTexture.onload = () => { textureLoaded = true; };
+    earthTexture.onload = () => {
+      textureLoaded = true;
+    };
     earthTexture.onerror = () => {
-      console.warn('[CrystalBall] earth texture failed to load; using the procedural fallback');
+      console.warn(
+        "[CrystalBall] earth texture failed to load; using the procedural fallback",
+      );
     };
 
     // ORBITING PLANES CONFIGURATION (adjusted for larger earth)
@@ -71,7 +81,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
       speed: (Math.random() * 0.02 + 0.005) * (i % 2 === 0 ? 1 : -1),
       angle: Math.random() * Math.PI * 2,
       altitude: Math.random() * 60 - 30, // Slightly increased altitude range
-      tiltOffset: Math.random() * Math.PI
+      tiltOffset: Math.random() * Math.PI,
     }));
 
     // NFT OBJECTS CONFIGURATION (orbit with planes, adjusted for larger earth)
@@ -88,7 +98,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
     // Load NFT images
     nftOrbits.forEach((orbit) => {
       orbit.image.src = orbit.nft.imageUrl;
-      orbit.image.crossOrigin = 'anonymous';
+      orbit.image.crossOrigin = "anonymous";
     });
 
     let animationFrameId: number;
@@ -109,14 +119,14 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
 
     const handleClick = (_e: MouseEvent) => {
       const currentHovered = hoveredNFTRef.current;
-      console.log('[CrystalBall] Canvas clicked, hoveredNFT:', currentHovered);
+      console.log("[CrystalBall] Canvas clicked, hoveredNFT:", currentHovered);
       if (currentHovered && onNFTClick) {
-        console.log('[CrystalBall] Calling onNFTClick with:', currentHovered);
+        console.log("[CrystalBall] Calling onNFTClick with:", currentHovered);
         onNFTClick(currentHovered);
       } else if (!currentHovered) {
-        console.log('[CrystalBall] No NFT is hovered');
+        console.log("[CrystalBall] No NFT is hovered");
       } else if (!onNFTClick) {
-        console.log('[CrystalBall] onNFTClick handler is missing');
+        console.log("[CrystalBall] onNFTClick handler is missing");
       }
     };
 
@@ -132,7 +142,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length > 0) {
         updateTouchPosition(e.touches[0]);
-        console.log('[CrystalBall] Touch start at:', mouseX, mouseY);
+        console.log("[CrystalBall] Touch start at:", mouseX, mouseY);
       }
     };
 
@@ -146,19 +156,23 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
       // Small delay to allow the render loop to update hoveredNFTRef
       setTimeout(() => {
         const currentHovered = hoveredNFTRef.current;
-        console.log('[CrystalBall] Touch ended, hoveredNFT:', currentHovered);
+        console.log("[CrystalBall] Touch ended, hoveredNFT:", currentHovered);
         if (currentHovered && onNFTClick) {
-          console.log('[CrystalBall] Calling onNFTClick from touch with:', currentHovered.type, currentHovered.name);
+          console.log(
+            "[CrystalBall] Calling onNFTClick from touch with:",
+            currentHovered.type,
+            currentHovered.name,
+          );
           onNFTClick(currentHovered);
         }
       }, 50);
     };
 
-    canvas.addEventListener('mousemove', handleMouseMove);
-    canvas.addEventListener('click', handleClick);
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: true });
+    canvas.addEventListener("mousemove", handleMouseMove);
+    canvas.addEventListener("click", handleClick);
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: true });
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: true });
+    canvas.addEventListener("touchend", handleTouchEnd, { passive: true });
 
     const render = () => {
       time += 0.005;
@@ -168,9 +182,16 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
       const earthRadius = 160; // Increased from 120 to 160 (33% larger)
 
       // 1. Atmosphere Glow
-      const glow = ctx.createRadialGradient(cx, cy, earthRadius, cx, cy, earthRadius * 1.4);
-      glow.addColorStop(0, 'rgba(0, 240, 255, 0.4)');
-      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      const glow = ctx.createRadialGradient(
+        cx,
+        cy,
+        earthRadius,
+        cx,
+        cy,
+        earthRadius * 1.4,
+      );
+      glow.addColorStop(0, "rgba(0, 240, 255, 0.4)");
+      glow.addColorStop(1, "rgba(0, 0, 0, 0)");
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(cx, cy, earthRadius * 1.4, 0, Math.PI * 2);
@@ -181,20 +202,28 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
       ctx.beginPath();
       ctx.arc(cx, cy, earthRadius, 0, Math.PI * 2);
       ctx.clip();
-      ctx.fillStyle = '#050510';
+      ctx.fillStyle = "#050510";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       if (textureLoaded) {
         const scaleHeight = earthRadius * 2.2;
-        const scaleWidth = (earthTexture.width / earthTexture.height) * scaleHeight;
+        const scaleWidth =
+          (earthTexture.width / earthTexture.height) * scaleHeight;
         const speed = state === OracleState.PROCESSING ? 1.5 : 0.5;
         const offsetX = (time * 50 * speed) % scaleWidth;
 
-        ctx.filter = 'contrast(1.3) brightness(1.2) hue-rotate(160deg) saturate(1.5)';
+        ctx.filter =
+          "contrast(1.3) brightness(1.2) hue-rotate(160deg) saturate(1.5)";
         const drawY = cy - scaleHeight / 2;
         ctx.drawImage(earthTexture, -offsetX, drawY, scaleWidth, scaleHeight);
-        ctx.drawImage(earthTexture, -offsetX + scaleWidth, drawY, scaleWidth, scaleHeight);
-        ctx.filter = 'none';
+        ctx.drawImage(
+          earthTexture,
+          -offsetX + scaleWidth,
+          drawY,
+          scaleWidth,
+          scaleHeight,
+        );
+        ctx.filter = "none";
       } else {
         // Fallback so a missing texture degrades to a planet rather than a black disc. Tuned to
         // the teal the hue-rotate filter gives the real texture, and drifting on the same clock,
@@ -202,41 +231,72 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
         const speed = state === OracleState.PROCESSING ? 1.5 : 0.5;
         const drift = (time * 50 * speed) % (earthRadius * 2);
 
-        const ocean = ctx.createLinearGradient(cx - earthRadius, cy - earthRadius, cx + earthRadius, cy + earthRadius);
-        ocean.addColorStop(0, '#0b3a4a');
-        ocean.addColorStop(0.5, '#12607a');
-        ocean.addColorStop(1, '#0a2f3e');
+        const ocean = ctx.createLinearGradient(
+          cx - earthRadius,
+          cy - earthRadius,
+          cx + earthRadius,
+          cy + earthRadius,
+        );
+        ocean.addColorStop(0, "#0b3a4a");
+        ocean.addColorStop(0.5, "#12607a");
+        ocean.addColorStop(1, "#0a2f3e");
         ctx.fillStyle = ocean;
-        ctx.fillRect(cx - earthRadius, cy - earthRadius, earthRadius * 2, earthRadius * 2);
+        ctx.fillRect(
+          cx - earthRadius,
+          cy - earthRadius,
+          earthRadius * 2,
+          earthRadius * 2,
+        );
 
         // Suggestion of landmasses. Deliberately vague — it should read as a globe at a glance,
         // not invite comparison with an actual map.
         ctx.globalAlpha = 0.5;
-        ctx.fillStyle = '#1f7a6a';
+        ctx.fillStyle = "#1f7a6a";
         const blobs: Array<[number, number, number]> = [
-          [-0.45, -0.25, 0.42], [0.1, -0.4, 0.3], [0.35, 0.15, 0.38],
-          [-0.2, 0.35, 0.34], [0.6, -0.1, 0.24],
+          [-0.45, -0.25, 0.42],
+          [0.1, -0.4, 0.3],
+          [0.35, 0.15, 0.38],
+          [-0.2, 0.35, 0.34],
+          [0.6, -0.1, 0.24],
         ];
         for (const [bx, by, br] of blobs) {
-          const x = cx + ((bx * earthRadius * 2 + drift) % (earthRadius * 2.6)) - earthRadius * 1.3;
+          const x =
+            cx +
+            ((bx * earthRadius * 2 + drift) % (earthRadius * 2.6)) -
+            earthRadius * 1.3;
           ctx.beginPath();
-          ctx.ellipse(x, cy + by * earthRadius, br * earthRadius * 0.5, br * earthRadius * 0.36, 0, 0, Math.PI * 2);
+          ctx.ellipse(
+            x,
+            cy + by * earthRadius,
+            br * earthRadius * 0.5,
+            br * earthRadius * 0.36,
+            0,
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
         }
         ctx.globalAlpha = 1;
       }
 
       // Inner Shadow (3D Effect)
-      const sphereGrad = ctx.createRadialGradient(cx - 30, cy - 30, 10, cx, cy, earthRadius);
-      sphereGrad.addColorStop(0, 'rgba(0,0,0,0)');
-      sphereGrad.addColorStop(1, 'rgba(0,0,0,0.9)');
+      const sphereGrad = ctx.createRadialGradient(
+        cx - 30,
+        cy - 30,
+        10,
+        cx,
+        cy,
+        earthRadius,
+      );
+      sphereGrad.addColorStop(0, "rgba(0,0,0,0)");
+      sphereGrad.addColorStop(1, "rgba(0,0,0,0.9)");
       ctx.fillStyle = sphereGrad;
       ctx.beginPath();
       ctx.arc(cx, cy, earthRadius, 0, Math.PI * 2);
       ctx.fill();
 
       // Tech Grid
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.1)';
+      ctx.strokeStyle = "rgba(0, 240, 255, 0.1)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(cx, cy, earthRadius, 0, Math.PI * 2);
@@ -252,26 +312,26 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
 
         const x3d = p.orbitRadius * cosA;
         const z3d = p.orbitRadius * sinA;
-        const y3d = p.altitude + (z3d * Math.sin(tilt));
+        const y3d = p.altitude + z3d * Math.sin(tilt);
 
         // Z-Sorting/Culling
         const perspective = 300 / (300 - z3d);
         const x2d = cx + x3d * perspective;
         const y2d = cy + y3d * perspective;
-        const distFromCenter = Math.sqrt(x3d*x3d + y3d*y3d);
+        const distFromCenter = Math.sqrt(x3d * x3d + y3d * y3d);
         const isBehind = z3d < -10 && distFromCenter < earthRadius * 0.95;
 
         if (!isBehind) {
           ctx.save();
           ctx.translate(x2d, y2d);
-          const heading = p.angle + (p.speed > 0 ? Math.PI/2 : -Math.PI/2);
+          const heading = p.angle + (p.speed > 0 ? Math.PI / 2 : -Math.PI / 2);
           ctx.rotate(heading);
           const scale = perspective * 0.8;
           ctx.scale(scale, scale);
 
           // Draw Jet
-          ctx.fillStyle = state !== OracleState.IDLE ? '#ffffff' : '#00f0ff';
-          ctx.shadowColor = '#00f0ff';
+          ctx.fillStyle = state !== OracleState.IDLE ? "#ffffff" : "#00f0ff";
+          ctx.shadowColor = "#00f0ff";
           ctx.shadowBlur = 5;
           ctx.beginPath();
           ctx.moveTo(0, -8);
@@ -294,12 +354,12 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
 
         const x3d = orbit.orbitRadius * cosA;
         const z3d = orbit.orbitRadius * sinA;
-        const y3d = orbit.altitude + (z3d * Math.sin(tilt));
+        const y3d = orbit.altitude + z3d * Math.sin(tilt);
 
         const perspective = 300 / (300 - z3d);
         const x2d = cx + x3d * perspective;
         const y2d = cy + y3d * perspective;
-        const distFromCenter = Math.sqrt(x3d*x3d + y3d*y3d);
+        const distFromCenter = Math.sqrt(x3d * x3d + y3d * y3d);
         const isBehind = z3d < -10 && distFromCenter < earthRadius * 0.95;
 
         if (!isBehind) {
@@ -328,7 +388,9 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
             ctx.restore();
 
             // Border
-            ctx.strokeStyle = isHovered ? '#ffd700' : getColorForType(orbit.nft.type);
+            ctx.strokeStyle = isHovered
+              ? "#ffd700"
+              : getColorForType(orbit.nft.type);
             ctx.lineWidth = isHovered ? 3 : 2;
             ctx.beginPath();
             ctx.arc(0, 0, size, 0, Math.PI * 2);
@@ -343,26 +405,26 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
             ctx.fill();
 
             // Type indicator
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = "#ffffff";
             ctx.font = `${size}px sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
             ctx.fillText(getEmojiForType(orbit.nft.type), 0, 0);
           }
 
           // Large hover indicator (shows clickable area)
           if (isHovered) {
             // Outer glow circle showing hit box
-            ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+            ctx.strokeStyle = "rgba(255, 215, 0, 0.3)";
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.arc(0, 0, hitBoxSize, 0, Math.PI * 2);
             ctx.stroke();
 
             // Inner animated ring
-            ctx.strokeStyle = '#ffd700';
+            ctx.strokeStyle = "#ffd700";
             ctx.lineWidth = 3;
-            ctx.shadowColor = '#ffd700';
+            ctx.shadowColor = "#ffd700";
             ctx.shadowBlur = 10;
             ctx.setLineDash([4, 4]);
             ctx.beginPath();
@@ -384,7 +446,7 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
       if (currentId !== prevId) {
         setHoveredNFTDisplay(currentHovered as NFTObject | null);
         // Update cursor
-        canvas.style.cursor = currentHovered ? 'pointer' : 'default';
+        canvas.style.cursor = currentHovered ? "pointer" : "default";
       }
 
       // Update ref after comparison for click handling
@@ -397,20 +459,31 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
 
     return () => {
       cancelAnimationFrame(animationFrameId);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-      canvas.removeEventListener('click', handleClick);
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.removeEventListener('touchend', handleTouchEnd);
+      canvas.removeEventListener("mousemove", handleMouseMove);
+      canvas.removeEventListener("click", handleClick);
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchmove", handleTouchMove);
+      canvas.removeEventListener("touchend", handleTouchEnd);
     };
   }, [state, nftObjects, onNFTClick]);
 
-  const borderClass = state === OracleState.PROCESSING ? 'border-fuchsia-500/30' : 'border-syndicate-cyan/30';
+  const borderClass =
+    state === OracleState.PROCESSING
+      ? "border-rule"
+      : "border-syndicate-cyan/30";
 
   return (
     <div className="relative flex items-center justify-center w-[320px] h-[320px] xs:w-[380px] xs:h-[380px] sm:w-[440px] sm:h-[440px]">
-      <div className={`absolute inset-0 rounded-full border border-dashed border-opacity-30 animate-[spin_60s_linear_infinite] ${borderClass}`}></div>
-      <div className="relative w-72 h-72 xs:w-80 xs:h-80 sm:w-96 sm:h-96 rounded-full overflow-hidden" style={{ background: '#000', boxShadow: '0 0 80px rgba(0, 100, 255, 0.2)' }}>
+      <div
+        className={`absolute inset-0 rounded-full border border-dashed border-opacity-30 animate-[spin_60s_linear_infinite] ${borderClass}`}
+      ></div>
+      <div
+        className="relative w-72 h-72 xs:w-80 xs:h-80 sm:w-96 sm:h-96 rounded-full overflow-hidden"
+        style={{
+          background: "#000",
+          boxShadow: "0 0 80px rgba(0, 100, 255, 0.2)",
+        }}
+      >
         <canvas
           ref={canvasRef}
           width={440}
@@ -422,10 +495,20 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
 
       {/* NFT Tooltip on Hover */}
       {hoveredNFTDisplay && (
-        <div className={`absolute -bottom-16 left-1/2 -translate-x-1/2 backdrop-blur-md border rounded-lg px-4 py-2 text-sm pointer-events-none z-50 ${isDarkMode ? 'bg-black/90 border-cyan-500/30' : 'bg-white/95 border-gray-300 shadow-lg'}`}>
-          <div className="text-cyan-500 font-bold">{hoveredNFTDisplay.name}</div>
-          <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{hoveredNFTDisplay.type} • {hoveredNFTDisplay.price} WMON</div>
-          <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>Click to view</div>
+        <div
+          className={`absolute -bottom-16 left-1/2 -translate-x-1/2 backdrop-blur-md border rounded-lg px-4 py-2 text-sm pointer-events-none z-50 ${isDarkMode ? "bg-black/90 border-rule" : "bg-white/95 border-gray-300 shadow-lg"}`}
+        >
+          <div className="text-muted font-bold">{hoveredNFTDisplay.name}</div>
+          <div
+            className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+          >
+            {hoveredNFTDisplay.type} • {hoveredNFTDisplay.price} WMON
+          </div>
+          <div
+            className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}
+          >
+            Click to view
+          </div>
         </div>
       )}
     </div>
@@ -435,26 +518,26 @@ export const CrystalBall: React.FC<CrystalBallProps> = ({ state, onNFTClick, isD
 // Helper functions
 function getColorForType(type: string): string {
   switch (type) {
-    case 'ART':
-      return '#ff6b6b';
-    case 'MUSIC':
-      return '#00f0ff';
-    case 'EXPERIENCE':
-      return '#ffd700';
+    case "ART":
+      return "#ff6b6b";
+    case "MUSIC":
+      return "#00f0ff";
+    case "EXPERIENCE":
+      return "#ffd700";
     default:
-      return '#ffffff';
+      return "#ffffff";
   }
 }
 
 function getEmojiForType(type: string): string {
   switch (type) {
-    case 'ART':
-      return '🎨';
-    case 'MUSIC':
-      return '🎵';
-    case 'EXPERIENCE':
-      return '✈️';
+    case "ART":
+      return "🎨";
+    case "MUSIC":
+      return "🎵";
+    case "EXPERIENCE":
+      return "✈️";
     default:
-      return '⭐';
+      return "⭐";
   }
 }

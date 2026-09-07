@@ -231,18 +231,16 @@ export function TrackSalesControls({
     }
   };
 
-  const shell = dark
-    ? "border-gray-700 bg-black/30"
-    : "border-gray-200 bg-gray-50";
+  const shell = dark ? "border-rule bg-black/30" : "border-gray-200 bg-gray-50";
   const heading = dark ? "text-gray-200" : "text-gray-700";
   const label = dark ? "text-gray-400" : "text-gray-600";
   const field = dark
-    ? "border-gray-600 bg-black/40 text-white"
+    ? "border-rule bg-black/40 text-white"
     : "border-gray-300 text-gray-900";
   const note = dark ? "text-gray-400" : "text-gray-500";
 
   return (
-    <div className={`mt-3 p-3 rounded-xl border ${shell}`}>
+    <div className={`mt-3 p-3 rounded-sm border ${shell}`}>
       <p className={`text-xs font-bold ${heading} mb-2`}>Your track</p>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -271,7 +269,7 @@ export function TrackSalesControls({
         <button
           onClick={savePrice}
           disabled={busy !== null}
-          className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-semibold disabled:opacity-50"
+          className="px-3 py-1.5 rounded-lg bg-ink-raised text-white text-sm font-semibold disabled:opacity-50"
         >
           {busy === "price" ? "Saving…" : "Save price"}
         </button>
@@ -376,13 +374,11 @@ export function TrackSalesControls({
       )}
 
       {status && (
-        <p
-          className={`text-xs mt-1 ${dark ? "text-green-400" : "text-green-700"}`}
-        >
+        <p className={`text-xs mt-1 ${dark ? "text-good" : "text-green-700"}`}>
           {status}
         </p>
       )}
-      {error && <p className="text-xs text-red-600 mt-1">❌ {error}</p>}
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );
 }

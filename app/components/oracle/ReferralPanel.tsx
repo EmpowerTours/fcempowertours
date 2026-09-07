@@ -23,12 +23,12 @@ import { parseEther, parseAbi } from "viem";
  * silently on its own, so this reports them rather than showing a link that
  * quietly earns nothing:
  *
- *   referrerBps > 0     — the rate. Ships at 3000 (30% of the platform fee).
- *   pool is funded      — commission accrues only up to what the pool backs;
- *                         an empty pool emits ReferralSkippedUnderfunded and
- *                         pays nobody without failing the subscription.
- *   trustedRelayer set  — the app pays from each user's own Safe, and only the
- *                         subscriber or the trusted relayer may bind attribution.
+ * referrerBps > 0 — the rate. Ships at 3000 (30% of the platform fee).
+ * pool is funded — commission accrues only up to what the pool backs;
+ * an empty pool emits ReferralSkippedUnderfunded and
+ * pays nobody without failing the subscription.
+ * trustedRelayer set — the app pays from each user's own Safe, and only the
+ * subscriber or the trusted relayer may bind attribution.
  *
  * Claiming is a wallet transaction: commission accrues to the address in the
  * link, and only that address can claim it.
@@ -223,13 +223,11 @@ export function ReferralPanel({ dark }: Props) {
     }
   };
 
-  const shell = dark
-    ? "bg-black/20 border-gray-700/50"
-    : "bg-gray-50 border-gray-200";
+  const shell = dark ? "bg-black/20 border-rule" : "bg-gray-50 border-gray-200";
   const heading = dark ? "text-white" : "text-gray-900";
   const note = dark ? "text-gray-400" : "text-gray-500";
   const field = dark
-    ? "border-gray-600 bg-black/40 text-white"
+    ? "border-rule bg-black/40 text-white"
     : "border-gray-300 bg-white text-gray-900";
 
   // Honest status, in the order that actually blocks a payout.
@@ -241,7 +239,7 @@ export function ReferralPanel({ dark }: Props) {
     blockers.push("attribution is not switched on yet");
 
   return (
-    <div className={`rounded-xl border p-4 ${shell}`}>
+    <div className={`rounded-sm border p-4 ${shell}`}>
       <h4 className={`font-medium mb-1 ${heading}`}>Refer a listener</h4>
       <p className={`text-[11px] mb-3 ${note}`}>
         {bps !== null && bps > 0n
@@ -260,7 +258,7 @@ export function ReferralPanel({ dark }: Props) {
           />
           <button
             onClick={copy}
-            className="px-3 py-1 rounded-lg bg-purple-600 text-white text-xs font-semibold whitespace-nowrap"
+            className="px-3 py-1 rounded-lg bg-ink-raised text-white text-xs font-semibold whitespace-nowrap"
           >
             {copied ? "Copied" : "Copy"}
           </button>
@@ -285,7 +283,7 @@ export function ReferralPanel({ dark }: Props) {
 
       {isOperator && (
         <div
-          className={`mt-4 pt-3 border-t ${dark ? "border-gray-700" : "border-gray-200"}`}
+          className={`mt-4 pt-3 border-t ${dark ? "border-rule" : "border-gray-200"}`}
         >
           <p className={`text-[11px] font-bold ${heading}`}>
             Reward pool — operator only
@@ -336,13 +334,11 @@ export function ReferralPanel({ dark }: Props) {
       </p>
 
       {status && (
-        <p
-          className={`text-xs mt-1 ${dark ? "text-green-400" : "text-green-700"}`}
-        >
+        <p className={`text-xs mt-1 ${dark ? "text-good" : "text-green-700"}`}>
           {status}
         </p>
       )}
-      {error && <p className="text-xs text-red-600 mt-1">❌ {error}</p>}
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );
 }

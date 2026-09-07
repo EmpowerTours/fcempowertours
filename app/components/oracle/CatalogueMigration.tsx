@@ -264,7 +264,7 @@ export const CatalogueMigration: React.FC<Props> = ({
   if (!isV3Contracts()) return null;
   if (!v2Address) {
     return (
-      <div className="p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10">
+      <div className="p-4 rounded-sm border border-yellow-500/30 bg-yellow-500/10">
         <p className="text-xs text-yellow-300">
           Set <code>NEXT_PUBLIC_LEGACY_NFT_CONTRACT</code> to the old NFT
           address to migrate your catalogue.
@@ -294,12 +294,12 @@ export const CatalogueMigration: React.FC<Props> = ({
   // believing they were migrated when nobody checked.
   if (status.kind !== "error" && pending.length === 0) return null;
   const card = isDarkMode
-    ? "bg-gray-800/50 border-gray-700"
+    ? "bg-ink-raised border-rule"
     : "bg-gray-50 border-gray-200";
   const muted = isDarkMode ? "text-gray-400" : "text-gray-600";
 
   return (
-    <div className={`p-4 rounded-xl border ${card} space-y-3`}>
+    <div className={`p-4 rounded-sm border ${card} space-y-3`}>
       <div>
         <h3
           className={`text-sm font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}
@@ -337,10 +337,10 @@ export const CatalogueMigration: React.FC<Props> = ({
             key={m.id}
             className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${
               migrated
-                ? "border-green-500/30 bg-green-500/5"
+                ? "border-rule bg-green-500/5"
                 : misattributed
                   ? "border-amber-500/40 bg-amber-500/5"
-                  : "border-gray-600/40"
+                  : "border-rule"
             }`}
           >
             <div className="min-w-0">
@@ -363,21 +363,21 @@ export const CatalogueMigration: React.FC<Props> = ({
                 </p>
               )}
               {done[m.id] && (
-                <p className="text-[11px] text-green-400 font-mono truncate">
+                <p className="text-[11px] text-good font-mono truncate">
                   {done[m.id].slice(0, 14)}…
                 </p>
               )}
             </div>
 
             {migrated ? (
-              <span className="text-[11px] text-green-400 whitespace-nowrap">
+              <span className="text-[11px] text-good whitespace-nowrap">
                 in v3 as #{m.state.kind === "migrated" ? m.state.id : ""}
               </span>
             ) : (
               <button
                 onClick={() => void republish(m)}
                 disabled={sending || !isConnected}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-purple-600 text-white disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-foil hover:bg-foil-bright text-ink disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
                 {sending ? "Confirm in wallet…" : "Re-publish"}
               </button>

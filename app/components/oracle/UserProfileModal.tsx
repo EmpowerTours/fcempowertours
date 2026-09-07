@@ -1,11 +1,19 @@
-'use client';
+"use client";
 
-import { authHeaders } from '@/lib/quick-auth-client';
-import { useActionAuth } from '@/app/hooks/useActionAuth';
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { X, ArrowLeft, User, ExternalLink, ShoppingCart, Loader2, Crown } from 'lucide-react';
-import Link from 'next/link';
+import { authHeaders } from "@/lib/quick-auth-client";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import {
+  X,
+  ArrowLeft,
+  User,
+  ExternalLink,
+  ShoppingCart,
+  Loader2,
+  Crown,
+} from "lucide-react";
+import Link from "next/link";
 
 interface UserProfileModalProps {
   walletAddress: string;
@@ -15,7 +23,6 @@ interface UserProfileModalProps {
   buyerFid?: number;
   isDarkMode?: boolean;
 }
-
 
 interface UserProfile {
   walletAddress: string;
@@ -66,20 +73,33 @@ interface PassportItem {
 }
 
 const getCountryFlag = (countryCode: string): string => {
-  if (!countryCode || countryCode.length !== 2) return '🌍';
-  const codePoints = countryCode.toUpperCase().split('').map(char => 127397 + char.charCodeAt(0));
+  if (!countryCode || countryCode.length !== 2) return "🌍";
+  const codePoints = countryCode
+    .toUpperCase()
+    .split("")
+    .map((char) => 127397 + char.charCodeAt(0));
   return String.fromCodePoint(...codePoints);
 };
 
 const resolveIPFS = (url: string): string => {
-  if (!url) return '';
-  if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', 'https://harlequin-used-hare-224.mypinata.cloud/ipfs/');
+  if (!url) return "";
+  if (url.startsWith("ipfs://")) {
+    return url.replace(
+      "ipfs://",
+      "https://harlequin-used-hare-224.mypinata.cloud/ipfs/",
+    );
   }
   return url;
 };
 
-export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddress, onClose, onBack, buyerAddress, buyerFid, isDarkMode = true }) => {
+export const UserProfileModal: React.FC<UserProfileModalProps> = ({
+  walletAddress,
+  onClose,
+  onBack,
+  buyerAddress,
+  buyerFid,
+  isDarkMode = true,
+}) => {
   // buy_resale spends the buyer's Safe, so execute-delegated demands proven ownership of
   // buyerAddress; a bare Quick Auth token is a Farcaster-only proof and 401s in a browser.
   const authFor = useActionAuth();
@@ -90,13 +110,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
   const [createdNFTs, setCreatedNFTs] = useState<NFTItem[]>([]);
   const [purchasedLicenses, setPurchasedLicenses] = useState<LicenseItem[]>([]);
   const [passports, setPassports] = useState<PassportItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'created' | 'purchased' | 'passports'>('purchased');
+  const [activeTab, setActiveTab] = useState<
+    "created" | "purchased" | "passports"
+  >("purchased");
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
-  const [collectorInfo, setCollectorInfo] = useState<Record<string, { isCollectorMaster: boolean; collectorImageUrl: string | null; maxEditions: number; collectorsMinted: number }>>({});
+  const [collectorInfo, setCollectorInfo] = useState<
+    Record<
+      string,
+      {
+        isCollectorMaster: boolean;
+        collectorImageUrl: string | null;
+        maxEditions: number;
+        collectorsMinted: number;
+      }
+    >
+  >({});
 
-  const canPurchase = buyerAddress && buyerAddress.toLowerCase() !== walletAddress.toLowerCase();
+  const canPurchase =
+    buyerAddress && buyerAddress.toLowerCase() !== walletAddress.toLowerCase();
 
   useEffect(() => {
     setMounted(true);
@@ -111,10 +144,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
       // Shared with ProfileModal and the public-profile route. Contract reads throughout: the
       // registry has no per-owner index for licences, so the endpoint walks the licence range
       // asking ownerOf, and joins each licence to its master for the name and cover art.
-      const response = await fetch(
-        `/api/user-stats?address=${walletAddress}`,
-        { headers: { ...(await authHeaders()) } },
-      );
+      const response = await fetch(`/api/user-stats?address=${walletAddress}`, {
+        headers: { ...(await authHeaders()) },
+      });
 
       const result = await response.json();
 
@@ -130,7 +162,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
 
         // Fetch resale listings for this seller
         try {
-          const resaleResponse = await fetch(`/api/music/list-for-sale?seller=${walletAddress}`);
+          const resaleResponse = await fetch(
+            `/api/music/list-for-sale?seller=${walletAddress}`,
+          );
           const resaleData = await resaleResponse.json();
 
           if (resaleData.success && resaleData.listings) {
@@ -153,7 +187,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
             });
           }
         } catch (err) {
-          console.error('[UserProfileModal] Error fetching resale listings:', err);
+          console.error(
+            "[UserProfileModal] Error fetching resale listings:",
+            err,
+          );
         }
 
         setPurchasedLicenses(licenses);
@@ -161,18 +198,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
 
         // Set default tab based on data
         if (result.created?.length > 0) {
-          setActiveTab('created');
+          setActiveTab("created");
         } else if (result.purchased?.length > 0) {
-          setActiveTab('purchased');
+          setActiveTab("purchased");
         } else {
-          setActiveTab('passports');
+          setActiveTab("passports");
         }
       }
 
       // Get Farcaster profile
       try {
         const fcResponse = await fetch(
-          `/api/neynar/v2/farcaster/user/bulk-by-address?addresses=${walletAddress}`
+          `/api/neynar/v2/farcaster/user/bulk-by-address?addresses=${walletAddress}`,
         );
         if (fcResponse.ok) {
           const fcData = await fcResponse.json();
@@ -196,7 +233,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
         setProfile({ walletAddress });
       }
     } catch (err) {
-      console.error('[UserProfileModal] Error:', err);
+      console.error("[UserProfileModal] Error:", err);
       setProfile({ walletAddress });
     } finally {
       setLoading(false);
@@ -206,16 +243,19 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
   // Fetch collector info for all NFTs once data is loaded
   useEffect(() => {
     const tokenIds = [
-      ...createdNFTs.map(n => n.tokenId),
-      ...purchasedLicenses.map(l => l.masterTokenId),
+      ...createdNFTs.map((n) => n.tokenId),
+      ...purchasedLicenses.map((l) => l.masterTokenId),
     ].filter(Boolean);
     if (tokenIds.length === 0) return;
 
     const fetchCollectorData = async () => {
       try {
-        const res = await fetch('/api/nft/collector-info', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        const res = await fetch("/api/nft/collector-info", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(await authHeaders()),
+          },
           body: JSON.stringify({ tokenIds: [...new Set(tokenIds)] }),
         });
         if (!res.ok) return;
@@ -229,52 +269,72 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
     fetchCollectorData();
   }, [createdNFTs, purchasedLicenses]);
 
-  const userType = createdNFTs.length > 0 ? 'artist' : (purchasedLicenses.length > 0 ? 'collector' : 'explorer');
+  const userType =
+    createdNFTs.length > 0
+      ? "artist"
+      : purchasedLicenses.length > 0
+        ? "collector"
+        : "explorer";
 
   const handlePurchase = async (license: LicenseItem) => {
-    if (!buyerAddress || !license.forSale || !license.salePrice || !license.listingId) return;
+    if (
+      !buyerAddress ||
+      !license.forSale ||
+      !license.salePrice ||
+      !license.listingId
+    )
+      return;
 
     setPurchasing(license.licenseId);
     setPurchaseError(null);
     setPurchaseSuccess(null);
 
     try {
-      const response = await fetch('/api/execute-delegated', {
-        method: 'POST',
+      const response = await fetch("/api/execute-delegated", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          ...(await authFor('execute-delegated:buy_resale', buyerAddress)),
+          "Content-Type": "application/json",
+          ...(await authFor("execute-delegated:buy_resale", buyerAddress)),
         },
         body: JSON.stringify({
-          action: 'buy_resale',
+          action: "buy_resale",
           userAddress: buyerAddress,
           fid: buyerFid || 0,
           params: {
             licenseId: license.licenseId,
             seller: walletAddress,
             price: license.salePrice,
-            listingId: license.listingId
-          }
-        })
+            listingId: license.listingId,
+          },
+        }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setPurchaseSuccess(`Successfully purchased for ${license.salePrice} WMON!`);
+        setPurchaseSuccess(
+          `Successfully purchased for ${license.salePrice} WMON!`,
+        );
         // Update the license to remove for sale status
-        setPurchasedLicenses(prev => prev.map(l =>
-          l.licenseId === license.licenseId
-            ? { ...l, forSale: false, salePrice: undefined, listingId: undefined }
-            : l
-        ));
+        setPurchasedLicenses((prev) =>
+          prev.map((l) =>
+            l.licenseId === license.licenseId
+              ? {
+                  ...l,
+                  forSale: false,
+                  salePrice: undefined,
+                  listingId: undefined,
+                }
+              : l,
+          ),
+        );
         // Clear success message after 5 seconds
         setTimeout(() => setPurchaseSuccess(null), 5000);
       } else {
-        setPurchaseError(data.error || 'Purchase failed');
+        setPurchaseError(data.error || "Purchase failed");
       }
     } catch (error: any) {
-      setPurchaseError(error.message || 'Purchase failed');
+      setPurchaseError(error.message || "Purchase failed");
     } finally {
       setPurchasing(null);
     }
@@ -284,16 +344,19 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
 
   const modalContent = (
     <div
-      className={`fixed inset-0 flex items-center justify-center p-2 sm:p-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-      style={{ zIndex: 9999, backgroundColor: isDarkMode ? '#000000' : '#ffffff' }}
+      className={`fixed inset-0 flex items-center justify-center p-2 sm:p-4 ${isDarkMode ? "bg-black" : "bg-white"}`}
+      style={{
+        zIndex: 9999,
+        backgroundColor: isDarkMode ? "#000000" : "#ffffff",
+      }}
       onClick={onClose}
     >
       <div
-        className={`rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl flex flex-col ${isDarkMode ? 'bg-gradient-to-br from-gray-900 via-black to-gray-900 border border-purple-500/30' : 'bg-white border border-gray-200'}`}
+        className={`rounded-none w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl flex flex-col ${isDarkMode ? "bg-ink-raised border border-rule" : "bg-white border border-gray-200"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header - Fixed */}
-        <div className="bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border-b border-purple-500/30 p-3 flex-shrink-0">
+        <div className="bg-ink-raised border-b border-rule p-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               {onBack && (
@@ -307,13 +370,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
               {profile?.pfpUrl ? (
                 <img
                   src={profile.pfpUrl}
-                  alt={profile.username || 'Profile'}
-                  className="rounded-full border-2 border-purple-500/50 object-cover flex-shrink-0"
+                  alt={profile.username || "Profile"}
+                  className="rounded-full border-2 border-rule object-cover flex-shrink-0"
                   style={{ width: 48, height: 48, minWidth: 48, maxWidth: 48 }}
                 />
               ) : (
                 <div
-                  className="bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center flex-shrink-0"
+                  className="bg-ink-raised rounded-full flex items-center justify-center flex-shrink-0"
                   style={{ width: 48, height: 48, minWidth: 48 }}
                 >
                   <User className="w-6 h-6 text-white" />
@@ -321,7 +384,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
               )}
               <div className="min-w-0">
                 <h2 className="text-base font-bold text-white truncate">
-                  {profile?.displayName || profile?.username || 'User'}
+                  {profile?.displayName || profile?.username || "User"}
                 </h2>
                 <p className="text-xs text-gray-400 font-mono truncate">
                   {walletAddress.slice(0, 10)}...{walletAddress.slice(-8)}
@@ -348,24 +411,34 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
 
           {/* User Type Badge */}
           <div className="mt-2 flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-              userType === 'artist' ? 'bg-purple-500/20 text-purple-300' :
-              userType === 'collector' ? 'bg-cyan-500/20 text-cyan-300' :
-              'bg-gray-500/20 text-gray-300'
-            }`}>
-              {userType === 'artist' ? '🎨 Artist' : userType === 'collector' ? '🏆 Collector' : '🌱 Explorer'}
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+                userType === "artist"
+                  ? "bg-ink-raised text-muted"
+                  : userType === "collector"
+                    ? "bg-ink-raised text-muted"
+                    : "bg-gray-500/20 text-gray-300"
+              }`}
+            >
+              {userType === "artist"
+                ? "Artist"
+                : userType === "collector"
+                  ? "Collector"
+                  : "Explorer"}
             </span>
           </div>
         </div>
 
         {/* Stats Row - Fixed */}
-        <div className="grid grid-cols-3 gap-2 p-3 border-b border-gray-700/50 flex-shrink-0">
+        <div className="grid grid-cols-3 gap-2 p-3 border-b border-rule flex-shrink-0">
           <div className="text-center">
             <p className="text-lg font-bold text-white">{createdNFTs.length}</p>
             <p className="text-xs text-gray-400">Created</p>
           </div>
           <div className="text-center">
-            <p className="text-lg font-bold text-white">{purchasedLicenses.length}</p>
+            <p className="text-lg font-bold text-white">
+              {purchasedLicenses.length}
+            </p>
             <p className="text-xs text-gray-400">Purchased</p>
           </div>
           <div className="text-center">
@@ -375,27 +448,33 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
         </div>
 
         {/* Tabs - Fixed */}
-        <div className="flex border-b border-gray-700/50 flex-shrink-0">
+        <div className="flex border-b border-rule flex-shrink-0">
           <button
-            onClick={() => setActiveTab('created')}
+            onClick={() => setActiveTab("created")}
             className={`flex-1 py-2 text-xs font-medium transition-colors ${
-              activeTab === 'created' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-white'
+              activeTab === "created"
+                ? "text-muted border-b-2 border-rule"
+                : "text-gray-400 hover:text-white"
             }`}
           >
             Created
           </button>
           <button
-            onClick={() => setActiveTab('purchased')}
+            onClick={() => setActiveTab("purchased")}
             className={`flex-1 py-2 text-xs font-medium transition-colors ${
-              activeTab === 'purchased' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white'
+              activeTab === "purchased"
+                ? "text-muted border-b-2 border-rule"
+                : "text-gray-400 hover:text-white"
             }`}
           >
             Purchased
           </button>
           <button
-            onClick={() => setActiveTab('passports')}
+            onClick={() => setActiveTab("passports")}
             className={`flex-1 py-2 text-xs font-medium transition-colors ${
-              activeTab === 'passports' ? 'text-pink-400 border-b-2 border-pink-400' : 'text-gray-400 hover:text-white'
+              activeTab === "passports"
+                ? "text-muted border-b-2 border-rule"
+                : "text-gray-400 hover:text-white"
             }`}
           >
             Passports
@@ -406,10 +485,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
         <div className="flex-1 overflow-y-auto p-3">
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin text-3xl mb-2">🌍</div>
+              <Loader2 className="text-muted mx-auto mb-2 h-5 w-5 animate-spin" />
               <p className="text-gray-400 text-sm">Loading...</p>
             </div>
-          ) : activeTab === 'created' ? (
+          ) : activeTab === "created" ? (
             createdNFTs.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 text-sm">No created NFTs</p>
@@ -418,36 +497,50 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
               <div className="grid grid-cols-3 gap-2">
                 {createdNFTs.map((nft) => {
                   const ci = collectorInfo[nft.tokenId];
-                  const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : resolveIPFS(nft.imageUrl || '');
+                  const displayImage =
+                    ci?.isCollectorMaster && ci?.collectorImageUrl
+                      ? ci.collectorImageUrl
+                      : resolveIPFS(nft.imageUrl || "");
                   return (
-                  <div key={nft.id} className={`${ci?.isCollectorMaster ? 'bg-amber-500/10 border-amber-500/30' : 'bg-purple-500/10 border-purple-500/20'} border rounded-lg overflow-hidden`}>
-                    <div className="aspect-square relative">
-                      {displayImage ? (
-                        <img src={displayImage} alt={nft.name || ''} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-purple-500/20 flex items-center justify-center text-2xl">
-                          {nft.isArt ? '🎨' : '🎵'}
-                        </div>
-                      )}
-                      {ci?.isCollectorMaster && (
-                        <div className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
-                          <Crown className="w-2.5 h-2.5" />
-                          {ci.collectorsMinted}/{ci.maxEditions}
-                        </div>
-                      )}
+                    <div
+                      key={nft.id}
+                      className={`${ci?.isCollectorMaster ? "bg-amber-500/10 border-amber-500/30" : "bg-ink-raised border-rule"} border rounded-lg overflow-hidden`}
+                    >
+                      <div className="aspect-square relative">
+                        {displayImage ? (
+                          <img
+                            src={displayImage}
+                            alt={nft.name || ""}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-ink-raised flex items-center justify-center text-2xl">
+                            {nft.isArt ? "ART" : "MUSIC"}
+                          </div>
+                        )}
+                        {ci?.isCollectorMaster && (
+                          <div className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                            <Crown className="w-2.5 h-2.5" />
+                            {ci.collectorsMinted}/{ci.maxEditions}
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-1.5">
+                        <p className="text-white text-xs font-medium truncate">
+                          {nft.name || `#${nft.tokenId}`}
+                        </p>
+                        {ci?.isCollectorMaster && (
+                          <p className="text-amber-400 text-[10px]">
+                            Collector Edition
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="p-1.5">
-                      <p className="text-white text-xs font-medium truncate">{nft.name || `#${nft.tokenId}`}</p>
-                      {ci?.isCollectorMaster && (
-                        <p className="text-amber-400 text-[10px]">Collector Edition</p>
-                      )}
-                    </div>
-                  </div>
                   );
                 })}
               </div>
             )
-          ) : activeTab === 'purchased' ? (
+          ) : activeTab === "purchased" ? (
             purchasedLicenses.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 text-sm">No purchased NFTs</p>
@@ -456,104 +549,130 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ walletAddres
               <>
                 {/* Purchase status messages */}
                 {purchaseSuccess && (
-                  <div className="mb-3 p-2 bg-green-500/20 border border-green-500/30 rounded-lg">
-                    <p className="text-green-400 text-xs text-center">✅ {purchaseSuccess}</p>
+                  <div className="mb-3 p-2 bg-green-500/20 border border-rule rounded-lg">
+                    <p className="text-good text-xs text-center">
+                      {purchaseSuccess}
+                    </p>
                   </div>
                 )}
                 {purchaseError && (
                   <div className="mb-3 p-2 bg-red-500/20 border border-red-500/30 rounded-lg">
-                    <p className="text-red-400 text-xs text-center">❌ {purchaseError}</p>
+                    <p className="text-red-400 text-xs text-center">
+                      {purchaseError}
+                    </p>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2">
                   {purchasedLicenses.map((license) => {
                     const ci = collectorInfo[license.masterTokenId];
-                    const displayImage = (ci?.isCollectorMaster && ci?.collectorImageUrl) ? ci.collectorImageUrl : resolveIPFS(license.masterImage || '');
+                    const displayImage =
+                      ci?.isCollectorMaster && ci?.collectorImageUrl
+                        ? ci.collectorImageUrl
+                        : resolveIPFS(license.masterImage || "");
                     return (
-                    <div key={license.id} className={`${license.forSale ? 'bg-green-500/10 border-green-500/30' : ci?.isCollectorMaster ? 'bg-amber-500/10 border-amber-500/30' : 'bg-cyan-500/10 border-cyan-500/20'} border rounded-lg overflow-hidden`}>
-                      <div className="aspect-square relative">
-                        {displayImage ? (
-                          <img src={displayImage} alt={license.masterName || ''} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-cyan-500/20 flex items-center justify-center text-2xl">
-                            {license.isArt ? '🖼️' : '🎧'}
-                          </div>
-                        )}
-                        {/* For Sale Badge */}
-                        {license.forSale && (
-                          <div className="absolute top-1 right-1 bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-                            FOR SALE
-                          </div>
-                        )}
-                        {/* Collector Badge */}
-                        {ci?.isCollectorMaster && !license.forSale && (
-                          <div className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
-                            <Crown className="w-2.5 h-2.5" />
-                            Collector
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-2">
-                        <p className="text-white text-xs font-medium truncate">{license.masterName || `License #${license.licenseId}`}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${license.active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                            {license.active ? 'Active' : 'Expired'}
-                          </span>
-                          {license.forSale && license.salePrice && (
-                            <span className="text-green-400 text-xs font-bold">{license.salePrice} WMON</span>
+                      <div
+                        key={license.id}
+                        className={`${license.forSale ? "bg-green-500/10 border-rule" : ci?.isCollectorMaster ? "bg-amber-500/10 border-amber-500/30" : "bg-ink-raised border-rule"} border rounded-lg overflow-hidden`}
+                      >
+                        <div className="aspect-square relative">
+                          {displayImage ? (
+                            <img
+                              src={displayImage}
+                              alt={license.masterName || ""}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-ink-raised flex items-center justify-center text-2xl">
+                              {license.isArt ? "ART" : "MUSIC"}
+                            </div>
+                          )}
+                          {/* For Sale Badge */}
+                          {license.forSale && (
+                            <div className="absolute top-1 right-1 bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                              FOR SALE
+                            </div>
+                          )}
+                          {/* Collector Badge */}
+                          {ci?.isCollectorMaster && !license.forSale && (
+                            <div className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                              <Crown className="w-2.5 h-2.5" />
+                              Collector
+                            </div>
                           )}
                         </div>
-                        {/* Buy Button */}
-                        {license.forSale && canPurchase && (
-                          <button
-                            onClick={() => handlePurchase(license)}
-                            disabled={purchasing === license.licenseId}
-                            className="w-full mt-2 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-xs rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                          >
-                            {purchasing === license.licenseId ? (
-                              <>
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                                Buying...
-                              </>
-                            ) : (
-                              <>
-                                <ShoppingCart className="w-3 h-3" />
-                                Buy {license.salePrice} WMON
-                              </>
+                        <div className="p-2">
+                          <p className="text-white text-xs font-medium truncate">
+                            {license.masterName ||
+                              `License #${license.licenseId}`}
+                          </p>
+                          <div className="flex items-center justify-between mt-1">
+                            <span
+                              className={`text-xs px-1.5 py-0.5 rounded ${license.active ? "bg-green-500/20 text-good" : "bg-gray-500/20 text-gray-400"}`}
+                            >
+                              {license.active ? "Active" : "Expired"}
+                            </span>
+                            {license.forSale && license.salePrice && (
+                              <span className="text-good text-xs font-bold">
+                                {license.salePrice} WMON
+                              </span>
                             )}
-                          </button>
-                        )}
+                          </div>
+                          {/* Buy Button */}
+                          {license.forSale && canPurchase && (
+                            <button
+                              onClick={() => handlePurchase(license)}
+                              disabled={purchasing === license.licenseId}
+                              className="w-full mt-2 py-1.5 bg-ink-raised text-white text-xs rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                            >
+                              {purchasing === license.licenseId ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Buying...
+                                </>
+                              ) : (
+                                <>
+                                  <ShoppingCart className="w-3 h-3" />
+                                  Buy {license.salePrice} WMON
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
               </>
             )
+          ) : passports.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500 text-sm">No passports</p>
+            </div>
           ) : (
-            passports.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-500 text-sm">No passports</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-4 gap-2">
-                {passports.map((passport) => (
-                  <div key={passport.id} className="bg-pink-500/10 border border-pink-500/20 rounded-lg p-2 text-center">
-                    <span className="text-2xl block">{passport.countryCode ? getCountryFlag(passport.countryCode) : '🌍'}</span>
-                    <p className="text-white text-xs mt-1">#{passport.tokenId}</p>
-                  </div>
-                ))}
-              </div>
-            )
+            <div className="grid grid-cols-4 gap-2">
+              {passports.map((passport) => (
+                <div
+                  key={passport.id}
+                  className="bg-ink-raised border border-rule rounded-lg p-2 text-center"
+                >
+                  <span className="text-2xl block">
+                    {passport.countryCode
+                      ? getCountryFlag(passport.countryCode)
+                      : "🌍"}
+                  </span>
+                  <p className="text-white text-xs mt-1">#{passport.tokenId}</p>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
         {/* Footer - Fixed */}
-        {userType === 'artist' && (
-          <div className="border-t border-gray-700/50 p-3 flex-shrink-0">
+        {userType === "artist" && (
+          <div className="border-t border-rule p-3 flex-shrink-0">
             <Link
               href={`/artist/${walletAddress}`}
-              className="block w-full py-2 text-center bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg text-sm font-medium transition-colors"
+              className="block w-full py-2 text-center bg-ink-raised text-white rounded-lg text-sm font-medium transition-colors"
             >
               View Artist Page →
             </Link>

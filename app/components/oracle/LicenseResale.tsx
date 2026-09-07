@@ -96,14 +96,14 @@ export function LicenseResale({ licenseId, name, dark }: Props) {
 
   const note = dark ? "text-gray-400" : "text-gray-500";
   const field = dark
-    ? "border-gray-600 bg-black/40 text-white"
+    ? "border-rule bg-black/40 text-white"
     : "border-gray-300 bg-white text-gray-900";
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className={`mt-2 text-[11px] underline ${dark ? "text-cyan-400" : "text-cyan-700"}`}
+        className={`mt-2 text-[11px] underline ${dark ? "text-muted" : "text-muted"}`}
       >
         Sell this licence
       </button>
@@ -113,7 +113,7 @@ export function LicenseResale({ licenseId, name, dark }: Props) {
   return (
     <div
       className={`mt-2 p-3 rounded-lg border ${
-        dark ? "border-gray-700 bg-black/30" : "border-gray-200 bg-gray-50"
+        dark ? "border-rule bg-black/30" : "border-gray-200 bg-gray-50"
       }`}
     >
       <p
@@ -144,7 +144,7 @@ export function LicenseResale({ licenseId, name, dark }: Props) {
             <button
               onClick={createLink}
               disabled={busy}
-              className="px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-sm font-semibold disabled:opacity-40"
+              className="px-3 py-1.5 rounded-lg bg-ink-raised text-white text-sm font-semibold disabled:opacity-40"
             >
               {busy ? "Signing…" : "Create link"}
             </button>
@@ -174,7 +174,7 @@ export function LicenseResale({ licenseId, name, dark }: Props) {
             />
             <button
               onClick={copy}
-              className="px-3 py-1 rounded-lg bg-purple-600 text-white text-xs font-semibold whitespace-nowrap"
+              className="px-3 py-1 rounded-lg bg-ink-raised text-white text-xs font-semibold whitespace-nowrap"
             >
               {copied ? "Copied" : "Copy"}
             </button>
@@ -182,7 +182,7 @@ export function LicenseResale({ licenseId, name, dark }: Props) {
         </>
       )}
 
-      {error && <p className="text-xs text-red-600 mt-2">❌ {error}</p>}
+      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
     </div>
   );
 }

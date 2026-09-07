@@ -442,12 +442,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       <img
         src={src}
         alt={alt}
-        className="rounded-full border-2 border-purple-500 object-cover flex-shrink-0"
+        className="rounded-full border-2 border-rule object-cover flex-shrink-0"
         style={{ width: size, height: size, minWidth: size, maxWidth: size }}
       />
     ) : (
       <div
-        className="bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center flex-shrink-0"
+        className="bg-ink-raised rounded-full flex items-center justify-center flex-shrink-0"
         style={{ width: size, height: size, minWidth: size }}
       >
         <User
@@ -468,12 +468,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       onClick={onClose}
     >
       <div
-        className={`rounded-2xl w-full max-w-md max-h-[95vh] overflow-hidden shadow-2xl ${isDarkMode ? "bg-gray-900 border border-gray-700" : "bg-white border border-gray-200"}`}
+        className={`rounded-none w-full max-w-md max-h-[95vh] overflow-hidden shadow-2xl ${isDarkMode ? "bg-ink-raised border border-rule" : "bg-white border border-gray-200"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
-          className={`${isDarkMode ? "bg-gray-800 border-b border-gray-700" : "bg-gray-100 border-b border-gray-200"} p-4`}
+          className={`${isDarkMode ? "bg-ink-raised border-b border-rule" : "bg-gray-100 border-b border-gray-200"} p-4`}
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
@@ -483,7 +483,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               />
               <div className="min-w-0">
                 <h2
-                  className={`text-lg font-bold truncate ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                  className={`font-display text-lg tracking-wide truncate ${isDarkMode ? "text-paper" : "text-gray-900"}`}
                 >
                   {searchedUser?.displayName ||
                     searchedUser?.username ||
@@ -491,7 +491,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     "My Profile"}
                 </h2>
                 {(searchedUser?.username || username) && (
-                  <p className="text-sm text-purple-500">
+                  <p className="text-sm text-muted">
                     @{searchedUser?.username || username}
                   </p>
                 )}
@@ -526,7 +526,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <button
               onClick={handleSearch}
               disabled={searchLoading || !searchQuery.trim()}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 text-white rounded-lg text-sm transition-colors"
+              className="px-4 py-2 bg-foil hover:bg-foil-bright disabled:bg-transparent disabled:text-faint disabled:border disabled:border-rule text-ink text-sm font-semibold tracking-wide transition-colors"
             >
               {searchLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -557,36 +557,36 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className="space-y-4">
               {searchedUser.isPrivate ? (
                 <div className="text-center py-8">
-                  <div className="text-4xl mb-3">🔒</div>
+                  <p className="doc-field-label mb-3">Restricted</p>
                   <p className="text-gray-400">This profile is private</p>
                 </div>
               ) : (
                 <>
                   {/* User Type */}
                   <div
-                    className={`p-4 rounded-xl text-center ${
+                    className={`p-4 rounded-sm text-center ${
                       searchedUser.userType === "artist"
-                        ? "bg-purple-900 border border-purple-700"
+                        ? "bg-ink-raised border border-rule"
                         : searchedUser.userType === "collector"
-                          ? "bg-cyan-900 border border-cyan-700"
-                          : "bg-gray-800 border border-gray-700"
+                          ? "bg-ink-raised border border-rule"
+                          : "bg-ink-raised border border-rule"
                     }`}
                   >
                     <div className="text-3xl mb-1">
                       {searchedUser.userType === "artist"
-                        ? "🎨"
+                        ? "ART"
                         : searchedUser.userType === "collector"
-                          ? "🏆"
+                          ? "COLLECTOR"
                           : "🌱"}
                     </div>
                     <p className="font-bold text-white capitalize">
                       {searchedUser.userType || "Explorer"}
                     </p>
                     {/* Followers are a Farcaster number. A wallet-only artist
-                        has no follower graph here, so the count is not low --
-                        it does not apply, and rendering "0 followers" says
-                        something untrue about them. Hidden until there is a
-                        follow relationship this app actually stores. */}
+ has no follower graph here, so the count is not low --
+ it does not apply, and rendering "0 followers" says
+ something untrue about them. Hidden until there is a
+ follow relationship this app actually stores. */}
                     {searchedUser.fid != null &&
                       searchedUser.followerCount !== undefined && (
                         <p className="text-xs text-gray-400 mt-1">
@@ -597,7 +597,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                   {/* Bio */}
                   {searchedUser.bio && (
-                    <p className="text-sm text-gray-300 bg-gray-800 rounded-lg p-3 border border-gray-700">
+                    <p className="text-sm text-gray-300 bg-ink-raised rounded-lg p-3 border border-rule">
                       {searchedUser.bio}
                     </p>
                   )}
@@ -632,7 +632,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       onClick={() => {
                         onViewUserProfile(searchedUser.walletAddress!);
                       }}
-                      className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium transition-colors"
+                      className="w-full py-3 bg-ink-raised hover:bg-ink-raised text-white rounded-sm font-medium transition-colors"
                     >
                       View Full Profile
                     </button>
@@ -642,7 +642,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           ) : loading ? (
             <div className="text-center py-12">
-              <Loader2 className="w-8 h-8 text-purple-400 animate-spin mx-auto mb-3" />
+              <Loader2 className="w-8 h-8 text-muted animate-spin mx-auto mb-3" />
               <p className="text-gray-400">Loading stats...</p>
             </div>
           ) : stats ? (
@@ -650,17 +650,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className="space-y-4">
               {/* Safe Wallet - At top for visibility */}
               {safeBalance && (
-                <div className="bg-gradient-to-br from-cyan-900/50 to-purple-900/50 border border-cyan-700/50 rounded-xl p-4">
+                <div className="bg-ink-raised border border-rule rounded-sm p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-medium text-white flex items-center gap-2">
-                      <Wallet className="w-5 h-5 text-cyan-400" />
+                      <Wallet className="w-5 h-5 text-muted" />
                       Your Safe Wallet
                     </h4>
                     <a
                       href={getAddressExplorerUrl(safeBalance.safeAddress)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                      className="text-sm text-muted hover:text-muted flex items-center gap-1"
                     >
                       View <ExternalLink className="w-4 h-4" />
                     </a>
@@ -668,8 +668,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                   {/* Balances */}
                   {/* Two tiles, two columns. Removing TOURS left this as
-                      grid-cols-3 holding two -- the third mismatch of its kind
-                      today. */}
+ grid-cols-3 holding two -- the third mismatch of its kind
+ today. */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="bg-black/30 rounded-lg p-3 text-center">
                       <p className="text-xl font-bold text-white">
@@ -678,17 +678,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       <p className="text-xs text-gray-400">MON</p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <p className="text-xl font-bold text-cyan-400">
+                      <p className="text-xl font-bold text-muted">
                         {parseFloat(safeBalance.wmonBalance).toFixed(2)}
                       </p>
                       <p className="text-xs text-gray-400">WMON</p>
                     </div>
                     {/* The TOURS tile was removed on 2026-09-04. Nothing in
-                        this app is priced in TOURS -- licences, mints, the
-                        passport and subscriptions all settle in WMON -- so a
-                        balance here implied a token users were meant to hold
-                        and spend. It also read 101 for a wallet that has never
-                        been able to earn or spend any. */}
+ this app is priced in TOURS -- licences, mints, the
+ passport and subscriptions all settle in WMON -- so a
+ balance here implied a token users were meant to hold
+ and spend. It also read 101 for a wallet that has never
+ been able to earn or spend any. */}
                   </div>
 
                   {/* Safe Address */}
@@ -701,10 +701,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       className={`px-3 py-1 rounded text-sm font-medium transition-all ${
                         copiedAddress
                           ? "bg-green-500 text-white"
-                          : "bg-cyan-600 hover:bg-cyan-500 text-white"
+                          : "bg-ink-raised hover:bg-ink-raised text-white"
                       }`}
                     >
-                      {copiedAddress ? "✓ Copied" : "Copy"}
+                      {copiedAddress ? "Copied" : "Copy"}
                     </button>
                   </div>
 
@@ -745,8 +745,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               {/* Self-hides for anyone on Farcaster who has not already claimed a name: their
-                  handle always wins in `resolveArtistName`, so a name claimed here would never
-                  be shown to them. */}
+ handle always wins in `resolveArtistName`, so a name claimed here would never
+ be shown to them. */}
               <DisplayNameSetting
                 walletAddress={walletAddress}
                 isDarkMode={isDarkMode}
@@ -756,26 +756,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               />
 
               {/* Catalogue migration — self-hides unless the v3 contracts are live and this
-                  wallet still has tracks on the old one. Placed above earnings because an
-                  unmigrated catalogue is why earnings would read as zero. */}
+ wallet still has tracks on the old one. Placed above earnings because an
+ unmigrated catalogue is why earnings would read as zero. */}
               <CatalogueMigration
                 walletAddress={walletAddress}
                 isDarkMode={isDarkMode}
               />
 
               {/* Everyone can refer, artist or not -- it pays on subscriptions,
-                  not on anything they made. So this sits above the artist-only
-                  sections rather than inside them. */}
+ not on anything they made. So this sits above the artist-only
+ sections rather than inside them. */}
               <ReferralPanel dark />
 
               {/* Licences you bought, and a way to pass one on. Resale is a
-                  link you send to a person, not a listing on a board -- the
-                  contract settles it and takes the artist's royalty on the way
-                  through. */}
+ link you send to a person, not a listing on a board -- the
+ contract settles it and takes the artist's royalty on the way
+ through. */}
               {purchased.length > 0 && (
-                <div className="bg-black/20 border border-gray-700/50 rounded-xl p-4">
+                <div className="bg-black/20 border border-rule rounded-sm p-4">
                   <h4 className="font-medium text-white flex items-center gap-2 mb-3">
-                    <Ticket className="w-5 h-5 text-cyan-400" />
+                    <Ticket className="w-5 h-5 text-muted" />
                     Licences I Own
                   </h4>
                   <div className="space-y-3">
@@ -821,12 +821,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               )}
 
               {/* The tracks themselves, not just a count of them.
-                  "Where do I change the price of Ganado?" had no answer from
-                  this modal: it showed a Music Created number and nothing to
-                  act on, while the per-track controls existed only on /profile,
-                  a separate page. A count is not a control. */}
+ "Where do I change the price of Ganado?" had no answer from
+ this modal: it showed a Music Created number and nothing to
+ act on, while the per-track controls existed only on /profile,
+ a separate page. A count is not a control. */}
               {createdTracks.length > 0 && (
-                <div className="bg-black/20 border border-gray-700/50 rounded-xl p-4">
+                <div className="bg-black/20 border border-rule rounded-sm p-4">
                   <h4 className="font-medium text-white flex items-center gap-2 mb-3">
                     <Music className="w-5 h-5 text-blue-400" />
                     Music I Created
@@ -877,15 +877,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               {/* Artist Earnings - only for music creators */}
               {stats.musicCreated > 0 && (
-                <div className="bg-gradient-to-br from-green-900/40 to-emerald-900/40 border border-green-700/50 rounded-xl p-4">
+                <div className="bg-ink-raised border border-rule rounded-sm p-4">
                   <h4 className="font-medium text-white flex items-center gap-2 mb-3">
-                    <DollarSign className="w-5 h-5 text-green-400" />
+                    <DollarSign className="w-5 h-5 text-good" />
                     Artist Earnings
                   </h4>
 
                   {earningsLoading ? (
                     <div className="flex items-center justify-center py-4">
-                      <Loader2 className="w-5 h-5 text-green-400 animate-spin" />
+                      <Loader2 className="w-5 h-5 text-good animate-spin" />
                       <span className="ml-2 text-sm text-gray-400">
                         Loading earnings...
                       </span>
@@ -896,7 +896,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       <div className="grid grid-cols-3 gap-2">
                         <div className="bg-black/30 rounded-lg p-2.5 text-center">
                           <div className="flex items-center justify-center gap-1 mb-1">
-                            <Radio className="w-3 h-3 text-pink-400" />
+                            <Radio className="w-3 h-3 text-muted" />
                           </div>
                           <p className="text-sm font-bold text-white">
                             {parseFloat(earnings.totalRadioEarnings).toFixed(4)}
@@ -932,7 +932,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         <span className="text-sm text-gray-300">
                           Total Earned
                         </span>
-                        <span className="text-lg font-bold text-green-400">
+                        <span className="text-lg font-bold text-good">
                           {(
                             parseFloat(earnings.totalRadioEarnings) +
                             parseFloat(earnings.totalTips) +
@@ -943,7 +943,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       </div>
 
                       {/* Explicit separator rather than relying on flex gap,
-                          which was collapsing and rendering "0 plays3 licenses sold". */}
+ which was collapsing and rendering "0 plays3 licenses sold". */}
                       <div className="flex items-center gap-3 text-xs text-gray-400">
                         <span>{earnings.totalPlays} plays</span>
                         <span aria-hidden="true">·</span>
@@ -964,7 +964,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                               <span className="text-xs text-gray-300 truncate flex-1 mr-2">
                                 {song.name}
                               </span>
-                              <span className="text-xs text-green-400 font-medium whitespace-nowrap">
+                              <span className="text-xs text-good font-medium whitespace-nowrap">
                                 {parseFloat(song.earnings).toFixed(4)} WMON
                               </span>
                             </div>
@@ -974,10 +974,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                       {/* Claim Section */}
                       {claims && parseFloat(claims.totalUnclaimed) > 0 && (
-                        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                        <div className="bg-green-500/10 border border-rule rounded-lg p-3">
                           <div className="flex items-center justify-between mb-2">
                             <div>
-                              <p className="text-sm font-medium text-green-400">
+                              <p className="text-sm font-medium text-good">
                                 Unclaimed Payouts
                               </p>
                               <p className="text-xs text-gray-400">
@@ -986,7 +986,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                 {claims.toursEligible && " + TOURS rewards"}
                               </p>
                             </div>
-                            <p className="text-lg font-bold text-green-400">
+                            <p className="text-lg font-bold text-good">
                               {parseFloat(claims.totalUnclaimed).toFixed(4)}{" "}
                               WMON
                             </p>
@@ -1018,7 +1018,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       {/* Claim result feedback */}
                       {claimResult && (
                         <div
-                          className={`text-xs text-center py-2 rounded-lg ${claimResult.success ? "text-green-400 bg-green-500/10" : "text-red-400 bg-red-500/10"}`}
+                          className={`text-xs text-center py-2 rounded-lg ${claimResult.success ? "text-good bg-green-500/10" : "text-red-400 bg-red-500/10"}`}
                         >
                           {claimResult.message}
                         </div>
@@ -1037,17 +1037,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <button
                   onClick={() => setShowEPKSubmodal(true)}
                   disabled={epkLoading}
-                  className="w-full flex items-center justify-between bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-purple-600 rounded-xl p-3 transition-colors"
+                  className="w-full flex items-center justify-between bg-ink-raised hover:bg-gray-750 border border-rule hover:border-rule rounded-sm p-3 transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <FileText className="w-4 h-4 text-purple-400" />
+                    <FileText className="w-4 h-4 text-muted" />
                     <span className="text-sm font-medium text-white">
                       Press Kit
                     </span>
                     {epkLoading ? (
                       <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
                     ) : epkData ? (
-                      <span className="flex items-center gap-1 text-xs text-green-400">
+                      <span className="flex items-center gap-1 text-xs text-good">
                         <CheckCircle className="w-3 h-3" /> Live
                       </span>
                     ) : (
@@ -1059,9 +1059,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               )}
 
               {/* My Passports Section */}
-              <div className="bg-gray-800 border border-gray-700 rounded-xl p-3">
+              <div className="bg-ink-raised border border-rule rounded-sm p-3">
                 <h4 className="font-medium text-white mb-2 flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-cyan-400" />
+                  <Globe className="w-4 h-4 text-muted" />
                   My Passports ({stats.passports})
                 </h4>
                 {stats.passportList.length > 0 ? (
@@ -1072,7 +1072,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         <button
                           key={passport.tokenId}
                           onClick={() => setSelectedPassport(passport)}
-                          className="px-2 py-1 bg-purple-900 hover:bg-purple-800 text-purple-300 text-lg rounded-lg border border-purple-700 hover:border-purple-500 transition-all cursor-pointer"
+                          className="px-2 py-1 bg-ink-raised hover:bg-ink-raised text-muted text-lg rounded-lg border border-rule hover:border-rule transition-all cursor-pointer"
                           title={`${country?.name || passport.countryCode} - Click to view passport`}
                         >
                           {getFlagEmoji(passport.countryCode)}
@@ -1088,7 +1088,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 {onMintPassport && (
                   <button
                     onClick={onMintPassport}
-                    className="w-full py-2 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium transition-all"
+                    className="w-full py-2 bg-ink-raised text-white rounded-lg text-sm font-medium transition-all"
                   >
                     Mint New Passport
                   </button>
@@ -1096,10 +1096,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             </div>
           ) : (
-            <div className="text-center py-12">
-              <div className="text-4xl mb-3">🔍</div>
-              <p className="text-gray-400">
-                Search for a user or connect wallet
+            <div className="py-14 px-8 text-center">
+              <p className="doc-field-label mb-3">No record</p>
+              <div className="border-rule mx-auto mb-4 h-px w-24 border-t" />
+              <p className="text-muted text-sm">
+                Search for a user, or connect your wallet
               </p>
             </div>
           )}
@@ -1121,7 +1122,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onClick={() => setSelectedPassport(null)}
           >
             <div
-              className="rounded-2xl overflow-hidden max-w-md w-full shadow-2xl"
+              className="rounded-none overflow-hidden max-w-md w-full shadow-2xl"
               style={{ backgroundColor: isDarkMode ? "#111827" : "#ffffff" }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1194,13 +1195,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onClick={() => setShowEPKSubmodal(false)}
           >
             <div
-              className="rounded-2xl overflow-hidden max-w-sm w-full shadow-2xl bg-gray-900 border border-gray-700"
+              className="rounded-none overflow-hidden max-w-sm w-full shadow-2xl bg-ink-raised border border-rule"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
+              <div className="flex items-center justify-between p-4 border-b border-rule bg-ink-raised">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-purple-400" />
+                  <FileText className="w-5 h-5 text-muted" />
                   Press Kit
                 </h3>
                 <button
@@ -1216,8 +1217,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <>
                     {/* Has EPK - show summary + view/edit */}
                     <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-400" />
-                      <span className="text-sm text-green-400 font-medium">
+                      <CheckCircle className="w-4 h-4 text-good" />
+                      <span className="text-sm text-good font-medium">
                         Press Kit Live
                       </span>
                     </div>
@@ -1237,7 +1238,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           setShowEPKSubmodal(false);
                           setShowEPKViewModal(true);
                         }}
-                        className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors text-center flex items-center justify-center gap-1.5"
+                        className="flex-1 py-2.5 bg-ink-raised hover:bg-ink-raised text-white rounded-lg text-sm font-medium transition-colors text-center flex items-center justify-center gap-1.5"
                       >
                         <FileText className="w-3.5 h-3.5" />
                         View Press Kit
@@ -1258,8 +1259,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <>
                     {/* No EPK - show create prompt */}
                     <div className="text-center py-2">
-                      <div className="w-12 h-12 bg-purple-900/50 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <FileText className="w-6 h-6 text-purple-400" />
+                      <div className="w-12 h-12 bg-ink-raised rounded-full flex items-center justify-center mx-auto mb-3">
+                        <FileText className="w-6 h-6 text-muted" />
                       </div>
                       <p className="text-white font-medium mb-1">
                         No Press Kit Yet
@@ -1274,7 +1275,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         setShowEPKSubmodal(false);
                         setShowEPKModal(true);
                       }}
-                      className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg text-sm font-medium transition-all"
+                      className="w-full py-2.5 bg-ink-raised text-white rounded-lg text-sm font-medium transition-all"
                     >
                       Generate Press Kit (5 WMON)
                     </button>
@@ -1297,7 +1298,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onClick={() => setShowEPKViewModal(false)}
           >
             <div
-              className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl shadow-2xl bg-[#0f172a]"
+              className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-none shadow-2xl bg-[#0f172a]"
               onClick={(e) => e.stopPropagation()}
             >
               <EPKViewContent
@@ -1350,15 +1351,15 @@ const StatBox = ({
   color: string;
 }) => {
   const colors: Record<string, string> = {
-    purple: "bg-purple-900 border-purple-700 text-purple-400",
+    purple: "bg-ink-raised border-rule text-muted",
     blue: "bg-blue-900 border-blue-700 text-blue-400",
     amber: "bg-amber-900 border-amber-700 text-amber-400",
-    pink: "bg-pink-900 border-pink-700 text-pink-400",
-    cyan: "bg-cyan-900 border-cyan-700 text-cyan-400",
+    pink: "bg-ink-raised border-rule text-muted",
+    cyan: "bg-ink-raised border-rule text-muted",
   };
 
   return (
-    <div className={`${colors[color]} border rounded-xl p-3 text-center`}>
+    <div className={`${colors[color]} border rounded-sm p-3 text-center`}>
       <div className="mx-auto mb-1">{icon}</div>
       <p className="text-xl font-bold text-white">{value}</p>
       <p className="text-xs text-gray-400">{label}</p>
@@ -1386,7 +1387,7 @@ const EPKViewContent = ({
       {/* Sticky Header */}
       <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-white/10 bg-[#0f172a]/95 backdrop-blur-sm">
         <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <FileText className="w-5 h-5 text-purple-400" />
+          <FileText className="w-5 h-5 text-muted" />
           Press Kit
         </h3>
         <div className="flex items-center gap-2">
@@ -1414,10 +1415,10 @@ const EPKViewContent = ({
       </div>
 
       {/* Hero */}
-      <div className="px-4 pt-6 pb-4 bg-gradient-to-b from-[#1e1b4b] to-[#0f172a]">
+      <div className="px-4 pt-6 pb-4 bg-ink">
         <div className="flex items-center gap-2 mb-3">
           {verified && (
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-400 bg-green-400/10 border border-green-400/20 rounded-full px-2.5 py-0.5">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-good bg-green-400/10 border border-rule rounded-full px-2.5 py-0.5">
               <CheckCircle className="w-3 h-3" />
               On-Chain Verified
             </span>
@@ -1430,7 +1431,7 @@ const EPKViewContent = ({
           {epk.artist.genre.map((g) => (
             <span
               key={g}
-              className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-full px-3 py-0.5"
+              className="text-xs text-muted bg-ink-raised border border-rule rounded-full px-3 py-0.5"
             >
               {g}
             </span>
@@ -1462,7 +1463,7 @@ const EPKViewContent = ({
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
                 <div className="flex items-center gap-2 mb-1">
-                  <Play className="w-3.5 h-3.5 text-purple-400" />
+                  <Play className="w-3.5 h-3.5 text-muted" />
                   <span className="text-xs text-slate-400">Plays</span>
                 </div>
                 <p className="text-lg font-bold text-white">
@@ -1475,7 +1476,7 @@ const EPKViewContent = ({
                   <span className="text-xs text-slate-400">Listeners</span>
                 </div>
                 {/* Null means unknown, not zero: no contract keeps a roster of listeners, so
-                    "—" is the honest render. A 0 here would say nobody has ever listened. */}
+ "—" is the honest render. A 0 here would say nobody has ever listened. */}
                 <p className="text-lg font-bold text-white">
                   {stats.uniqueListeners === null
                     ? "—"
@@ -1484,7 +1485,7 @@ const EPKViewContent = ({
               </div>
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
                 <div className="flex items-center gap-2 mb-1">
-                  <Music className="w-3.5 h-3.5 text-green-400" />
+                  <Music className="w-3.5 h-3.5 text-good" />
                   <span className="text-xs text-slate-400">Sales</span>
                 </div>
                 <p className="text-lg font-bold text-white">
@@ -1517,9 +1518,9 @@ const EPKViewContent = ({
                   href={article.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block bg-[#1e293b] rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors"
+                  className="block bg-[#1e293b] rounded-lg p-3 border border-white/5 hover:border-rule transition-colors"
                 >
-                  <p className="text-xs font-semibold text-purple-400 uppercase tracking-wider">
+                  <p className="text-xs font-semibold text-muted uppercase tracking-wider">
                     {article.outlet}
                   </p>
                   <p className="text-sm text-white font-medium mt-1 line-clamp-2">
@@ -1551,9 +1552,9 @@ const EPKViewContent = ({
                   href={video.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 bg-[#1e293b] rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors"
+                  className="flex items-center gap-3 bg-[#1e293b] rounded-lg p-3 border border-white/5 hover:border-rule transition-colors"
                 >
-                  <Play className="w-8 h-8 text-purple-400 flex-shrink-0" />
+                  <Play className="w-8 h-8 text-muted flex-shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm text-white font-medium truncate">
                       {video.title}
@@ -1643,9 +1644,7 @@ const EPKViewContent = ({
                             key={i}
                             className="text-xs text-slate-400 flex items-start gap-2"
                           >
-                            <span className="text-purple-400 mt-0.5">
-                              &#8226;
-                            </span>
+                            <span className="text-muted mt-0.5">&#8226;</span>
                             {item}
                           </li>
                         ))}
@@ -1695,9 +1694,7 @@ const EPKViewContent = ({
                             key={i}
                             className="text-xs text-slate-400 flex items-start gap-2"
                           >
-                            <span className="text-purple-400 mt-0.5">
-                              &#8226;
-                            </span>
+                            <span className="text-muted mt-0.5">&#8226;</span>
                             {item}
                           </li>
                         ))}
@@ -1726,7 +1723,7 @@ const EPKViewContent = ({
                     href={`https://farcaster.xyz/${epk.socials.farcaster}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-full px-3 py-1.5 hover:bg-purple-500/20 transition-colors"
+                    className="text-xs text-muted bg-ink-raised border border-rule rounded-full px-3 py-1.5 hover:bg-ink-raised transition-colors"
                   >
                     Farcaster
                   </a>
@@ -1746,7 +1743,7 @@ const EPKViewContent = ({
                     href={`https://instagram.com/${epk.socials.instagram}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-pink-300 bg-pink-500/10 border border-pink-500/20 rounded-full px-3 py-1.5 hover:bg-pink-500/20 transition-colors"
+                    className="text-xs text-muted bg-ink-raised border border-rule rounded-full px-3 py-1.5 hover:bg-ink-raised transition-colors"
                   >
                     Instagram
                   </a>

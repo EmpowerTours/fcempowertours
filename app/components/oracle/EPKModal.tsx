@@ -336,7 +336,7 @@ export function EPKModal({
       className="fixed inset-0 flex items-center justify-center p-4"
       style={{ zIndex: 10003, backgroundColor: "rgba(0,0,0,0.85)" }}
     >
-      <div className="bg-[#1e293b] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-white/10">
+      <div className="bg-[#1e293b] rounded-none w-full max-w-2xl max-h-[90vh] overflow-hidden border border-white/10">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
           <h2 className="text-lg font-semibold text-white">
@@ -354,7 +354,7 @@ export function EPKModal({
         {generating ? (
           <div className="px-6 py-16 flex flex-col items-center justify-center text-center">
             <div className="relative mb-6">
-              <Loader2 className="w-12 h-12 text-purple-400 animate-spin" />
+              <Loader2 className="w-12 h-12 text-muted animate-spin" />
               <Sparkles className="w-5 h-5 text-yellow-400 absolute -top-1 -right-1" />
             </div>
             <h3 className="text-xl font-bold text-white mb-2">
@@ -385,7 +385,7 @@ export function EPKModal({
                   generationTriggered.current = false;
                   triggerGeneration();
                 }}
-                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                className="flex items-center gap-2 bg-ink-raised hover:bg-ink-raised text-white px-4 py-2 rounded-lg text-sm transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 Retry
@@ -408,9 +408,9 @@ export function EPKModal({
                   onClick={() => setStep(s.key)}
                   className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-colors ${
                     step === s.key
-                      ? "bg-purple-600 text-white"
+                      ? "bg-ink-raised text-white"
                       : i < stepIndex
-                        ? "bg-purple-600/20 text-purple-300"
+                        ? "bg-ink-raised text-muted"
                         : "bg-white/5 text-slate-400"
                   }`}
                 >
@@ -422,9 +422,9 @@ export function EPKModal({
 
             {/* AI-generated label */}
             {generated && !isEdit && step === "artist" && (
-              <div className="mx-6 mt-3 flex items-center gap-2 bg-purple-900/30 border border-purple-500/20 rounded-lg px-3 py-2">
-                <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                <span className="text-xs text-purple-300">
+              <div className="mx-6 mt-3 flex items-center gap-2 bg-ink-raised border border-rule rounded-lg px-3 py-2">
+                <Sparkles className="w-3.5 h-3.5 text-muted flex-shrink-0" />
+                <span className="text-xs text-muted">
                   AI-generated draft — review and edit before publishing
                 </span>
               </div>
@@ -434,7 +434,7 @@ export function EPKModal({
             <div className="px-6 py-6 overflow-y-auto max-h-[60vh] space-y-4">
               {published ? (
                 <div className="text-center py-8">
-                  <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
+                  <CheckCircle className="w-16 h-16 text-good mx-auto mb-4" />
                   <h3 className="text-xl font-bold text-white mb-2">
                     {isEdit ? "EPK Updated!" : "EPK Published!"}
                   </h3>
@@ -446,7 +446,7 @@ export function EPKModal({
                   <div className="space-y-3">
                     <button
                       onClick={onClose}
-                      className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
+                      className="inline-flex items-center gap-2 bg-ink-raised hover:bg-ink-raised text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
                     >
                       <CheckCircle className="w-4 h-4" />
                       View Press Kit
@@ -456,7 +456,7 @@ export function EPKModal({
                         href={publishResult.explorer}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block text-xs text-slate-400 hover:text-purple-300"
+                        className="block text-xs text-slate-400 hover:text-muted"
                       >
                         On-chain TX: {publishResult.txHash?.slice(0, 16)}...
                       </a>
@@ -475,7 +475,7 @@ export function EPKModal({
                         <input
                           value={artistName}
                           onChange={(e) => setArtistName(e.target.value)}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule"
                           placeholder="Your artist name"
                         />
                       </div>
@@ -487,7 +487,7 @@ export function EPKModal({
                           value={bio}
                           onChange={(e) => setBio(e.target.value)}
                           rows={5}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule resize-none"
                           placeholder="Your artist biography..."
                         />
                       </div>
@@ -498,7 +498,7 @@ export function EPKModal({
                         <input
                           value={genre}
                           onChange={(e) => setGenre(e.target.value)}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule"
                           placeholder="e.g., Hip-Hop, Electronic, Latin"
                         />
                       </div>
@@ -509,7 +509,7 @@ export function EPKModal({
                         <input
                           value={location}
                           onChange={(e) => setLocation(e.target.value)}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule"
                           placeholder="City, Country"
                         />
                       </div>
@@ -526,7 +526,7 @@ export function EPKModal({
                         <input
                           value={videoUrl}
                           onChange={(e) => setVideoUrl(e.target.value)}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule"
                           placeholder="https://rumble.com/... or https://youtube.com/..."
                         />
                       </div>
@@ -537,7 +537,7 @@ export function EPKModal({
                         <input
                           value={videoTitle}
                           onChange={(e) => setVideoTitle(e.target.value)}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule"
                           placeholder="Music Video Title"
                         />
                       </div>
@@ -555,7 +555,7 @@ export function EPKModal({
                               onChange={(e) =>
                                 updatePressArticle(i, "outlet", e.target.value)
                               }
-                              className="w-full bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                              className="w-full bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule"
                               placeholder="Outlet name (e.g., Rolling Stone)"
                             />
                             <input
@@ -563,7 +563,7 @@ export function EPKModal({
                               onChange={(e) =>
                                 updatePressArticle(i, "title", e.target.value)
                               }
-                              className="w-full bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                              className="w-full bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule"
                               placeholder="Article title"
                             />
                             <input
@@ -571,7 +571,7 @@ export function EPKModal({
                               onChange={(e) =>
                                 updatePressArticle(i, "url", e.target.value)
                               }
-                              className="w-full bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                              className="w-full bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule"
                               placeholder="https://..."
                             />
                             <div className="grid grid-cols-2 gap-2">
@@ -581,7 +581,7 @@ export function EPKModal({
                                 onChange={(e) =>
                                   updatePressArticle(i, "date", e.target.value)
                                 }
-                                className="bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+                                className="bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-rule"
                               />
                               <input
                                 value={article.excerpt}
@@ -592,7 +592,7 @@ export function EPKModal({
                                     e.target.value,
                                   )
                                 }
-                                className="bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                                className="bg-transparent border border-white/10 rounded px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule"
                                 placeholder="Short excerpt"
                               />
                             </div>
@@ -601,7 +601,7 @@ export function EPKModal({
                         <button
                           type="button"
                           onClick={addPressArticle}
-                          className="text-sm text-purple-400 hover:text-purple-300"
+                          className="text-sm text-muted hover:text-muted"
                         >
                           + Add another article
                         </button>
@@ -623,7 +623,7 @@ export function EPKModal({
                           value={stageItems}
                           onChange={(e) => setStageItems(e.target.value)}
                           rows={3}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule resize-none"
                           placeholder="40ft x 30ft minimum&#10;4ft+ stage height"
                         />
                       </div>
@@ -635,7 +635,7 @@ export function EPKModal({
                           value={soundItems}
                           onChange={(e) => setSoundItems(e.target.value)}
                           rows={3}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule resize-none"
                           placeholder="Line array PA system&#10;6 wedge monitors"
                         />
                       </div>
@@ -647,7 +647,7 @@ export function EPKModal({
                           value={lightingItems}
                           onChange={(e) => setLightingItems(e.target.value)}
                           rows={3}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule resize-none"
                           placeholder="Moving head fixtures&#10;LED wash lights"
                         />
                       </div>
@@ -659,7 +659,7 @@ export function EPKModal({
                           value={dressingRoomItems}
                           onChange={(e) => setDressingRoomItems(e.target.value)}
                           rows={3}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule resize-none"
                           placeholder="Private room with bathroom&#10;Seating for 6"
                         />
                       </div>
@@ -671,7 +671,7 @@ export function EPKModal({
                           value={cateringItems}
                           onChange={(e) => setCateringItems(e.target.value)}
                           rows={3}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule resize-none"
                           placeholder="Hot meal for 6&#10;Vegetarian option"
                         />
                       </div>
@@ -683,7 +683,7 @@ export function EPKModal({
                           value={beverageItems}
                           onChange={(e) => setBeverageItems(e.target.value)}
                           rows={3}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-rule resize-none"
                           placeholder="Water, juice, energy drinks&#10;Premium spirits"
                         />
                       </div>
@@ -700,7 +700,7 @@ export function EPKModal({
                         <input
                           value={pricing}
                           onChange={(e) => setPricing(e.target.value)}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule"
                           placeholder="Contact for rates"
                         />
                       </div>
@@ -711,7 +711,7 @@ export function EPKModal({
                         <input
                           value={availableFor}
                           onChange={(e) => setAvailableFor(e.target.value)}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule"
                           placeholder="Conferences, Festivals, Private Events"
                         />
                       </div>
@@ -722,7 +722,7 @@ export function EPKModal({
                         <input
                           value={territories}
                           onChange={(e) => setTerritories(e.target.value)}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule"
                           placeholder="Global, North America, Europe"
                         />
                       </div>
@@ -734,7 +734,7 @@ export function EPKModal({
                           type="number"
                           value={minimumDeposit}
                           onChange={(e) => setMinimumDeposit(e.target.value)}
-                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                          className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-rule"
                           placeholder="100"
                         />
                       </div>
@@ -798,7 +798,7 @@ export function EPKModal({
                   <button
                     onClick={handlePublish}
                     disabled={publishing}
-                    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
+                    className="flex items-center gap-2 bg-ink-raised hover:bg-ink-raised disabled:opacity-50 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
                   >
                     {publishing ? (
                       <>
@@ -815,7 +815,7 @@ export function EPKModal({
                 ) : (
                   <button
                     onClick={goNext}
-                    className="flex items-center gap-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 text-sm bg-ink-raised hover:bg-ink-raised text-white px-4 py-2 rounded-lg transition-colors"
                   >
                     Next
                     <ChevronRight className="w-4 h-4" />

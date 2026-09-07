@@ -459,9 +459,9 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   // Loading state
   if (checkingStatus) {
     return (
-      <div className="bg-gradient-to-br from-purple-900/20 via-black to-cyan-900/20 border border-cyan-500/30 rounded-2xl p-6">
+      <div className="bg-ink-raised border border-rule rounded-none p-6">
         <div className="flex justify-center items-center py-8">
-          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+          <Loader2 className="w-8 h-8 text-muted animate-spin" />
         </div>
       </div>
     );
@@ -478,10 +478,10 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       artistClaims && artistClaims.unclaimedMonths.length > 0;
 
     return (
-      <div className="bg-gradient-to-br from-green-900/20 via-black to-cyan-900/20 border border-green-500/30 rounded-2xl p-6">
+      <div className="bg-ink-raised border border-rule rounded-none p-6">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-8 h-8 text-green-400" />
+            <CheckCircle2 className="w-8 h-8 text-good" />
             <div>
               <h3 className="text-xl font-bold text-white">
                 Active Subscription
@@ -498,15 +498,15 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-gray-800 rounded-lg p-3">
+          <div className="bg-ink-raised rounded-lg p-3">
             <div className="text-xs text-gray-400 mb-1">Days Remaining</div>
-            <div className="text-2xl font-bold text-green-400">
+            <div className="text-2xl font-bold text-good">
               {subscriptionStatus.daysRemaining}
             </div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-3">
+          <div className="bg-ink-raised rounded-lg p-3">
             <div className="text-xs text-gray-400 mb-1">Total Plays</div>
-            <div className="text-2xl font-bold text-cyan-400">
+            <div className="text-2xl font-bold text-muted">
               {subscriptionStatus.totalPlays}
             </div>
           </div>
@@ -522,27 +522,27 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
 
         {/* Artist Earnings Section */}
         {artistEarnings && totalEarned > 0 && (
-          <div className="border-t border-gray-700 pt-4 mt-2">
+          <div className="border-t border-rule pt-4 mt-2">
             <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="w-5 h-5 text-purple-400" />
+              <TrendingUp className="w-5 h-5 text-muted" />
               <h4 className="text-sm font-bold text-white">Artist Earnings</h4>
             </div>
             <div className="grid grid-cols-3 gap-2 mb-3">
-              <div className="bg-gray-800/80 rounded-lg p-2 text-center">
+              <div className="bg-ink-raised rounded-lg p-2 text-center">
                 <div className="text-[10px] text-gray-500">Radio</div>
                 <div className="text-sm font-bold text-indigo-400">
                   {parseFloat(artistEarnings.totalRadioEarnings).toFixed(2)}
                 </div>
                 <div className="text-[10px] text-gray-500">WMON</div>
               </div>
-              <div className="bg-gray-800/80 rounded-lg p-2 text-center">
+              <div className="bg-ink-raised rounded-lg p-2 text-center">
                 <div className="text-[10px] text-gray-500">Tips</div>
-                <div className="text-sm font-bold text-pink-400">
+                <div className="text-sm font-bold text-muted">
                   {parseFloat(artistEarnings.totalTips).toFixed(2)}
                 </div>
                 <div className="text-[10px] text-gray-500">WMON</div>
               </div>
-              <div className="bg-gray-800/80 rounded-lg p-2 text-center">
+              <div className="bg-ink-raised rounded-lg p-2 text-center">
                 <div className="text-[10px] text-gray-500">Sales</div>
                 <div className="text-sm font-bold text-emerald-400">
                   {parseFloat(artistEarnings.totalLicenseSales).toFixed(2)}
@@ -550,7 +550,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
                 <div className="text-[10px] text-gray-500">WMON</div>
               </div>
             </div>
-            <div className="bg-gray-800/50 rounded-lg p-2 text-center mb-3">
+            <div className="bg-ink-raised rounded-lg p-2 text-center mb-3">
               <div className="text-[10px] text-gray-500">Total Earned</div>
               <div className="text-lg font-bold text-white">
                 {totalEarned.toFixed(4)} WMON
@@ -561,7 +561,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
 
         {/* Unclaimed Payouts - Claim Button */}
         {hasUnclaimed && (
-          <div className="border-t border-gray-700 pt-4 mt-2">
+          <div className="border-t border-rule pt-4 mt-2">
             <div className="flex items-center gap-2 mb-3">
               <Wallet className="w-5 h-5 text-yellow-400" />
               <h4 className="text-sm font-bold text-white">
@@ -572,7 +572,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
               {artistClaims!.unclaimedMonths.map((month) => (
                 <div
                   key={month.monthId}
-                  className="flex justify-between items-center bg-gray-800/60 rounded-lg px-3 py-2"
+                  className="flex justify-between items-center bg-ink-raised rounded-lg px-3 py-2"
                 >
                   <div>
                     <span className="text-xs text-gray-400">
@@ -594,7 +594,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
                 {artistClaims!.totalUnclaimed} WMON
               </div>
               {artistClaims!.toursEligible && (
-                <div className="text-[10px] text-green-400 mt-1">
+                <div className="text-[10px] text-good mt-1">
                   + TOURS rewards eligible
                 </div>
               )}
@@ -608,8 +608,8 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
               </div>
             )}
             {success && (
-              <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 mb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+              <div className="bg-green-500/20 border border-rule rounded-lg p-3 mb-3 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-good flex-shrink-0" />
                 <span className="text-sm text-green-300">{success}</span>
               </div>
             )}
@@ -617,7 +617,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
             <button
               onClick={handleClaimPayouts}
               disabled={claiming}
-              className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-ink-raised text-black font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {claiming ? (
                 <>
@@ -636,10 +636,10 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
 
         {/* No unclaimed but show eligibility info */}
         {!hasUnclaimed && artistClaims && (
-          <div className="border-t border-gray-700 pt-3 mt-2">
+          <div className="border-t border-rule pt-3 mt-2">
             {success && (
-              <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 mb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+              <div className="bg-green-500/20 border border-rule rounded-lg p-3 mb-3 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-good flex-shrink-0" />
                 <span className="text-sm text-green-300">{success}</span>
               </div>
             )}
@@ -647,7 +647,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
               No unclaimed payouts. Earnings are distributed monthly.
             </div>
             {artistClaims.toursEligible && (
-              <div className="text-[10px] text-green-400/70 text-center mt-1">
+              <div className="text-[10px] text-good/70 text-center mt-1">
                 TOURS eligible ({artistClaims.masterCount} masters,{" "}
                 {artistClaims.lifetimePlays} plays)
               </div>
@@ -664,10 +664,10 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
   const needsWrap = Number(wmonBalance) < selectedTierData.price && canAfford;
 
   return (
-    <div className="bg-gradient-to-br from-purple-900/20 via-black to-cyan-900/20 border border-cyan-500/30 rounded-2xl p-6">
+    <div className="bg-ink-raised border border-rule rounded-none p-6">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-full flex items-center justify-center">
+          <div className="w-12 h-12 bg-ink-raised rounded-full flex items-center justify-center">
             <Music2 className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -695,14 +695,14 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
               onClick={() => setSelectedTier(tier.id)}
               className={`p-3 rounded-lg border-2 transition-all text-left ${
                 selectedTier === tier.id
-                  ? "border-cyan-500 bg-cyan-500/20"
-                  : "border-gray-700 hover:border-gray-600"
+                  ? "border-rule bg-ink-raised"
+                  : "border-rule hover:border-rule"
               }`}
             >
               <div className="flex justify-between items-start">
                 <div className="text-lg font-bold text-white">{tier.name}</div>
                 {tier.discount && (
-                  <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] bg-green-500/20 text-good px-1.5 py-0.5 rounded">
                     {tier.discount}
                   </span>
                 )}
@@ -715,7 +715,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       </div>
 
       {/* Cost Summary */}
-      <div className="bg-gray-800 rounded-lg p-4 mb-4 space-y-2">
+      <div className="bg-ink-raised rounded-lg p-4 mb-4 space-y-2">
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-400">Plan</span>
           <span className="text-sm font-semibold text-white">
@@ -724,11 +724,11 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-400">Cost</span>
-          <span className="text-sm font-semibold text-cyan-400">
+          <span className="text-sm font-semibold text-muted">
             {selectedTierData.price} WMON
           </span>
         </div>
-        <div className="border-t border-gray-700 pt-2 mt-2 space-y-1">
+        <div className="border-t border-rule pt-2 mt-2 space-y-1">
           <div className="flex justify-between items-center text-xs">
             <span className="text-gray-500">Safe WMON</span>
             <span className="text-gray-300">
@@ -743,12 +743,12 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
           </div>
           <div className="flex justify-between items-center text-xs">
             <span className="text-gray-500">Total Available</span>
-            <span className={canAfford ? "text-green-400" : "text-red-400"}>
+            <span className={canAfford ? "text-good" : "text-red-400"}>
               {totalBalance.toFixed(2)} WMON
             </span>
           </div>
           {needsWrap && (
-            <div className="text-[10px] text-cyan-400/70 mt-1">
+            <div className="text-[10px] text-muted/70 mt-1">
               MON will be auto-wrapped to WMON
             </div>
           )}
@@ -764,8 +764,8 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
       )}
 
       {success && (
-        <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 mb-4 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+        <div className="bg-green-500/20 border border-rule rounded-lg p-3 mb-4 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-good flex-shrink-0" />
           <span className="text-sm text-green-300">{success}</span>
         </div>
       )}
@@ -778,7 +778,7 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
           !canAfford ||
           walletOnlySubscribeBlockedReason(userFid) !== null
         }
-        className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className="w-full bg-ink-raised text-white font-bold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {loading ? (
           <>

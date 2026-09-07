@@ -34,11 +34,11 @@ import {
  *
  * ## Rules, from the contract
  *
- *   - 32 bytes, not characters. An emoji costs four.
- *   - No leading or trailing space; interior spaces are fine, so "Earvin Gallardo" is valid.
- *   - No control characters.
- *   - Unique, case-folded: `Unify34` and `unify34` cannot both be claimed.
- *   - Renaming frees the old name in the same transaction.
+ * - 32 bytes, not characters. An emoji costs four.
+ * - No leading or trailing space; interior spaces are fine, so "Earvin Gallardo" is valid.
+ * - No control characters.
+ * - Unique, case-folded: `Unify34` and `unify34` cannot both be claimed.
+ * - Renaming frees the old name in the same transaction.
  *
  * The transaction is sent by the artist's own wallet. `setProfile` is ungated, so the platform
  * is not involved in who gets to be called what.
@@ -314,16 +314,16 @@ export function DisplayNameSetting({
   if (onFarcaster && !loading && !current) return null;
 
   const card = isDarkMode
-    ? "bg-gray-800/50 border-gray-700"
+    ? "bg-ink-raised border-rule"
     : "bg-gray-50 border-gray-200";
   const muted = isDarkMode ? "text-gray-400" : "text-gray-600";
   const bytes = byteLength(draft.trim());
 
   return (
-    <div className={`p-4 rounded-xl border ${card} space-y-3`}>
+    <div className={`p-4 rounded-sm border ${card} space-y-3`}>
       {/* Fixed 48px, capped by width/height attributes as well as classes, so a
-          large upload cannot take over the page the way Ganado's 1024px cover
-          did when Tailwind was emitting nothing. */}
+ large upload cannot take over the page the way Ganado's 1024px cover
+ did when Tailwind was emitting nothing. */}
       <div className="flex items-center gap-3">
         <ProfileAvatar uri={avatarUri} name={current ?? draft} />
         <div className="min-w-0">
@@ -336,7 +336,7 @@ export function DisplayNameSetting({
           ) : (
             <label
               className={`text-xs underline cursor-pointer ${
-                current ? "text-cyan-500" : "text-gray-500 cursor-not-allowed"
+                current ? "text-muted" : "text-gray-500 cursor-not-allowed"
               }`}
             >
               {uploading
@@ -399,7 +399,7 @@ export function DisplayNameSetting({
             disabled={saving || !isConnected}
             className={`w-full px-3 py-2 rounded-lg text-sm border ${
               isDarkMode
-                ? "bg-gray-900 border-gray-700 text-white placeholder-gray-600"
+                ? "bg-ink-raised border-rule text-white placeholder-gray-600"
                 : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
             }`}
           />
@@ -414,12 +414,12 @@ export function DisplayNameSetting({
           </p>
 
           {error && <p className="text-xs text-red-400">{error}</p>}
-          {status && <p className="text-xs text-green-400">{status}</p>}
+          {status && <p className="text-xs text-good">{status}</p>}
 
           <button
             onClick={save}
             disabled={saving || !isConnected || draft.trim().length === 0}
-            className="w-full py-2 rounded-lg text-sm font-medium bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white transition-colors"
+            className="w-full py-2 rounded-lg text-sm font-medium bg-ink-raised hover:bg-ink-raised disabled:opacity-50 text-white transition-colors"
           >
             {saving
               ? "Confirming…"

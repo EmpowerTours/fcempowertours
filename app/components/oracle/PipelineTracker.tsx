@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { CheckCircle2, XCircle, Circle } from 'lucide-react';
+import React from "react";
+import { CheckCircle2, XCircle, Circle } from "lucide-react";
 
-export type StepStatus = 'completed' | 'active' | 'failed' | 'pending';
+export type StepStatus = "completed" | "active" | "failed" | "pending";
 
 export interface PipelineStep {
   label: string;
@@ -24,26 +24,42 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
 }) => {
   const getStepIcon = (status: StepStatus) => {
     switch (status) {
-      case 'completed':
-        return <CheckCircle2 className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} text-green-400`} />;
-      case 'active':
+      case "completed":
         return (
-          <div className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} rounded-full border-2 border-cyan-400 flex items-center justify-center`}>
-            <div className={`${compact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-cyan-400 animate-pulse`} />
+          <CheckCircle2
+            className={`${compact ? "w-4 h-4" : "w-5 h-5"} text-good`}
+          />
+        );
+      case "active":
+        return (
+          <div
+            className={`${compact ? "w-4 h-4" : "w-5 h-5"} rounded-full border-2 border-rule flex items-center justify-center`}
+          >
+            <div
+              className={`${compact ? "w-1.5 h-1.5" : "w-2 h-2"} rounded-full bg-ink-raised animate-pulse`}
+            />
           </div>
         );
-      case 'failed':
-        return <XCircle className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} text-red-400`} />;
+      case "failed":
+        return (
+          <XCircle
+            className={`${compact ? "w-4 h-4" : "w-5 h-5"} text-red-400`}
+          />
+        );
       default:
-        return <Circle className={`${compact ? 'w-4 h-4' : 'w-5 h-5'} text-gray-600`} />;
+        return (
+          <Circle
+            className={`${compact ? "w-4 h-4" : "w-5 h-5"} text-gray-600`}
+          />
+        );
     }
   };
 
   const getLineColor = (currentStatus: StepStatus, _nextStatus: StepStatus) => {
-    if (currentStatus === 'completed') return 'bg-green-400';
-    if (currentStatus === 'active') return 'bg-cyan-400/30';
-    if (currentStatus === 'failed') return 'bg-red-400/30';
-    return isDarkMode ? 'bg-gray-700' : 'bg-gray-300';
+    if (currentStatus === "completed") return "bg-green-400";
+    if (currentStatus === "active") return "bg-ink-raised";
+    if (currentStatus === "failed") return "bg-red-400/30";
+    return isDarkMode ? "bg-gray-700" : "bg-gray-300";
   };
 
   if (compact) {
@@ -51,18 +67,28 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
       <div className="flex items-center gap-1">
         {steps.map((step, i) => (
           <React.Fragment key={step.label}>
-            <div className={`w-2 h-2 rounded-full ${
-              step.status === 'completed' ? 'bg-green-400' :
-              step.status === 'active' ? 'bg-cyan-400 animate-pulse' :
-              step.status === 'failed' ? 'bg-red-400' :
-              'bg-gray-600'
-            }`} title={step.label} />
+            <div
+              className={`w-2 h-2 rounded-full ${
+                step.status === "completed"
+                  ? "bg-green-400"
+                  : step.status === "active"
+                    ? "bg-ink-raised animate-pulse"
+                    : step.status === "failed"
+                      ? "bg-red-400"
+                      : "bg-gray-600"
+              }`}
+              title={step.label}
+            />
             {i < steps.length - 1 && (
-              <div className={`w-3 h-0.5 ${
-                step.status === 'completed' ? 'bg-green-400' :
-                step.status === 'active' ? 'bg-cyan-400/30' :
-                'bg-gray-700'
-              }`} />
+              <div
+                className={`w-3 h-0.5 ${
+                  step.status === "completed"
+                    ? "bg-green-400"
+                    : step.status === "active"
+                      ? "bg-ink-raised"
+                      : "bg-gray-700"
+                }`}
+              />
             )}
           </React.Fragment>
         ))}
@@ -78,20 +104,29 @@ export const PipelineTracker: React.FC<PipelineTrackerProps> = ({
           <React.Fragment key={step.label}>
             <div className="flex flex-col items-center">
               {getStepIcon(step.status)}
-              <span className={`mt-1 text-[10px] font-medium ${
-                step.status === 'completed' ? 'text-green-400' :
-                step.status === 'active' ? 'text-cyan-400' :
-                step.status === 'failed' ? 'text-red-400' :
-                'text-gray-500'
-              }`}>
+              <span
+                className={`mt-1 text-[10px] font-medium ${
+                  step.status === "completed"
+                    ? "text-good"
+                    : step.status === "active"
+                      ? "text-muted"
+                      : step.status === "failed"
+                        ? "text-red-400"
+                        : "text-gray-500"
+                }`}
+              >
                 {step.label}
               </span>
               {step.detail && (
-                <span className="text-[9px] text-gray-500 mt-0.5">{step.detail}</span>
+                <span className="text-[9px] text-gray-500 mt-0.5">
+                  {step.detail}
+                </span>
               )}
             </div>
             {i < steps.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-1 ${getLineColor(step.status, steps[i + 1].status)}`} />
+              <div
+                className={`flex-1 h-0.5 mx-1 ${getLineColor(step.status, steps[i + 1].status)}`}
+              />
             )}
           </React.Fragment>
         ))}
