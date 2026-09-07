@@ -34,6 +34,11 @@ import { generatePassportMetadata } from "@/lib/passport/generatePassportSVG";
 
 const PINATA_API_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 
+/** The gateway a wallet will actually fetch from. See the note in pinPassportMetadata. */
+const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY
+  ? `https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}/ipfs/`
+  : "https://harlequin-used-hare-224.mypinata.cloud/ipfs/";
+
 /**
  * Build the passport metadata and pin it, returning an `ipfs://` URI.
  *
@@ -94,5 +99,21 @@ export async function pinPassportMetadata(
   if (!body.IpfsHash) {
     throw new Error("Pinata returned no IpfsHash");
   }
-  return `ipfs://${body.IpfsHash}`;
+  // https:// rather than ipfs://, and this is not a style preference.
+  //
+  // MetaMask on Monad does not resolve ipfs:// URIs. Passports #1-#4 rendered as
+  // a grey box for two days through every combination of on-chain data: URIs,
+  // ipfs:// metadata, ipfs:// images, SVG and PNG. All of it was correct and
+  // reachable; MetaMask simply never fetched it. Switching the tokenURI AND the
+  // image to plain https:// fixed it immediately.
+  //
+  // The music NFTs use ipfs:// and render, which sent this down five wrong
+  // theories — they are fetched by the app itself, not by MetaMask's resolver.
+  //
+  // The cost of this choice is honest: an https:// gateway URL is a dependency
+  // on Pinata staying up, where ipfs:// is content-addressed and portable. The
+  // CID is still in the path, so the content is recoverable from IPFS by hand if
+  // the gateway ever dies. A passport nobody can see is worth less than one with
+  // a hosting dependency.
+  return `${PINATA_GATEWAY}${body.IpfsHash}`;
 }
