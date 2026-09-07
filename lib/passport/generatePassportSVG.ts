@@ -4,6 +4,19 @@ const PINATA_GATEWAY =
   process.env.PINATA_GATEWAY || "harlequin-used-hare-224.mypinata.cloud";
 
 export interface PassportStamp {
+  /**
+   * Did someone other than the passport holder attest this?
+   *
+   * It matters because addVenueStamp lets `_ownerOf(tokenId)` stamp their own
+   * passport, and `verified` is a parameter the caller supplies rather than
+   * something the contract checks. So a self-recorded stamp and an
+   * artist-attested one are indistinguishable in the data unless the artwork
+   * distinguishes them — and a stamp you can apply to yourself is a sticker.
+   *
+   * Undefined is treated as unattested, because reject-by-default is the only
+   * safe reading of a missing claim.
+   */
+  verified?: boolean;
   locationName: string;
   city: string;
   country: string;
@@ -44,6 +57,9 @@ const GOLD = "#B08D57"; // foil accent
 const GOLD_LIGHT = "#D4B87F";
 const MUTED = "#8A9299";
 const PAPER = "#F2EEE6";
+
+/** Rings the visa area can hold without touching the MRZ. Measured, not chosen. */
+export const MAX_STAMPS_SHOWN = 6;
 
 const SERIF = "Georgia, 'Times New Roman', Times, serif";
 const MONO = "'Courier New', Courier, monospace";
@@ -317,22 +333,31 @@ export function generatePassportSVG(
 function generateStampsSection(stamps: PassportStamp[]): string {
   if (stamps.length === 0) {
     return `
-  <text x="200" y="452" font-family="${SERIF}" font-size="8" fill="${MUTED}" text-anchor="middle" letter-spacing="3">VISAS &amp; ENDORSEMENTS</text>
-  <line x1="90" y1="466" x2="310" y2="466" stroke="${GOLD}" stroke-width="0.4" opacity="0.22"/>
-  <line x1="90" y1="486" x2="310" y2="486" stroke="${GOLD}" stroke-width="0.4" opacity="0.16"/>
-  <line x1="90" y1="506" x2="310" y2="506" stroke="${GOLD}" stroke-width="0.4" opacity="0.1"/>`;
+  <text x="200" y="424" font-family="${SERIF}" font-size="8" fill="${MUTED}" text-anchor="middle" letter-spacing="3">VISAS &amp; ENDORSEMENTS</text>
+  <line x1="90" y1="444" x2="310" y2="444" stroke="${GOLD}" stroke-width="0.4" opacity="0.22"/>
+  <line x1="90" y1="468" x2="310" y2="468" stroke="${GOLD}" stroke-width="0.4" opacity="0.16"/>
+  <line x1="90" y1="492" x2="310" y2="492" stroke="${GOLD}" stroke-width="0.4" opacity="0.1"/>`;
   }
 
-  const shown = stamps.slice(0, 6);
+  // SIX is the ceiling, and it is a measurement rather than a preference: the
+  // visa area runs from the data rules to the MRZ at y=518, which is two rows of
+  // r=23 rings and no more. The first version used r=26 at y=452/506, so the
+  // second row ran to y=532 and sat ON the machine-readable zone — visible only
+  // once a passport with six stamps was actually rendered.
+  //
+  // A touring artist will pass six quickly, so the count at the right is the real
+  // total and the rings are the six most recent. That is also how a physical
+  // passport reads: the page shows recent entries, not your whole life.
+  const shown = stamps.slice(0, MAX_STAMPS_SHOWN);
   let out = `
-  <text x="60" y="410" font-family="${SERIF}" font-size="8" fill="${MUTED}" letter-spacing="3">VISAS &amp; ENDORSEMENTS</text>
-  <text x="340" y="410" font-family="${MONO}" font-size="8" fill="${MUTED}" text-anchor="end">${stamps.length}</text>`;
+  <text x="60" y="398" font-family="${SERIF}" font-size="8" fill="${MUTED}" letter-spacing="3">VISAS &amp; ENDORSEMENTS</text>
+  <text x="340" y="398" font-family="${MONO}" font-size="8" fill="${MUTED}" text-anchor="end">${stamps.length}</text>`;
 
   shown.forEach((stamp, i) => {
     const col = i % 3;
     const row = Math.floor(i / 3);
     const x = 78 + col * 110;
-    const y = 452 + row * 54;
+    const y = 436 + row * 52;
     // A real stamp is struck by hand, so it is never quite square to the page.
     const rot = ((i * 11) % 13) - 6;
     const date = new Date(stamp.stampedAt * 1000)
@@ -342,26 +367,40 @@ function generateStampsSection(stamps: PassportStamp[]): string {
         year: "2-digit",
       })
       .toUpperCase();
-    const place = esc(
-      (stamp.city || stamp.locationName || "").slice(0, 11).toUpperCase(),
-    );
+    // The inner ring is 36px across, so the label gets about nine characters at
+    // the smallest size that stays legible. "GUADALAJARA" crossed the outer ring
+    // at every size that fit it whole, which is the one thing a struck stamp
+    // never does — so it truncates. Measured by rendering six of them, not
+    // reasoned about: the first two attempts both overflowed.
+    const raw = (stamp.city || stamp.locationName || "").toUpperCase();
+    const place = esc(raw.length > 9 ? raw.slice(0, 8) + "\u2026" : raw);
+    const placeSize = raw.length > 7 ? 5.8 : raw.length > 5 ? 6.6 : 7.4;
     // A stamp may carry generated artwork. When it does the image fills the ring
     // and the ring becomes its frame; when it does not the ring is struck as
     // type. Dropping the image path in the redesign would have silently removed
     // a capability — no passport carries stamps yet, so nothing would have
     // complained until the first one did.
+    // Attested stamps are STRUCK: a double ring, full opacity, paper-white text.
+    // Self-recorded ones are PENCILLED: a single dashed hairline, dimmer, and no
+    // second ring. A fan can log any show they went to and it still looks like a
+    // record — it just does not look like something the artist signed.
+    const attested = stamp.verified === true;
+    const ringOpacity = attested ? 0.75 : 0.32;
+    const ringWidth = attested ? 1.1 : 0.6;
+    const dash = attested ? "" : ` stroke-dasharray="2.5 2.5"`;
+    const textFill = attested ? PAPER : MUTED;
     const art = stampArtworkURL(stamp.stampImageIPFS);
     const inner = art
-      ? `<defs><clipPath id="stamp${i}"><circle r="21"/></clipPath></defs>
-    <image href="${esc(art)}" x="-21" y="-21" width="42" height="42" clip-path="url(#stamp${i})" preserveAspectRatio="xMidYMid slice"/>
-    <text y="30" font-family="${MONO}" font-size="6" fill="${GOLD_LIGHT}" text-anchor="middle">${date}</text>`
-      : `<circle r="21" fill="none" stroke="${GOLD_LIGHT}" stroke-width="0.4" opacity="0.45"/>
-    <text y="-4" font-family="${SERIF}" font-size="7.5" fill="${PAPER}" text-anchor="middle" letter-spacing="0.5" opacity="0.9">${place}</text>
-    <text y="8" font-family="${MONO}" font-size="6.5" fill="${GOLD_LIGHT}" text-anchor="middle">${date}</text>`;
+      ? `<defs><clipPath id="stamp${i}"><circle r="18"/></clipPath></defs>
+    <image href="${esc(art)}" x="-18" y="-18" width="36" height="36" clip-path="url(#stamp${i})" preserveAspectRatio="xMidYMid slice"/>
+    <text y="30" font-family="${MONO}" font-size="5.6" fill="${GOLD_LIGHT}" text-anchor="middle">${date}</text>`
+      : `${attested ? `<circle r="18" fill="none" stroke="${GOLD_LIGHT}" stroke-width="0.4" opacity="0.45"/>` : ""}
+    <text y="-3" font-family="${SERIF}" font-size="${placeSize}" fill="${textFill}" text-anchor="middle" letter-spacing="0.4" opacity="0.9">${place}</text>
+    <text y="7" font-family="${MONO}" font-size="6" fill="${GOLD_LIGHT}" text-anchor="middle">${date}</text>`;
 
     out += `
-  <g transform="translate(${x} ${y}) rotate(${rot})" opacity="0.85">
-    <circle r="26" fill="none" stroke="${GOLD_LIGHT}" stroke-width="1.1" opacity="0.75"/>
+  <g transform="translate(${x} ${y}) rotate(${rot})" opacity="${attested ? 0.85 : 0.6}">
+    <circle r="23" fill="none" stroke="${GOLD_LIGHT}" stroke-width="${ringWidth}" opacity="${ringOpacity}"${dash}/>
     ${inner}
   </g>`;
   });
