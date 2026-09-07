@@ -1,6 +1,7 @@
-import { getCountryByCode, getFlagEmoji } from './countries';
+import { getCountryByCode } from "./countries";
 
-const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.mypinata.cloud';
+const PINATA_GATEWAY =
+  process.env.PINATA_GATEWAY || "harlequin-used-hare-224.mypinata.cloud";
 
 export interface PassportStamp {
   locationName: string;
@@ -11,247 +12,364 @@ export interface PassportStamp {
   experienceType?: string;
 }
 
+/**
+ * The passport artwork.
+ *
+ * ## Why it looks like this
+ *
+ * The first version was a bright blue gradient with Arial, a 120px flag emoji, a
+ * red rubber stamp and six rainbow stamp colours. It read as a generated card
+ * rather than a document.
+ *
+ * Real passports are engraved instruments, and almost all of their character
+ * comes from four things: a deep muted ground, guilloché line-work, letterspaced
+ * serif type, and a machine-readable zone. None of that is decoration — the
+ * guilloché exists to defeat copying, the MRZ to be scanned — which is exactly
+ * why it looks authoritative instead of styled.
+ *
+ * ## Constraints this design has to respect
+ *
+ * Wallets render SVG with system fonts and load nothing, so only generic families
+ * are usable: `Georgia, 'Times New Roman', serif` and `'Courier New', monospace`.
+ * A webfont would silently fall back and wreck the letterspacing.
+ *
+ * The flag emoji is gone. It rendered at 120px as the loudest element on the
+ * card, and emoji flags do not render as flags at all on Windows and several
+ * Android builds — a tofu box in the centre of the artwork. The country CODE set
+ * large in a serif carries the same information and cannot fail to render.
+ */
+
+const INK = "#0E1418"; // deep near-black ground
+const GOLD = "#B08D57"; // foil accent
+const GOLD_LIGHT = "#D4B87F";
+const MUTED = "#8A9299";
+const PAPER = "#F2EEE6";
+
+const SERIF = "Georgia, 'Times New Roman', Times, serif";
+const MONO = "'Courier New', Courier, monospace";
+
+/**
+ * "Passport" in the issuing country's own language.
+ *
+ * Real passports print the term in the national language, with English (and
+ * often French) alongside — it is one of the few pieces of text on the cover,
+ * and getting it right is most of what makes a document look issued rather than
+ * designed. A single hardcoded "PASAPORTE" on a French or Japanese passport is
+ * the kind of detail that reads as a template.
+ *
+ * Latin-script terms only where the script is Latin; CJK, Cyrillic, Arabic,
+ * Greek, Devanagari and Thai are given in their own scripts, which system fonts
+ * cover even though Georgia itself does not — the browser falls back per glyph.
+ * Countries not listed fall back to English alone, which is honest rather than
+ * wrong: better one correct word than a confidently incorrect translation.
+ */
+const PASSPORT_WORD: Record<string, string> = {
+  // Spanish
+  MX: "PASAPORTE",
+  ES: "PASAPORTE",
+  AR: "PASAPORTE",
+  CO: "PASAPORTE",
+  PE: "PASAPORTE",
+  CL: "PASAPORTE",
+  VE: "PASAPORTE",
+  EC: "PASAPORTE",
+  GT: "PASAPORTE",
+  CU: "PASAPORTE",
+  BO: "PASAPORTE",
+  DO: "PASAPORTE",
+  HN: "PASAPORTE",
+  PY: "PASAPORTE",
+  SV: "PASAPORTE",
+  NI: "PASAPORTE",
+  CR: "PASAPORTE",
+  PA: "PASAPORTE",
+  UY: "PASAPORTE",
+  GQ: "PASAPORTE",
+  // Portuguese
+  PT: "PASSAPORTE",
+  BR: "PASSAPORTE",
+  AO: "PASSAPORTE",
+  MZ: "PASSAPORTE",
+  // French
+  FR: "PASSEPORT",
+  BE: "PASSEPORT",
+  SN: "PASSEPORT",
+  CI: "PASSEPORT",
+  ML: "PASSEPORT",
+  NE: "PASSEPORT",
+  BF: "PASSEPORT",
+  TD: "PASSEPORT",
+  MG: "PASSEPORT",
+  CM: "PASSEPORT",
+  CD: "PASSEPORT",
+  HT: "PASSEPORT",
+  MC: "PASSEPORT",
+  LU: "PASSEPORT",
+  // Germanic
+  DE: "REISEPASS",
+  AT: "REISEPASS",
+  CH: "REISEPASS",
+  NL: "PASPOORT",
+  SE: "PASS",
+  NO: "PASS",
+  DK: "PAS",
+  IS: "VEGABRÉF",
+  FI: "PASSI",
+  // Italian
+  IT: "PASSAPORTO",
+  SM: "PASSAPORTO",
+  VA: "PASSAPORTO",
+  // Slavic & Baltic
+  PL: "PASZPORT",
+  CZ: "CESTOVNÍ PAS",
+  SK: "CESTOVNÝ PAS",
+  SI: "POTNI LIST",
+  HR: "PUTOVNICA",
+  RS: "ПАСОШ",
+  BG: "ПАСПОРТ",
+  RU: "ПАСПОРТ",
+  UA: "ПАСПОРТ",
+  BY: "ПАШПАРТ",
+  LT: "PASAS",
+  LV: "PASE",
+  EE: "PASS",
+  // Other European
+  GR: "ΔΙΑΒΑΤΗΡΙΟ",
+  HU: "ÚTLEVÉL",
+  RO: "PAȘAPORT",
+  MD: "PAȘAPORT",
+  TR: "PASAPORT",
+  AL: "PASAPORTË",
+  IE: "PAS",
+  // Asia
+  CN: "护照",
+  TW: "護照",
+  HK: "護照",
+  JP: "旅券",
+  KR: "여권",
+  TH: "หนังสือเดินทาง",
+  VN: "HỘ CHIẾU",
+  ID: "PASPOR",
+  MY: "PASPORT",
+  PH: "PASAPORTE",
+  IN: "पासपोर्ट",
+  NP: "राहदानी",
+  BD: "পাসপোর্ট",
+  PK: "پاسپورٹ",
+  LK: "ගමන් බලපත්‍රය",
+  MM: "နိုင်ငံကူးလက်မှတ်",
+  KH: "លិខិតឆ្លងដែន",
+  MN: "ГАДААД ПАСПОРТ",
+  KZ: "ПАСПОРТ",
+  // Middle East & North Africa
+  SA: "جواز سفر",
+  AE: "جواز سفر",
+  EG: "جواز سفر",
+  JO: "جواز سفر",
+  IQ: "جواز سفر",
+  KW: "جواز سفر",
+  QA: "جواز سفر",
+  OM: "جواز سفر",
+  BH: "جواز سفر",
+  LB: "جواز سفر",
+  SY: "جواز سفر",
+  YE: "جواز سفر",
+  LY: "جواز سفر",
+  TN: "جواز سفر",
+  DZ: "جواز سفر",
+  MA: "جواز سفر",
+  IL: "דרכון",
+  IR: "گذرنامه",
+  AF: "پاسپورت",
+  // Africa
+  ET: "ፓስፖርት",
+  ER: "ፓስፖርት",
+};
+
+/** The cover line: the native term, then English, the way a cover is printed. */
+function passportLine(countryCode: string): string {
+  const native = PASSPORT_WORD[countryCode.toUpperCase()];
+  return native ? `${native} \u00B7 PASSPORT` : "PASSPORT";
+}
+
+/** Resolve a stamp's artwork reference to a fetchable URL, or null. */
+function stampArtworkURL(ref?: string): string | null {
+  if (!ref) return null;
+  if (ref.startsWith("http")) return ref;
+  const cid = ref.startsWith("ipfs://") ? ref.slice("ipfs://".length) : ref;
+  return `https://${PINATA_GATEWAY}/ipfs/${cid}`;
+}
+
+/** XML-escape. A country name containing & or < would otherwise break the SVG. */
+function esc(v: string): string {
+  return String(v)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Guilloché rosette — the interference pattern engraved on banknotes and
+ * passports. Concentric ellipses each rotated a little further produce it; the
+ * moiré is the point, so the strokes are hairline and nearly transparent.
+ */
+function guilloche(cx: number, cy: number, rings: number): string {
+  let out = "";
+  for (let i = 0; i < rings; i++) {
+    const angle = (180 / rings) * i;
+    const rx = 150 - i * 1.5;
+    const ry = 58 + i * 0.6;
+    out += `<ellipse cx="${cx}" cy="${cy}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="none" stroke="${GOLD}" stroke-width="0.4" opacity="0.09" transform="rotate(${angle.toFixed(1)} ${cx} ${cy})"/>`;
+  }
+  return out;
+}
+
+/**
+ * ICAO 9303-style machine readable zone. Not a real travel document number and
+ * deliberately not formatted as one — it encodes the token id and country so the
+ * strip carries the same facts as the card above it.
+ */
+function mrz(
+  countryCode: string,
+  countryName: string,
+  tokenId: number,
+): string {
+  const pad = (v: string, n: number) => v.slice(0, n).padEnd(n, "<");
+  const cc = countryCode
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "")
+    .slice(0, 3);
+  const name = countryName.toUpperCase().replace(/[^A-Z]/g, "<");
+  const l1 = pad(`P<${cc}EMPOWERTOURS<<${name}`, 44);
+  const l2 = pad(`${String(tokenId).padStart(9, "0")}<${cc}MONAD143`, 44);
+  return `${l1}\n${l2}`;
+}
+
 // Generate SVG passport image with country info and optional stamps
 export function generatePassportSVG(
   countryCode: string,
   countryName: string,
   tokenId: number,
-  stamps: PassportStamp[] = []
+  stamps: PassportStamp[] = [],
 ): string {
-  // Get flag from complete database
-  const flag = getFlagEmoji(countryCode);
-  
-  // Get full country info
   const country = getCountryByCode(countryCode);
-  const region = country?.region || 'Unknown Region';
-  const continent = country?.continent || 'Unknown';
+  const region = country?.region || "Unknown Region";
+  const continent = country?.continent || "Unknown";
 
-  // Generate SVG with embedded styles
-  const svg = `<svg width="400" height="600" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background gradient -->
-  <defs>
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1e3a8a;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
-    </linearGradient>
-  </defs>
-  
-  <!-- Background -->
-  <rect width="400" height="600" fill="url(#bgGradient)"/>
-  
-  <!-- Border -->
-  <rect x="10" y="10" width="380" height="580" fill="none" stroke="#60a5fa" stroke-width="4" rx="10"/>
-  
-  <!-- Header -->
-  <rect x="20" y="20" width="360" height="100" fill="#3b82f6" rx="8" opacity="0.8"/>
-  <text x="200" y="60" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="white" text-anchor="middle">
-    EMPOWER TOURS
-  </text>
-  <text x="200" y="95" font-family="Arial, sans-serif" font-size="18" fill="#e0f2fe" text-anchor="middle">
-    Digital Passport
-  </text>
-  
-  <!-- Country Section -->
-  <rect x="20" y="140" width="360" height="280" fill="#1e40af" rx="8" opacity="0.3"/>
-  
-  <!-- Flag/Emoji -->
-  <text x="200" y="240" font-size="120" text-anchor="middle">
-    ${flag}
-  </text>
-  
-  <!-- Country Name -->
-  <text x="200" y="330" font-family="Arial, sans-serif" font-size="${countryName.length > 15 ? '28' : '32'}" font-weight="bold" fill="white" text-anchor="middle">
-    ${countryName.toUpperCase()}
-  </text>
-  
-  <!-- Country Code & Region -->
-  <text x="200" y="365" font-family="Arial, sans-serif" font-size="18" fill="#93c5fd" text-anchor="middle">
-    ${countryCode}
-  </text>
-  <text x="200" y="390" font-family="Arial, sans-serif" font-size="12" fill="#60a5fa" text-anchor="middle">
-    ${region}
-  </text>
-  
-  <!-- Stamp Circle -->
-  <circle cx="320" cy="180" r="40" fill="none" stroke="#ef4444" stroke-width="4" opacity="0.8"/>
-  <text x="320" y="175" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#ef4444" text-anchor="middle">
-    PASSPORT
-  </text>
-  <text x="320" y="195" font-family="Arial, sans-serif" font-size="12" fill="#ef4444" text-anchor="middle">
-    #${tokenId}
-  </text>
+  const code = countryCode.toUpperCase();
+  const nameSize =
+    countryName.length > 18 ? 19 : countryName.length > 13 ? 23 : 27;
+  // Escaped: an MRZ is mostly "<" filler, which is an open tag to an XML parser.
+  // Unescaped, the strip rendered as the single character "P".
+  const [mrz1, mrz2] = mrz(countryCode, countryName, tokenId)
+    .split("\n")
+    .map(esc);
 
-  <!-- Decorative Line -->
-  <line x1="40" y1="425" x2="360" y2="425" stroke="#3b82f6" stroke-width="2" opacity="0.5"/>
+  const svg = `<svg width="400" height="600" viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="600" fill="${INK}"/>
 
-  <!-- Stamps Section (Dynamic) -->
+  <!-- guilloché, behind everything -->
+  <g>${guilloche(200, 250, 26)}</g>
+
+  <!-- double hairline border, the way a document is ruled rather than framed -->
+  <rect x="14" y="14" width="372" height="572" fill="none" stroke="${GOLD}" stroke-width="1" opacity="0.55"/>
+  <rect x="19" y="19" width="362" height="562" fill="none" stroke="${GOLD}" stroke-width="0.4" opacity="0.3"/>
+
+  <!-- header -->
+  <text x="200" y="58" font-family="${SERIF}" font-size="13" fill="${GOLD_LIGHT}" text-anchor="middle" letter-spacing="6">EMPOWERTOURS</text>
+  <line x1="120" y1="70" x2="280" y2="70" stroke="${GOLD}" stroke-width="0.5" opacity="0.5"/>
+  <text x="200" y="88" font-family="${SERIF}" font-size="9" fill="${MUTED}" text-anchor="middle" letter-spacing="3">${esc(passportLine(countryCode))}</text>
+
+  <!-- serial, set as a document reference rather than a rubber stamp -->
+  <text x="366" y="44" font-family="${MONO}" font-size="9" fill="${MUTED}" text-anchor="end" letter-spacing="1">No. ${String(tokenId).padStart(6, "0")}</text>
+
+  <!-- the country, carried by the code so nothing depends on emoji support -->
+  <text x="200" y="252" font-family="${SERIF}" font-size="104" fill="${PAPER}" text-anchor="middle" letter-spacing="8" opacity="0.95">${esc(code)}</text>
+  <text x="200" y="292" font-family="${SERIF}" font-size="${nameSize}" fill="${GOLD_LIGHT}" text-anchor="middle" letter-spacing="4">${esc(countryName.toUpperCase())}</text>
+
+  <line x1="60" y1="318" x2="340" y2="318" stroke="${GOLD}" stroke-width="0.5" opacity="0.4"/>
+
+  <!-- data rows, as a passport data page sets them: label above value -->
+  <text x="60"  y="344" font-family="${SERIF}" font-size="7.5" fill="${MUTED}" letter-spacing="2">REGION</text>
+  <text x="60"  y="360" font-family="${SERIF}" font-size="12" fill="${PAPER}" letter-spacing="1">${esc(region)}</text>
+  <text x="340" y="344" font-family="${SERIF}" font-size="7.5" fill="${MUTED}" letter-spacing="2" text-anchor="end">CONTINENT</text>
+  <text x="340" y="360" font-family="${SERIF}" font-size="12" fill="${PAPER}" letter-spacing="1" text-anchor="end">${esc(continent)}</text>
+
+  <line x1="60" y1="378" x2="340" y2="378" stroke="${GOLD}" stroke-width="0.5" opacity="0.25"/>
+
   ${generateStampsSection(stamps)}
 
-  <!-- Bottom Footer -->
-  <rect x="20" y="565" width="360" height="25" fill="#1e40af" rx="4" opacity="0.5"/>
-  <text x="110" y="582" font-family="Arial, sans-serif" font-size="9" fill="#93c5fd" text-anchor="middle">
-    #${tokenId} • ${continent}
-  </text>
-  <text x="290" y="582" font-family="Arial, sans-serif" font-size="9" fill="#60a5fa" text-anchor="middle">
-    Monad
-  </text>
+  <!-- machine readable zone -->
+  <rect x="19" y="518" width="362" height="63" fill="${PAPER}" opacity="0.055"/>
+  <line x1="19" y1="518" x2="381" y2="518" stroke="${GOLD}" stroke-width="0.5" opacity="0.4"/>
+  <text x="32" y="544" font-family="${MONO}" font-size="10.5" fill="${PAPER}" opacity="0.75" letter-spacing="0.6">${mrz1}</text>
+  <text x="32" y="564" font-family="${MONO}" font-size="10.5" fill="${PAPER}" opacity="0.75" letter-spacing="0.6">${mrz2}</text>
 </svg>`;
 
   return svg.trim();
 }
 
-// Generate stamps section for passport SVG - appears on "visa pages" section
+/**
+ * The visa pages. Empty is the normal state for a new passport and is set as a
+ * ruled blank rather than an advert — a document does not tell you to buy things.
+ */
 function generateStampsSection(stamps: PassportStamp[]): string {
   if (stamps.length === 0) {
-    // Show empty stamp area prompt
     return `
-    <!-- Empty Stamps Prompt -->
-    <g transform="translate(30, 455)">
-      <rect width="340" height="110" fill="#1e3a5f" rx="8" opacity="0.5"/>
-      <text x="170" y="40" font-family="Arial, sans-serif" font-size="14" fill="#60a5fa" text-anchor="middle">
-        No stamps yet
-      </text>
-      <text x="170" y="60" font-family="Arial, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">
-        Purchase experiences &amp; check-in to earn stamps
-      </text>
-      <text x="170" y="80" font-family="Arial, sans-serif" font-size="20" text-anchor="middle" opacity="0.3">
-        ✈️
-      </text>
-    </g>`;
+  <text x="200" y="452" font-family="${SERIF}" font-size="8" fill="${MUTED}" text-anchor="middle" letter-spacing="3">VISAS &amp; ENDORSEMENTS</text>
+  <line x1="90" y1="466" x2="310" y2="466" stroke="${GOLD}" stroke-width="0.4" opacity="0.22"/>
+  <line x1="90" y1="486" x2="310" y2="486" stroke="${GOLD}" stroke-width="0.4" opacity="0.16"/>
+  <line x1="90" y1="506" x2="310" y2="506" stroke="${GOLD}" stroke-width="0.4" opacity="0.1"/>`;
   }
 
-  const maxStampsDisplay = 6;
-  const stampsToShow = stamps.slice(0, maxStampsDisplay);
+  const shown = stamps.slice(0, 6);
+  let out = `
+  <text x="60" y="410" font-family="${SERIF}" font-size="8" fill="${MUTED}" letter-spacing="3">VISAS &amp; ENDORSEMENTS</text>
+  <text x="340" y="410" font-family="${MONO}" font-size="8" fill="${MUTED}" text-anchor="end">${stamps.length}</text>`;
 
-  // Stamp colors for variety
-  const stampColors = [
-    { bg: '#10b981', text: '#6ee7b7' }, // green
-    { bg: '#ef4444', text: '#fca5a5' }, // red
-    { bg: '#8b5cf6', text: '#c4b5fd' }, // purple
-    { bg: '#f59e0b', text: '#fcd34d' }, // amber
-    { bg: '#06b6d4', text: '#67e8f9' }, // cyan
-    { bg: '#ec4899', text: '#f9a8d4' }, // pink
-  ];
+  shown.forEach((stamp, i) => {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    const x = 78 + col * 110;
+    const y = 452 + row * 54;
+    // A real stamp is struck by hand, so it is never quite square to the page.
+    const rot = ((i * 11) % 13) - 6;
+    const date = new Date(stamp.stampedAt * 1000)
+      .toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "2-digit",
+      })
+      .toUpperCase();
+    const place = esc(
+      (stamp.city || stamp.locationName || "").slice(0, 11).toUpperCase(),
+    );
+    // A stamp may carry generated artwork. When it does the image fills the ring
+    // and the ring becomes its frame; when it does not the ring is struck as
+    // type. Dropping the image path in the redesign would have silently removed
+    // a capability — no passport carries stamps yet, so nothing would have
+    // complained until the first one did.
+    const art = stampArtworkURL(stamp.stampImageIPFS);
+    const inner = art
+      ? `<defs><clipPath id="stamp${i}"><circle r="21"/></clipPath></defs>
+    <image href="${esc(art)}" x="-21" y="-21" width="42" height="42" clip-path="url(#stamp${i})" preserveAspectRatio="xMidYMid slice"/>
+    <text y="30" font-family="${MONO}" font-size="6" fill="${GOLD_LIGHT}" text-anchor="middle">${date}</text>`
+      : `<circle r="21" fill="none" stroke="${GOLD_LIGHT}" stroke-width="0.4" opacity="0.45"/>
+    <text y="-4" font-family="${SERIF}" font-size="7.5" fill="${PAPER}" text-anchor="middle" letter-spacing="0.5" opacity="0.9">${place}</text>
+    <text y="8" font-family="${MONO}" font-size="6.5" fill="${GOLD_LIGHT}" text-anchor="middle">${date}</text>`;
 
-  let stampsHTML = `
-    <!-- Stamps Section Header -->
-    <g transform="translate(30, 445)">
-      <text x="0" y="10" font-family="Arial, sans-serif" font-size="10" fill="#60a5fa" font-weight="bold">
-        STAMPS (${stamps.length})
-      </text>
-    </g>`;
-
-  stampsToShow.forEach((stamp, index) => {
-    const col = index % 3;
-    const row = Math.floor(index / 3);
-    const x = 45 + col * 110;
-    const y = 465 + row * 55;
-    const color = stampColors[index % stampColors.length];
-
-    // Randomize stamp rotation slightly for authentic look
-    const rotation = (index * 7 - 10) % 15;
-
-    // Check if stamp has AI-generated image from Nano Banana
-    if (stamp.stampImageIPFS) {
-      // Render AI-generated stamp image
-      const stampImageUrl = stamp.stampImageIPFS.startsWith('ipfs://')
-        ? `https://${PINATA_GATEWAY}/ipfs/${stamp.stampImageIPFS.replace('ipfs://', '')}`
-        : stamp.stampImageIPFS.startsWith('http')
-        ? stamp.stampImageIPFS
-        : `https://${PINATA_GATEWAY}/ipfs/${stamp.stampImageIPFS}`;
-
-      stampsHTML += `
-    <!-- AI Stamp ${index + 1}: ${stamp.locationName} -->
-    <g transform="translate(${x}, ${y}) rotate(${rotation}, 45, 25)">
-      <!-- Circular clip path for stamp image -->
-      <defs>
-        <clipPath id="stampClip${index}">
-          <circle cx="45" cy="25" r="24"/>
-        </clipPath>
-      </defs>
-      <!-- AI-generated stamp image -->
-      <image
-        href="${stampImageUrl}"
-        x="21" y="1"
-        width="48" height="48"
-        clip-path="url(#stampClip${index})"
-        preserveAspectRatio="xMidYMid slice"
-      />
-      <!-- Subtle border overlay -->
-      <circle cx="45" cy="25" r="24" fill="none" stroke="${color.bg}" stroke-width="1" opacity="0.5"/>
-    </g>`;
-    } else {
-      // Fallback: text-based stamp
-      const isClimbing = stamp.experienceType === 'climbing' || stamp.country === 'Climbing';
-      let flagOrIcon = '📍';
-
-      if (!isClimbing) {
-        try {
-          const countryCodeGuess = stamp.country.substring(0, 2).toUpperCase();
-          const maybeFlag = getFlagEmoji(countryCodeGuess);
-          if (maybeFlag && maybeFlag !== countryCodeGuess) {
-            flagOrIcon = maybeFlag;
-          }
-        } catch {}
-      }
-
-      const date = new Date(stamp.stampedAt * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const cityTruncated = stamp.city.length > 10 ? stamp.city.substring(0, 9) + '.' : stamp.city;
-      const locationTruncated = stamp.locationName.length > 12 ? stamp.locationName.substring(0, 11) + '.' : stamp.locationName;
-
-      // SVG climbing mountain icon for climbing badges
-      const climbingIconSVG = `
-        <!-- Mountain/Climbing SVG Icon -->
-        <g transform="translate(37, 8)">
-          <path d="M8 0 L16 14 L12 14 L14 18 L2 18 L4 14 L0 14 Z" fill="${color.bg}" opacity="0.9"/>
-          <circle cx="12" cy="4" r="2" fill="${color.text}"/>
-          <path d="M8 5 L10 9 L6 9 Z" fill="${color.text}" opacity="0.6"/>
-        </g>`;
-
-      stampsHTML += `
-    <!-- Text Stamp ${index + 1}: ${stamp.locationName} -->
-    <g transform="translate(${x}, ${y}) rotate(${rotation}, 45, 25)">
-      <!-- Stamp background circle -->
-      <circle cx="45" cy="25" r="24" fill="${color.bg}" opacity="0.15"/>
-      <!-- Stamp border (dashed for vintage look) -->
-      <circle cx="45" cy="25" r="24" fill="none" stroke="${color.bg}" stroke-width="2" stroke-dasharray="3,2"/>
-      <!-- Inner decorative ring -->
-      <circle cx="45" cy="25" r="18" fill="none" stroke="${color.bg}" stroke-width="1" opacity="0.5"/>
-      ${isClimbing ? climbingIconSVG : `<!-- Flag/Icon -->
-      <text x="45" y="20" font-size="14" text-anchor="middle">${flagOrIcon}</text>`}
-      <!-- Location name -->
-      <text x="45" y="35" font-family="Arial, sans-serif" font-size="6" font-weight="bold" fill="${color.bg}" text-anchor="middle">
-        ${locationTruncated.toUpperCase()}
-      </text>
-      <!-- City/Difficulty -->
-      <text x="45" y="43" font-family="Arial, sans-serif" font-size="5" fill="${color.text}" text-anchor="middle">
-        ${cityTruncated}
-      </text>
-      <!-- Date at bottom edge -->
-      <text x="45" y="50" font-family="Arial, sans-serif" font-size="5" fill="${color.bg}" text-anchor="middle" opacity="0.7">
-        ${date}
-      </text>
-    </g>`;
-    }
+    out += `
+  <g transform="translate(${x} ${y}) rotate(${rot})" opacity="0.85">
+    <circle r="26" fill="none" stroke="${GOLD_LIGHT}" stroke-width="1.1" opacity="0.75"/>
+    ${inner}
+  </g>`;
   });
-
-  // Show count of additional stamps if more than displayed
-  if (stamps.length > maxStampsDisplay) {
-    stampsHTML += `
-    <g transform="translate(330, 555)">
-      <rect x="-30" y="-12" width="60" height="18" fill="#3b82f6" rx="4" opacity="0.8"/>
-      <text x="0" y="2" font-family="Arial, sans-serif" font-size="10" fill="white" text-anchor="middle" font-weight="bold">
-        +${stamps.length - maxStampsDisplay} more
-      </text>
-    </g>`;
-  }
-
-  return stampsHTML;
+  return out;
 }
 
-// Convert SVG to base64 data URI (for embedding in JSON)
 export function svgToDataURI(svg: string): string {
-  const base64 = Buffer.from(svg).toString('base64');
+  const base64 = Buffer.from(svg).toString("base64");
   return `data:image/svg+xml;base64,${base64}`;
 }
 
@@ -260,7 +378,7 @@ export function generatePassportMetadata(
   countryCode: string,
   countryName: string,
   tokenId: number,
-  stamps: PassportStamp[] = []
+  stamps: PassportStamp[] = [],
 ): object {
   const svg = generatePassportSVG(countryCode, countryName, tokenId, stamps);
   const imageDataURI = svgToDataURI(svg);
@@ -273,44 +391,44 @@ export function generatePassportMetadata(
     external_url: `https://fcempowertours-production-6551.up.railway.app/passport/${tokenId}`,
     attributes: [
       {
-        trait_type: 'Country',
+        trait_type: "Country",
         value: countryName,
       },
       {
-        trait_type: 'Country Code',
+        trait_type: "Country Code",
         value: countryCode,
       },
       {
-        trait_type: 'Continent',
-        value: country?.continent || 'Unknown',
+        trait_type: "Continent",
+        value: country?.continent || "Unknown",
       },
       {
-        trait_type: 'Region',
-        value: country?.region || 'Unknown',
+        trait_type: "Region",
+        value: country?.region || "Unknown",
       },
       {
-        trait_type: 'Type',
-        value: 'Passport NFT',
+        trait_type: "Type",
+        value: "Passport NFT",
       },
       {
-        trait_type: 'Features',
-        value: 'Venue Stamps, Climbing Badges',
+        trait_type: "Features",
+        value: "Venue Stamps, Climbing Badges",
       },
       {
-        trait_type: 'Token ID',
+        trait_type: "Token ID",
         value: tokenId.toString(),
       },
       {
-        trait_type: 'Mint Date',
-        value: new Date().toISOString().split('T')[0],
+        trait_type: "Mint Date",
+        value: new Date().toISOString().split("T")[0],
       },
       {
-        trait_type: 'Network',
-        value: 'Monad',
+        trait_type: "Network",
+        value: "Monad",
       },
       {
-        trait_type: 'Collection',
-        value: '195 Countries',
+        trait_type: "Collection",
+        value: "195 Countries",
       },
     ],
   };
