@@ -1,4 +1,5 @@
 import { authHeaders } from "@/lib/quick-auth-client";
+import { readVia } from "@/lib/via-token";
 import React, { useState, useEffect, useRef, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -299,6 +300,11 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({
             songName: song.title,
             artistName: song.artistUsername || song.artist,
             artistFid: song.artistFid,
+            // Carried from the share link this visitor arrived on, captured at the root
+            // because the query param does not survive navigation to the player. The
+            // server credits the sharer once per listener brought, and ignores an
+            // unknown or expired token.
+            via: readVia(),
           }),
         });
 

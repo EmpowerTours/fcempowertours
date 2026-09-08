@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import StandaloneProviders from "./components/StandaloneProviders";
+import { captureVia } from "@/lib/via-token";
 
 function ErrorBoundary({ children }: { children: React.ReactNode }) {
   const [hasError, setHasError] = useState(false);
@@ -36,6 +37,12 @@ export default function ClientProviders({
 }: {
   children: React.ReactNode;
 }) {
+  // Capture a share token the moment anyone arrives, before any in-app navigation can
+  // drop it from the URL. The player that credits it runs on a different route.
+  useEffect(() => {
+    captureVia();
+  }, []);
+
   return (
     <ErrorBoundary>
       <StandaloneProviders>{children}</StandaloneProviders>

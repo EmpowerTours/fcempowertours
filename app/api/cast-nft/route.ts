@@ -349,6 +349,36 @@ TX: https://monadscan.com/tx/${txHash}
       );
     }
 
+    // ==================== SHARE ATTRIBUTION ====================
+    // The token has to exist BEFORE the cast does: the embed URL is built here and the
+    // cast's own hash is not known until Neynar returns, so a hash can never appear inside
+    // the link it travels in. A pre-generated token goes into the URL and into Redis, and
+    // a play arriving with ?via=<token> resolves back to whoever shared it.
+    //
+    // Best effort throughout — a cast that posts is a success whether or not attribution
+    // survives, so a Redis failure must not stop the publish.
+    if (actorAddress && embeds.length > 0) {
+      try {
+        const { randomBytes } = await import("node:crypto");
+        const { Redis } = await import("@upstash/redis");
+        const { recordShare } = await import("@/lib/share-credit");
+
+        const viaToken = randomBytes(6).toString("hex");
+        const redis = new Redis({
+          url: process.env.UPSTASH_REDIS_REST_URL!,
+          token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+        });
+        await recordShare(redis, viaToken, actorAddress, tokenId);
+
+        embeds = embeds.map((e) => {
+          const sep = e.url.includes("?") ? "&" : "?";
+          return { url: `${e.url}${sep}via=${viaToken}` };
+        });
+      } catch (err: any) {
+        console.warn("[cast-nft] share attribution skipped:", err?.message);
+      }
+    }
+
     // ==================== POST TO FARCASTER ====================
     console.log("📤 Publishing cast with Neynar SDK...");
     const result = await client.publishCast({

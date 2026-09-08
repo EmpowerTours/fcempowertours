@@ -64,6 +64,8 @@ interface PlayRequest {
   songName?: string;
   artistName?: string;
   artistFid?: number;
+  /** Cast hash from a share link (?via=), so the sharer can be credited for bringing them. */
+  via?: string;
 }
 
 // Simple rate limiting
@@ -102,6 +104,7 @@ export async function POST(req: NextRequest) {
       songName,
       artistName,
       artistFid,
+      via,
     } = body;
 
     console.log("🎵 Record play request:", {
@@ -255,6 +258,20 @@ export async function POST(req: NextRequest) {
       }
 
       console.log("✅ Play recorded!");
+
+      // Credit whoever brought this listener. Rides on a play that already succeeded and
+      // swallows its own errors, so it can never fail one — the same contract the discovery
+      // stamp follows. The subscription gate above has already run, so a manufactured credit
+      // costs a real subscription.
+      if (via) {
+        const { creditShareOnPlay } = await import("@/lib/share-credit");
+        const credit = await creditShareOnPlay(redis, via, userAddress);
+        if (credit.credited) {
+          console.log(
+            `[share-credit] ${credit.sharer?.slice(0, 10)} brought ${userAddress.slice(0, 10)}`,
+          );
+        }
+      }
 
       // Cast to Farcaster (non-blocking, don't wait for result)
       if (userFid) {

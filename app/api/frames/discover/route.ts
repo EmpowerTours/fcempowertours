@@ -6,7 +6,15 @@ const APP_URL =
 
 export async function GET(_request: NextRequest) {
   try {
-    const discoverDeepLink = `${APP_URL}/discover`;
+    // ---- Carry `via` across the frame boundary.
+    //
+    // The cast embeds THIS url with ?via=<token>; the button then launches the miniapp at
+    // a url built here. Hardcoding the deep link dropped the token at exactly this hop, so
+    // a share could be recorded and never credited — the whole chain silently no-ops.
+    const via = new URL(_request.url).searchParams.get("via");
+    const discoverDeepLink = via
+      ? `${APP_URL}/discover?via=${encodeURIComponent(via)}`
+      : `${APP_URL}/discover`;
     // Dynamic OG image for the cast preview (1200x630)
     const ogImageUrl = `${APP_URL}/api/og/discover`;
 
