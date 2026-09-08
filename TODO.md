@@ -133,20 +133,14 @@ open indefinitely.
 
 ---
 
-## Passport artwork on MetaMask Mobile
+## ~~Passport artwork on MetaMask Mobile~~ — DONE 2026-09-07
 
-The four passports carry `data:application/json;base64` tokenURIs — fully
-on-chain, no gateway. **MetaMask Mobile does not render base64 data URIs**
-(metamask-mobile issues #6200, #4561); the extension does. Your own music NFTs
-render correctly because they use `ipfs://` at both the tokenURI and the `image`
-field, which is the working reference.
-
-To fix: pin the SVG to IPFS as its own file, pin JSON referencing it, and
-`setTokenURI` on all four. About 0.001 MON. `tools/repair-passport-uris.ts`
-already does this — run it without `ONCHAIN=1` and with `PINATA_JWT` set. Do one
-passport first and check it on a phone before the other three.
-
----
+**MetaMask does not resolve `ipfs://` NFT URIs on Monad.** Both the tokenURI and
+the `image` inside it must be plain `https://`. Fixed for all four passports and
+for new mints (`lib/passport/token-uri.ts`). Full account in
+`reference_metamask_monad_nft_media` — it cost five wrong theories and about
+2.3 MON, because the music NFTs use `ipfs://` and render, which looked like a
+working reference. They are fetched by the app, not by MetaMask's resolver.
 
 ## Governance still answers to one hot key
 
@@ -165,29 +159,21 @@ undone after the fact.
 
 ---
 
-## Stamps do not appear until the artwork is regenerated
+## ~~Stamps do not appear until the artwork is regenerated~~ — DONE 2026-09-07
 
-`tokenURI` stores a snapshot of the artwork, and the artwork is generated FROM the
-stamps. So writing a stamp on chain does not change what a wallet shows — passport
-#4 carries a real `discovery` stamp for unify34 (tx `0x03f0353d`, 2026-09-07) and
-its stored image was generated when the passport had zero stamps.
+`refreshPassportMetadata()` rebuilds the artwork and rewrites the tokenURI, and
+both stamping paths call it. About 0.001 MON per refresh, because only a ~90-byte
+https:// URL goes on chain. It never throws: a refresh rides on a stamp that
+already succeeded, so a failure cannot undo one.
 
-Every stamp therefore needs a second write to refresh `setTokenURI`, which doubles
-its cost. That is the hidden half of the per-stamp price and it was not in the
-earlier gas figures.
+---
 
-Three ways out, cheapest first:
+## Climbing stamps are wired but never exercised
 
-- **Refresh via IPFS.** Re-pin the metadata and `setTokenURI` to an `ipfs://` URI:
-  a ~60-byte write instead of a ~6,900-byte one. Needed anyway, because MetaMask
-  Mobile cannot render the `data:` URIs currently stored.
-- **Refresh lazily.** Regenerate when the holder next opens their passport rather
-  than on every stamp. A stamp earned is recorded on chain immediately; the picture
-  catching up a few minutes later costs nothing real.
-- **Serve tokenURI from an endpoint** that renders live from `getPassportStamps`.
-  One write ever, and the artwork is always current — but the metadata stops being
-  self-contained, which is the property the on-chain `data:` URI was chosen for.
+`POST /api/climb-stamp` is live, `CLIMB_STAMP_SECRET` is set on both services, and
+version1 calls it from both transaction-confirmation paths (commit `7b50db4`).
 
-Lazy refresh over IPFS is probably right: it keeps writes rare, fixes the MetaMask
-Mobile problem in the same move, and the artwork is only ever looked at by someone
-who opened it.
+**Nobody has ever completed a `/journal`.** All three ClimbingLocations contracts
+show 0 NFT mints and 2 transactions each — deployment and funding. So the passport
+half is correct and untested, and the first person to log a climb is also the
+first test of `/journal` itself. If it fails, look there before looking here.
