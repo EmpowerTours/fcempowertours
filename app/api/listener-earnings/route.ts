@@ -47,6 +47,7 @@ const POOL_ABI = parseAbi([
 ]);
 
 const SUBSCRIPTION_ABI = parseAbi([
+  "function RESERVE_PERCENTAGE() view returns (uint256)",
   "function getReserveBalance() external view returns (uint256)",
   "function getCurrentMonthStats() external view returns (uint256 monthId, uint256 totalRevenue, uint256 totalPlays, bool finalized)",
 ]);
@@ -264,7 +265,29 @@ export async function GET(req: NextRequest) {
             Number(snapshot?.[listenerAddress] || 0),
           );
           const totalPoints = computeTotalPoints(allStats, snapshot);
-          const pool = expectedPoolFromRevenue(totalRevenue);
+
+          // ---- Read the split from the CHAIN, not the fallback constant.
+          //
+          // V6 made RESERVE_PERCENTAGE governable within bounds (MAX_RESERVE_PERCENTAGE = 40),
+          // so the hardcoded 20 in lib/listener-points.ts stopped being the answer the moment
+          // that shipped. Using it here is what the module header warns about: "the app promises
+          // a payout the chain will not honour." They agree today at 20 — that is luck, not a
+          // guarantee. On a read failure we fall back rather than fail the whole endpoint, and
+          // say so in the note.
+          let reservePct: bigint | undefined;
+          try {
+            reservePct = await client.readContract({
+              address: MUSIC_SUBSCRIPTION,
+              abi: SUBSCRIPTION_ABI,
+              functionName: "RESERVE_PERCENTAGE",
+            });
+          } catch (err) {
+            console.warn(
+              "[listener-earnings] RESERVE_PERCENTAGE read failed, using fallback:",
+              err instanceof Error ? err.message : err,
+            );
+          }
+          const pool = expectedPoolFromRevenue(totalRevenue, reservePct);
           const estimate = estimatePayoutWei(pool, myPoints, totalPoints);
 
           pending = {

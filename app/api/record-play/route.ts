@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { JsonRpcProvider, Wallet, Contract } from "ethers";
 import { Redis } from "@upstash/redis";
+import { authorizeUserAddress } from "@/lib/quick-auth";
 
 // Configuration - Updated Dec 27, 2025
 const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE!;
@@ -81,8 +82,12 @@ async function checkRateLimit(
       remaining: Math.max(0, RATE_LIMIT_MAX_REQUESTS - current),
     };
   } catch (error) {
-    console.error("Rate limit check failed:", error);
-    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS };
+    // ---- FAIL CLOSED. Returning `allowed: true` here removed the only per-user cap on a
+    // route that sends a transaction, exactly when Redis trouble makes a flood most likely.
+    // The subscription and canPlay gates below are already fail-closed; this one was the
+    // odd man out, so an outage turned the rate limiter off rather than turning plays off.
+    console.error("Rate limit check failed, denying:", error);
+    return { allowed: false, remaining: 0 };
   }
 }
 
@@ -132,6 +137,26 @@ export async function POST(req: NextRequest) {
           error: `Play duration must be at least ${MIN_PLAY_DURATION} seconds`,
         },
         { status: 400 },
+      );
+    }
+
+    // ---- Ownership. Recording a play CREDITS `userAddress` with reward points, so an
+    // unauthenticated caller cannot steal with this — but they can inflate a chosen address's
+    // pro-rata share, which dilutes every honest listener.
+    //
+    // Observed rather than enforced, deliberately: this fires automatically after 30s of
+    // audio, and a wallet-only listener has no Quick Auth token, so hard-gating would demand
+    // a wallet signature per song. Inside Farcaster the header costs nothing and proves the
+    // FID. The log line is what makes the remaining gap measurable instead of invisible —
+    // `wouldRejectWhenEnforced` is the same signal the rest of the app migrated on.
+    //
+    // Note this does NOT stop self-farming, which needs no forged identity. The bounds on
+    // that are the subscription requirement and the on-chain canPlay cooldown, both below.
+    const authz = await authorizeUserAddress(req, userAddress, "record-play");
+    if (!authz.ownsAddress) {
+      console.warn(
+        `[record-play] unproven caller for ${userAddress} (mode=${authz.mode}` +
+          `${authz.reason ? `, ${authz.reason}` : ""})`,
       );
     }
 

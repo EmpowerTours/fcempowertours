@@ -1159,28 +1159,28 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const claimedAmount = stats.pendingRewards;
-
-      // Reset pending rewards
-      stats.pendingRewards = 0;
-      await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
-
-      console.log(
-        "[LiveRadio] Rewards claimed:",
-        claimedAmount,
-        "TOURS by",
+      // ---- FAIL CLOSED. This handler used to zero `pendingRewards` and report success
+      // WITHOUT transferring any TOURS, trusting a caller-supplied `txHash` it never verified.
+      // Its client was removed on 2026-09-03 with the TOURS UI ("radio_claim_rewards removed",
+      // execute-delegated), so nothing calls it — but reaching it destroyed the balance it
+      // claimed to pay. Accrual continues in `heartbeat`; the ledger is preserved until a
+      // settlement path exists that actually moves tokens and verifies the transaction.
+      console.warn(
+        "[LiveRadio] claim_rewards refused: no settlement path. Preserved",
+        stats.pendingRewards,
+        "TOURS for",
         userAddress,
-        "TX:",
-        txHash,
       );
 
-      return NextResponse.json({
-        success: true,
-        message: `Successfully claimed ${claimedAmount} TOURS!`,
-        claimedAmount,
-        txHash,
-        stats,
-      });
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "TOURS claiming is not available yet. Your balance is safe and still accruing.",
+          pendingRewards: stats.pendingRewards,
+        },
+        { status: 503 },
+      );
     }
 
     // Skip current song and play a new random one (called by execute-delegated after payment)

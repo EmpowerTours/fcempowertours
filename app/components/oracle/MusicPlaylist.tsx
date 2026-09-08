@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/quick-auth-client";
 import React, { useState, useEffect, useRef, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -284,7 +285,12 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({
 
         const response = await fetch("/api/record-play", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            // Free inside a Farcaster client — no wallet prompt. Lets the server attribute
+            // the play to a proven FID instead of trusting the address in the body.
+            ...(await authHeaders()),
+          },
           body: JSON.stringify({
             userAddress,
             masterTokenId: parseInt(song.tokenId),
