@@ -17,6 +17,7 @@ import {
   Headphones,
   BarChart3,
   Loader2,
+  Radio,
 } from "lucide-react";
 import Link from "next/link";
 import { getExplorerUrl } from "@/app/chains";
@@ -38,7 +39,10 @@ interface Stats {
 }
 
 interface StreamingStats {
+  /** Plays attributed to a real listener — the same events the reward maths pays for. */
   totalPlays: number;
+  /** Songs the radio broadcast. Uptime, not engagement; labelled as such below. */
+  totalSongsBroadcast: number;
   totalSalesWMON: string;
   uniqueListeners: number;
   uniqueArtists: number;
@@ -486,9 +490,18 @@ export const DashboardModal: React.FC<DashboardModalProps> = ({
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <StatCard
                       icon={<Play className="w-4 h-4" />}
-                      label="Total Plays"
+                      label="Plays"
                       value={streamingStats.totalPlays}
                       color="green"
+                    />
+                    {/* Kept separate from Plays on purpose: this counter advances on an empty
+                        room, so merging the two overstated engagement by three orders of
+                        magnitude. Label it as airtime and it is a useful number again. */}
+                    <StatCard
+                      icon={<Radio className="w-4 h-4" />}
+                      label="Songs Aired"
+                      value={streamingStats.totalSongsBroadcast}
+                      color="purple"
                     />
                     <StatCard
                       icon={<Headphones className="w-4 h-4" />}

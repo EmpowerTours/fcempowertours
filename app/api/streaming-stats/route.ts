@@ -22,7 +22,23 @@ import { PLAY_HISTORY_KEY, PLAY_HISTORY_CAP } from "@/lib/play-ledger";
 import { getTreasuryFeeBps } from "@/lib/artist-cut";
 
 interface StreamingStats {
+  /**
+   * Plays a human actually listened to, attributed to a listener address.
+   *
+   * **This is deliberately NOT the radio's song counter.** That counter advances every time
+   * the scheduler starts a track, whether or not a single person is connected, so it measures
+   * broadcast uptime. On 2026-09-08 it stood at 35,493 against 28 plays recorded on-chain by
+   * PlayOracle — a 1,268x overstatement being shown to artists as their play count.
+   *
+   * A play here means: a listener address was credited for a song in `listener-stats`. That is
+   * the same event the reward maths pays for, so the number the app displays and the number it
+   * pays on cannot drift apart.
+   */
   totalPlays: number;
+  /**
+   * Songs the radio has broadcast. Uptime, not engagement — report it as such, never as plays.
+   */
+  totalSongsBroadcast: number;
   /**
    * True when `totalPlays` is a FLOOR: it came from the trimmed play ledger rather than the
    * uncapped counter, and the ledger is full. Render "100+", never "100".
@@ -75,6 +91,7 @@ export async function GET(req: NextRequest) {
 
     const stats: StreamingStats = {
       totalPlays: 0,
+      totalSongsBroadcast: 0,
       totalPlaysIsFloor: false,
       playWindowCap: PLAY_HISTORY_CAP,
       totalSalesWMON: "0",
@@ -283,21 +300,34 @@ export async function GET(req: NextRequest) {
       const radioState = await redis.get<{ totalSongsPlayed?: number }>(
         RADIO_STATE_KEY,
       );
-      const totalFromState = radioState?.totalSongsPlayed || 0;
-      // The higher of the running counter and the ledger length. The counter is uncapped; the
-      // ledger is not, so when the LEDGER wins and is full the answer is a floor rather than a
-      // count — there were at least this many plays and the older ones were trimmed away.
-      const historyLength = await redis.llen(PLAY_HISTORY_KEY);
-      stats.totalPlays = Math.max(totalFromState, historyLength);
-      stats.totalPlaysIsFloor =
-        historyLength >= PLAY_HISTORY_CAP && historyLength >= totalFromState;
-      stats.playWindowCap = PLAY_HISTORY_CAP;
+      // Broadcast uptime. Reported on its own field so it can never be mistaken for engagement.
+      stats.totalSongsBroadcast = radioState?.totalSongsPlayed || 0;
 
-      // Get unique listeners from listener stats hash
-      const allListenerStats = await redis.hgetall(LISTENER_STATS_KEY);
+      // ---- Plays, counted from listeners rather than from the scheduler.
+      //
+      // Summing `totalSongsListened` across listener-stats counts exactly the events the reward
+      // maths pays for (see lib/listener-points.ts), so the displayed number and the paid number
+      // are the same number. The scheduler's counter is NOT consulted here: it advances on an
+      // empty room, which is how 35,493 came to be displayed against 28 real plays on-chain.
+      const allListenerStats =
+        await redis.hgetall<Record<string, { totalSongsListened?: number }>>(
+          LISTENER_STATS_KEY,
+        );
+      let listenedTotal = 0;
       if (allListenerStats) {
         stats.uniqueListeners = Object.keys(allListenerStats).length;
+        for (const entry of Object.values(allListenerStats)) {
+          const n = Number(entry?.totalSongsListened);
+          if (Number.isFinite(n) && n > 0) listenedTotal += n;
+        }
       }
+      stats.totalPlays = listenedTotal;
+
+      // A per-listener running total is never trimmed, so this is a true count and not a floor.
+      // The field stays for callers that render "100+"; the ledger cap still describes the
+      // recentPlays window below.
+      stats.totalPlaysIsFloor = false;
+      stats.playWindowCap = PLAY_HISTORY_CAP;
     } catch (redisError) {
       console.error("[StreamingStats] Redis play data error:", redisError);
     }
