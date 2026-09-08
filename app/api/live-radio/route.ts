@@ -57,9 +57,19 @@ const VOICE_AD_PRICE_WMON = 2; // 2 WMON for 30-second ad
 const MAX_VOICE_NOTE_SECONDS = 5;
 const MAX_VOICE_AD_SECONDS = 30;
 const LISTENER_HEARTBEAT_EXPIRY = 60; // Seconds before listener is considered inactive
-const LISTEN_REWARD_TOURS = 0.1; // 0.1 TOURS per song listened
-const FIRST_LISTENER_BONUS_TOURS = 5; // 5 TOURS for first listener of day
-const STREAK_BONUS_TOURS = 10; // 10 TOURS for 7-day streak
+// ---- Listening does NOT earn TOURS. Removed 2026-09-08.
+//
+// LISTEN_REWARD_TOURS (0.1/song), FIRST_LISTENER_BONUS_TOURS (5) and STREAK_BONUS_TOURS (10)
+// all paid a second currency for an act WMON already pays for. `stats.totalSongsListened`,
+// incremented directly below the old per-song accrual, is the input to computeListenerPoints
+// and the pro-rata WMON split; the 7-day streak was paid twice over, since that same function
+// already grants 5 WMON points for it.
+//
+// The rule: an act with revenue attached is paid in WMON out of that revenue. TOURS is for
+// contributions with nothing to be paid out of — a verified climb, a first discovery, a
+// published master. See the token economics plan.
+//
+// Historic `pendingRewards` balances are deliberately left untouched, not zeroed.
 
 interface RadioState {
   isLive: boolean;
@@ -370,10 +380,12 @@ export async function GET(req: NextRequest) {
         maxVoiceNoteDuration: MAX_VOICE_NOTE_SECONDS,
         maxVoiceAdDuration: MAX_VOICE_AD_SECONDS,
       },
+      // Listening is rewarded in WMON, pro-rata, from the subscription reserve —
+      // see /api/listener-earnings. It does not pay TOURS, so no TOURS rate is quoted.
       rewards: {
-        perSong: LISTEN_REWARD_TOURS,
-        firstListener: FIRST_LISTENER_BONUS_TOURS,
-        streak7Days: STREAK_BONUS_TOURS,
+        currency: "WMON",
+        basis: "pro-rata share of the monthly listener pool",
+        endpoint: "/api/listener-earnings",
       },
     });
   } catch (error: any) {
@@ -1044,7 +1056,6 @@ export async function POST(req: NextRequest) {
         firstListenerBonuses: 0,
       };
 
-      let rewardEarned = 0;
       let bonusType = "";
 
       // Check if a song is ACTIVELY playing (not expired)
@@ -1072,15 +1083,11 @@ export async function POST(req: NextRequest) {
         const firstListener = await redis.get(firstListenerKey);
         if (!firstListener) {
           await redis.setex(firstListenerKey, 86400, userKey); // Expires in 24h
-          rewardEarned += FIRST_LISTENER_BONUS_TOURS;
+          // Counter kept: it is a real fact about the listener and drives UI copy.
+          // No TOURS attached — showing up first is still listening.
           stats.firstListenerBonuses++;
           bonusType = "first_listener";
-          console.log(
-            "[LiveRadio] First listener of day:",
-            userKey,
-            "Bonus:",
-            FIRST_LISTENER_BONUS_TOURS,
-          );
+          console.log("[LiveRadio] First listener of day:", userKey);
         }
 
         // Update streak
@@ -1089,9 +1096,11 @@ export async function POST(req: NextRequest) {
           stats.currentStreak++;
           // Check for 7-day streak bonus
           if (stats.currentStreak === 7) {
-            rewardEarned += STREAK_BONUS_TOURS;
+            // The streak itself still pays — in WMON, via computeListenerPoints, which
+            // grants 5 points per completed 7 days. Paying TOURS here as well was the
+            // same act billed to two currencies.
             bonusType = bonusType ? `${bonusType}+streak` : "streak";
-            console.log("[LiveRadio] 7-day streak bonus for:", userKey);
+            console.log("[LiveRadio] 7-day streak reached for:", userKey);
           }
         } else if (stats.lastListenDay < today - 1) {
           // Streak broken
@@ -1107,7 +1116,8 @@ export async function POST(req: NextRequest) {
         const currentSongId = `${state!.currentSong!.tokenId}-${state!.currentSong!.startedAt}`;
 
         if (stats.lastRewardedSongId !== currentSongId) {
-          rewardEarned += LISTEN_REWARD_TOURS;
+          // totalSongsListened is the WMON point input and MUST keep incrementing.
+          // Only the TOURS line is gone.
           stats.totalSongsListened++;
           stats.lastRewardedSongId = currentSongId;
           bonusType = bonusType ? `${bonusType}+listen` : "listen";
@@ -1116,10 +1126,9 @@ export async function POST(req: NextRequest) {
         stats.lastListenDay = today;
       }
 
-      if (rewardEarned > 0) {
-        stats.pendingRewards += rewardEarned;
-        stats.totalRewardsEarned += rewardEarned;
-      }
+      // No TOURS accrues from listening. Existing balances are preserved untouched;
+      // nothing is added and nothing is cleared.
+      const rewardEarned = 0;
 
       await redis.hset(LISTENER_STATS_KEY, { [userKey]: stats });
 
