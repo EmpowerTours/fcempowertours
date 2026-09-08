@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-production-6551.up.railway.app';
+const APP_URL =
+  process.env.NEXT_PUBLIC_URL ||
+  "https://fcempowertours-production-6551.up.railway.app";
 
 export async function GET(_request: NextRequest) {
   try {
@@ -9,16 +11,16 @@ export async function GET(_request: NextRequest) {
     const ogImageUrl = `${APP_URL}/api/og/discover`;
 
     const frameData = {
-      version: 'next',
+      version: "next",
       imageUrl: ogImageUrl,
       button: {
-        title: '🎵 Discover Music',
+        title: "🎵 Discover Music",
         action: {
-          type: 'launch_frame',
-          name: 'EmpowerTours',
+          type: "launch_frame",
+          name: "EmpowerTours",
           url: discoverDeepLink,
           splashImageUrl: `${APP_URL}/images/splash.png`,
-          splashBackgroundColor: '#0f172a',
+          splashBackgroundColor: "#0f172a",
         },
       },
     };
@@ -52,12 +54,12 @@ export async function GET(_request: NextRequest) {
 
     return new NextResponse(html, {
       headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     });
   } catch (error: any) {
-    console.error('[frames/discover] Error:', error);
-    return new NextResponse('Error generating frame', { status: 500 });
+    console.error("[frames/discover] Error:", error);
+    return new NextResponse("Error generating frame", { status: 500 });
   }
 }
