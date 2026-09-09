@@ -1076,8 +1076,45 @@ export async function POST(req: NextRequest) {
         await redis.set(PLAYBACK_PHASE_KEY, "voice_note");
       }
 
-      // Only award rewards if a song is actually playing
-      if (isSongActive) {
+      // ---- Points require a paid subscription. FAIL CLOSED.
+      //
+      // `totalSongsListened` below is the denominator the 20% WMON listener pool splits by,
+      // and that pool is funded entirely by subscribers. Until 2026-09-09 this path checked
+      // only that the session was real, never that it was paid — so anyone holding a radio
+      // session open accrued a claim on money other people put in. It is the same invariant
+      // record-play already enforces two files away, where the comment reads "this gate is
+      // what makes farming cost money"; the heartbeat never got it.
+      //
+      // Deliberately narrow: presence is NOT gated. A non-subscriber still joins the
+      // active-listeners ZSET above and still shows in the listener count. They simply do
+      // not earn a share of a pool they did not pay into.
+      let subscribed = false;
+      if (MUSIC_SUBSCRIPTION_ADDRESS) {
+        try {
+          const { JsonRpcProvider, Contract } = await import("ethers");
+          const subs = new Contract(
+            MUSIC_SUBSCRIPTION_ADDRESS,
+            [
+              "function hasActiveSubscription(address user) view returns (bool)",
+            ],
+            new JsonRpcProvider(
+              process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz",
+            ),
+          );
+          subscribed = await subs.hasActiveSubscription(userKey);
+        } catch (err: any) {
+          // Fail closed. Swallowing this would credit points during an RPC outage, which is
+          // exactly when a flood is cheapest.
+          console.warn(
+            "[LiveRadio] subscription check failed, no points credited:",
+            err?.message?.slice(0, 80),
+          );
+          subscribed = false;
+        }
+      }
+
+      // Only award points if a song is actually playing AND the listener pays for the pool
+      if (isSongActive && subscribed) {
         // Check for first listener of the day
         const firstListenerKey = `${DAILY_FIRST_LISTENER_KEY}:${today}`;
         const firstListener = await redis.get(firstListenerKey);
