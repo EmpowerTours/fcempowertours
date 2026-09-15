@@ -17,9 +17,8 @@ seals for three weeks. **Before trusting any entry here, ask what the check woul
 work were finished.** If the answer is "the same thing", it is not a check.
 
 Three items cannot be verified from a terminal at all, and are marked rather than left looking
-open: **1** (Pimlico key) and **13** (Google Maps keys) are dashboard state at a third party, and
-**9** (the production TypeError) needs a browser session. Absence of evidence here is not
-evidence they are outstanding.
+open: **1** and **13** are both provider dashboard state, and **9** (the production TypeError)
+needs a browser session. Absence of evidence here is not evidence they are outstanding.
 
 Ranked by **what is losing something right now**, then by what is half-finished, then by what is
 strategic, then hygiene. Effort is a rough guide, not an estimate.

@@ -21,10 +21,10 @@ be in a public file at all until it is closed.
 
 ---
 
-## 1. ~~Google Maps key~~ — **closed 2026-08-22 by deletion**
+## 1. ~~Mapping-provider keys~~ — **code side closed 2026-08-22 by deletion**
 
-The Maps integration is gone — `lib/maps/`, the modals, the place-details route, the Oracle's
-Maps grounding and the `maps_payment` action were all removed when the app narrowed to music.
+The mapping integration is gone — the library, the modals, the place-details route, the Oracle's
+grounding and the related payment action were all removed when the app narrowed to music.
 Nothing in the repo reads either key.
 
 **Still worth doing once, at the provider:** disable both. A key nothing uses is not a
