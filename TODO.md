@@ -128,6 +128,21 @@ costs roughly **0.12 MON**. Their stamps would need carrying across too — none
 exist yet, so today the migration is trivial and it gets harder the longer it
 waits.
 
+**Update 2026-09-15: a stamp now exists, and the prediction above was right.**
+`getTotalSupply()` is still 4, but passport #4 carries one venue stamp, read off
+mainnet:
+
+```
+("unify34", "discovery", 0x33fFCcb1…, verified: true, 1, "", "", 0, 0)
+```
+
+That is `lib/discovery-stamp.ts` firing in production — the first-time-you-heard-
+an-artist stamp, oracle-attested, with `placeId` and `googleMapsUri` correctly
+left empty. So the discovery path is proven live, and the migration is no longer
+free: it now has to carry stamps as well as passports, and every stamp minted
+between now and the redeploy adds to that. This is the cost the paragraph above
+predicted would grow, doing exactly that.
+
 Call `sealPassportMigration()` once the four are across, so the door does not stay
 open indefinitely.
 

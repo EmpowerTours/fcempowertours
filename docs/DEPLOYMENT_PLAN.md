@@ -539,7 +539,7 @@ mainnet or off the shipped production bundle on 2026-08-22, not carried forward 
 | 2 | `LiveRadioV3.setNFTContract(0x42EbcD44…)` | **DONE** — `nftContract()` returns the v3 registry |
 | 3 | Fund `SubscriptionReferrals` + `setTrustedRelayer` | **DEFERRED on purpose** — see "Deferred, with a reason" |
 | 4 | `ToursRewardManagerV2.setDistributor` | parked, skip |
-| 5 | `migrateLegacy` for licence 1000004, then the seals | **NOT DONE** — see below |
+| 5 | `migrateLegacy` for licence 1000004, then the seals | **migrateLegacy DONE 2026-08-22**; seals still open — see below |
 | 6 | App env vars + `NEXT_PUBLIC_CONTRACTS_V3` | **DONE** — the flag is on in production |
 | 7 | Migrate or lapse the existing V5 subscribers | **UNVERIFIED** — see below |
 | 8 | Verify the six on Monadscan | **DONE 2026-08-21**, all six |
@@ -557,9 +557,18 @@ would turn the silent-mismatch failure this whole file is written around into a 
 
 ### What is actually left
 
-- **#5 — licence 1000004 is still unmigrated.** `LicenseRegistry.ownerOf(1000004)` reverts
-  `ERC721NonexistentToken(1000004)`. The five masters *are* in ( `totalMasters()` = 5 ), so only
-  the legacy licence itself is outstanding.
+- **#5 — DONE, 2026-08-22. This entry was wrong; corrected 2026-09-15.** The migration ran in
+  tx hash `0x2c089f4ee38fd5a058f4a3c94aa42bfbcbc1d68e5d73ae48e34e8b2792487a28`, block 98073070,
+  02:25:53 UTC, sent by governance, emitting
+  `LegacyLicenseMigrated(licenseId 1000001, masterTokenId 3, to 0xd6B624F5…)`. `migrateLegacy`
+  emits that plus `LicenseMinted`; `mintLicense` emits only the latter, so its presence settles it.
+
+  The test this entry used — `ownerOf(1000004)` reverting — could never have passed.
+  `migrateLegacy` assigns `licenseId = ++_licenseCounter`, so the legacy id is not preserved and
+  that call reverts either way. **Check the destination id, not the source id**: the collector's
+  licence is v3 `1000001`, carrying `mintedAt` 2026-08-01, which predates the registry's own
+  deployment and can only come from the migration path. See `docs/PRIORITIES.md` item 6 for the
+  legacy contract's full contents and the one open question about `0x868469E5…`.
 - **Both seals are unset** — `migrationSealed()` and `passportMigrationSealed()` are both `false`.
   That is the designed state: they are irreversible and deliberately last. Do not set them until
   #5 and #7 are finished.

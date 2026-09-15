@@ -7,9 +7,19 @@ Every claim here was verified against Monad mainnet or the running deployment on
 Where something is unverified, it says so — that is a finding, not a gap in the notes.
 
 Items **A, E and F** were re-read against mainnet and production on **2026-09-14** and had moved;
-each carries its own dated correction. Nothing else on this list has been re-checked since
-2026-08-24, so treat the rest as that old — an entry saying it is open is evidence of what was
-true three weeks ago, not of what is true now.
+each carries its own dated correction.
+
+**On 2026-09-15 the remaining open items were audited for whether their stated test can actually
+distinguish done from not-done.** Five could not, or had drifted: 6, 12, 15, 19 and C. Item 6 is
+the one worth learning from — it tested `ownerOf(1000004)` for a migration that never preserves
+the source id, so the check returned "not done" no matter what, and blocked two irreversible
+seals for three weeks. **Before trusting any entry here, ask what the check would print if the
+work were finished.** If the answer is "the same thing", it is not a check.
+
+Three items cannot be verified from a terminal at all, and are marked rather than left looking
+open: **1** (Pimlico key) and **13** (Google Maps keys) are dashboard state at a third party, and
+**9** (the production TypeError) needs a browser session. Absence of evidence here is not
+evidence they are outstanding.
 
 Ranked by **what is losing something right now**, then by what is half-finished, then by what is
 strategic, then hygiene. Effort is a rough guide, not an estimate.
@@ -126,12 +136,50 @@ spends. The cap is the missing half of that change.
 
 ## Tier 2 — half-finished, and the halves are load-bearing
 
-### 6. Licence 1000004 is still unmigrated, and both seals are open
+### 6. ~~Licence 1000004 is still unmigrated~~ — **IT WAS MIGRATED. The test was wrong. 2026-09-15**
 
-`LicenseRegistry.ownerOf(1000004)` reverts `ERC721NonexistentToken`. The five masters are in
-(`totalMasters() = 5`); only the legacy licence is outstanding. `migrationSealed()` and
-`passportMigrationSealed()` are both `false` — the designed state, since the seals are
-irreversible and go last. Do not seal until this and #4 are done.
+**The migration ran on 2026-08-22, and this item has been reporting it as outstanding ever
+since.** Proven from the transaction, not inferred:
+
+```
+tx hash  0x2c089f4ee38fd5a058f4a3c94aa42bfbcbc1d68e5d73ae48e34e8b2792487a28
+block  98073070   2026-08-22 02:25:53 UTC   status 1   from 0x8dF64bAC… (governance)
+logs   Transfer(0x0 -> 0xd6B624F5…, 1000001)
+       LegacyLicenseMigrated(licenseId 1000001, masterTokenId 3, to 0xd6B624F5…)
+       LicenseMinted(1000001, 3, 0xd6B624F5…)
+```
+
+`migrateLegacy` emits **both** `LegacyLicenseMigrated` and `LicenseMinted`; `mintLicense` emits
+only the second. The first one being present is conclusive, and `onlyGovernance` matches the
+sender.
+
+**Why the check could never have passed.** This item tested `ownerOf(1000004)` and read the
+revert as "not migrated". But `migrateLegacy` assigns `licenseId = ++_licenseCounter` — a fresh
+sequential id. It does not carry the legacy token id across. `ownerOf(1000004)` on the v3
+registry reverts whether or not the migration ran, so the test measured nothing and reported a
+blocker on two irreversible seals for three weeks.
+
+The state evidence pointed the same way and was cheaper: v3 licence 1000001 has
+`mintedAt = 2026-08-01 17:09 UTC`, twenty days before the v3 contracts existed. `mintLicense`
+sets `mintedAt` to `block.timestamp`, so only the migration path can produce that.
+
+**What the legacy contract actually holds.** `EmpowerToursNFT` V2 `0xB9B3acf3…` has four
+licences, 1000001–1000004 (1000005 reverts):
+
+| Legacy id | Holder | Status |
+|---|---|---|
+| 1000001–1000003 | `0x868469E5…` | self-minted from `0x0` on 2026-02-04, never migrated |
+| 1000004 | `0xd6B624F5…` | **migrated** → v3 licence 1000001 on master 3 |
+
+`0x868469E5…` is almost certainly an owner-controlled wallet rather than a third-party collector:
+it minted all three itself, has been dormant since 2026-02-07, and its last three transactions
+funded `0x271885aE…`, `0xD5203FD3…` and `0xc28c035B…` — all three listed in
+`~/.empowertours/agent-wallets.json`. **Confirm that before sealing**, because sealing is
+irreversible and those three licences lose their route across.
+
+**So the seals are unblocked**, pending that one confirmation. #4 (V5 subscribers) was resolved
+2026-08-25; this was the other stated blocker and it is done. `migrationSealed()` and
+`passportMigrationSealed()` are both still `false`.
 
 Runbook: `docs/DEPLOYMENT_PLAN.md`, "Migration runbook".
 
@@ -209,9 +257,22 @@ Listen-to-earn with 9 users is not an incentive, it is a rounding error with a f
 
 ### 12. Artist TOURS bonus: fix or delete
 
-Two independent blockers. `authorizedDistributors[MusicSubscriptionV6]` is `false` — the cutover
-carried this defect from V5 onto V6 rather than fixing it. And eligibility is unreachable:
-`minMasterCount = 10`, `minLifetimePlays = 100`, against 5 masters and 0 plays.
+Two independent blockers. `authorizedDistributors[MusicSubscriptionV6]` is `false` on
+`ToursRewardManagerV2` — the cutover carried this defect from V5 onto V6 rather than fixing it.
+And eligibility is unreachable.
+
+**Re-tested 2026-09-15 with the right call.** The thresholds live on `MusicSubscriptionV6`
+(`minMasterCount = 10`, `minLifetimePlays = 100`), not on the reward manager — calling them there
+reverts, which is how this was miscounted before. `isArtistEligible` returns `false` for both:
+
+```
+0x33fFCcb1…  (artist)    6 masters,  0 lifetime plays
+0x8dF64bAC…  (deployer)  5 masters,  8 lifetime plays
+```
+
+Item stands, with the numbers corrected — this said "both addresses sit at 5/5". Note the split
+makes it worse than a single count suggests: the two halves of the same person's catalogue cannot
+be added together, so neither address can reach 10 even though 11 masters exist between them.
 
 The reward is **1 TOURS/month**, meaningless against 100B. Half-built reward paths are how the
 `platformOperator` bug happened; pick one.
@@ -278,11 +339,19 @@ username or FID, which is correct. Nothing stops a future edit wiring a ProfileR
 one of those — `og/music`, `og/art`, `execute-delegated`, `cast-nft` all have the pattern sitting
 there — which would present a self-registered name as a verified handle.
 
-### C. `/api/catalogue` is on the hot path and is slow
+### C. ~~`/api/catalogue` is on the hot path and is slow~~ — **measured in the wrong place (2026-09-15)**
 
-2.7–3.4s in dev after batching. Multicall3 is declared and used, and per-stage timings show the
-batching works (5 calls in 107–538ms); what remains is ~4 dependent round trips on the free
-public RPC at 100–550ms each. **A paid RPC endpoint is the next lever, not more batching.**
+The 2.7–3.4s figure was **dev**. Production answers in **0.45–0.58s** over two consecutive calls.
+The conclusion drawn from the dev number — "a paid RPC endpoint is the next lever" — was a
+spending decision resting on a measurement never taken against the thing users hit.
+
+Not fully closed: two warm calls are not a cold-cache measurement, so the honest claim is that
+production is roughly 5x faster than recorded and the case for buying an RPC is unproven, not that
+latency is fine. Measure cold before reopening it.
+
+Original note, for the record: Multicall3 is declared and used, per-stage timings show the
+batching works (5 calls in 107–538ms), and what remained was ~4 dependent round trips on the free
+public RPC at 100–550ms each.
 
 Everything now reads through this: radio, discover, buy path, NFT page, artist page, frames,
 venue, EPK.
@@ -395,13 +464,11 @@ draft", which describes Gemini-written text.
 
 **This does not change what is published.** See item E.
 
-### 15. Three unreachable modals
+### 15. ~~Three unreachable modals~~ — **DONE; the guard has been silent for some time (2026-09-15)**
 
-`showDepositModal`, `showEventOracleModal`, and the page-level `showSubscriptionModal` render JSX
-that nothing can open. All three predate the travel deletion. `LiveRadioModal` renders its own
-subscription modal, which is the one users actually see. Strip or wire up.
-
-`tools/verify-modal-wiring.ts` reports these as non-fatal warnings.
+`tools/verify-modal-wiring.ts` passes clean: 53 checks across 79 files, zero warnings. The tool
+still has its `warn()` path (lines 38–54, raised at 170, reported at 317), so this is a check that
+can fail and does not, rather than a check that stopped looking.
 
 ### 16. ~~`empowertours-envio/` type gate~~ — **MOOT 2026-08-29, directory deleted**
 
@@ -411,11 +478,16 @@ subscription modal, which is the one users actually see. Strip or wire up.
 
 ### 18. ~~Envio config cleanup~~ — **MOOT 2026-08-29, deleted with the indexer**
 
-### 19. Rate limits and CSP
+### 19. ~~Rate limits~~ and CSP — **rate limits DONE; CSP still open (2026-09-15)**
 
-No rate limit on `bot-command`, `upload*`, `oracle/chat`. No global CSP `script-src`.
+Every route this named now has a limiter: `bot-command`, `oracle/chat`, and all four upload routes
+(`upload`, `upload-json-to-ipfs`, `upload-metadata`, `upload-to-ipfs`).
 
-### 20. 82 lint warnings
+**CSP stands.** Production sends a `content-security-policy` header, but it carries
+`frame-ancestors` only — the Farcaster client allow-list. There is no `script-src`. The presence of
+the header is why this is worth stating precisely: anyone checking for "is there a CSP" gets a yes.
+
+### 20. ~~82~~ 70 lint warnings
 
 56 are `@next/next/no-img-element`, a performance suggestion. Deliberately non-blocking — the
 pre-commit hook fails on errors only, because a gate that fires on every UI commit gets bypassed
