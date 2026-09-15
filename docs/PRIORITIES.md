@@ -6,6 +6,11 @@ One list, because the open items were spread across `DEPLOYMENT_PLAN.md`, `SECUR
 Every claim here was verified against Monad mainnet or the running deployment on **2026-08-24**.
 Where something is unverified, it says so — that is a finding, not a gap in the notes.
 
+Items **A, E and F** were re-read against mainnet and production on **2026-09-14** and had moved;
+each carries its own dated correction. Nothing else on this list has been re-checked since
+2026-08-24, so treat the rest as that old — an entry saying it is open is evidence of what was
+true three weeks ago, not of what is true now.
+
 Ranked by **what is losing something right now**, then by what is half-finished, then by what is
 strategic, then hygiene. Effort is a rough guide, not an estimate.
 
@@ -215,7 +220,25 @@ The reward is **1 TOURS/month**, meaningless against 100B. Half-built reward pat
 
 ## Found 2026-08-24/25, not previously listed
 
-### A. The five masters are attributed to the deployer — **DISPLAY FIXED, MONEY NOT**
+### A. The five masters are attributed to the deployer — **LARGELY OVERTAKEN; re-read 2026-09-14**
+
+> **The decision below was taken, and it was the cheaper option.** Read off mainnet 2026-09-14,
+> `totalMasters()` is **12**, not the 5 this item assumes:
+>
+> | Masters | Artist | Suspended |
+> |---|---|---|
+> | 1–5 | deployer `0x8dF64bAC…` | **yes** |
+> | 6 | `0x05d1599622915050C4981816ef5E8d51F53dbc7D` (different artist, fid 0) | no |
+> | 7 | artist `0x33fFCcb1…` | yes |
+> | 8–12 | artist `0x33fFCcb1…` | no |
+>
+> The five were re-minted from the artist wallet and the deployer originals suspended, so new
+> sales, plays and radio accrue correctly and **the problem has stopped growing**. What did not
+> move is the history: `artistLifetimePlays(deployer)` is **8** and the artist wallet's is **0**,
+> and the existing licence sales still point at the old token ids. That residue is item F.
+>
+> Everything below is the reasoning that led here, kept because it explains why the cheap option
+> was chosen over burn-and-remigrate. Its figures are from 2026-08-24 and are stale.
 
 `getMaster(1..5).artist` is `0x8dF64bAC…` (deployer); `artistFid` is `765994` (@unify34), which
 is correct. The v3 re-publish ran from the deployer key and `mintMaster` sets the artist to
@@ -280,27 +303,66 @@ The better argument is correctness, not speed: passing the values means the card
 title, price and cover even when the catalogue read is stale or fails — and a track minted
 seconds ago is precisely the case a stale indexer does not have yet.
 
-### E. The published EPK still says "AI-generated music"
+### E. The published EPK still says "AI-generated music" — **RE-PINNED 2026-09-14, one transaction left**
 
-Item 14 fixed the source. The live press kit is an **immutable IPFS document** —
-`QmZzaviA2WwWCAn1tN4cJJyB4c4z5Wpg6E3QX6PN9npV1u`, pinned 2026-02-02 — so `/epk/earvin-gallardo`
-still renders the old bio and the `AI Music` genre. Nothing in the codebase can change that.
+Item 14 fixed the source. That changed nothing anyone can see: the live press kit is an
+**immutable IPFS document**, and the page renders whatever CID the registry holds, not whatever
+the repo says. Correcting the source and correcting the publication are two different jobs.
 
-Needs a re-pin and an on-chain `updateEPK(newCid)`. Worth doing in the same pass as item F, since
-both are EPK writes.
+The corrected document is pinned:
 
-Effort: minutes, plus one transaction.
+```
+old  QmZzaviA2WwWCAn1tN4cJJyB4c4z5Wpg6E3QX6PN9npV1u   pinned 2026-02-02 08:06 UTC
+new  QmXv14bTumtoFkLqTdP6yUxK3Uzfex4cL1b7PWmAAXZL9v   pinned 2026-09-14
+```
 
-### F. The EPK reports zero plays and zero sales
+`tools/repin-epk.ts` built it by fetching what is actually published and replacing exactly two
+fields, rather than rebuilding from `EARVIN_GALLARDO_EPK` — the constants and the publication have
+already drifted (the constants carry an `onChain` key the publication does not), so a rebuild
+would have shipped every other difference along with the fix, with no way to tell from the CID
+which changes were intended. Fetched back from the gateway and diffed: `artist.bio` and
+`artist.genre` differ, nothing else. `media.videos[0].title` still reads "(AI Music Video)",
+which is accurate and deliberate.
 
-`/api/epk/[identifier]` resolves the slug to `0x33fFCcb1…82b0` and calls
-`getArtistStreamingStats(artistAddress)`, which is address-keyed. The masters are under the
-deployer, so the press kit shows an empty catalogue and no figures — the same split as item A,
-in the one surface where it is most visible to an outsider.
+**Still live, still wrong.** `artistEPKs(0x33fFCcb1…)` has `createdAt == updatedAt ==
+1770019589`, so it has never been updated, and a booker still reads the old bio. Publishing needs
+one `updateEPK(string)` call on `0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D`, passing
+`QmXv14bTumtoFkLqTdP6yUxK3Uzfex4cL1b7PWmAAXZL9v` — the exact command is printed by the tool.
 
-`/api/user-stats` already takes a `fid` for exactly this; `getArtistStreamingStats` does not.
-Either give it one, or resolve the slug to the deployer address, or fix item A properly and
-neither is needed.
+It must come from the artist wallet itself. `updateEPKFor` is `onlyOwner` and `owner()` is the
+platform Safe `0xf3b9D123…`, read on chain as **threshold 2 of 3** — so that path needs two
+signatures for a record the artist can update alone.
+
+Re-running the tool after the transaction prints "nothing to do", which is the confirmation.
+
+### F. The EPK reports zero plays and zero sales — **HALF RESOLVED; re-scoped 2026-09-14**
+
+This item said the press kit "shows an empty catalogue and no figures". **The catalogue half is
+fixed**, by the re-mint recorded in item A rather than by anything done here. Read from production
+2026-09-14:
+
+```
+topSongs     5   Suddenly, Money Making Machine, Sloppy, Killah, MARINA
+totalPlays   0
+totalSales   0
+totalRevenue 0.00
+```
+
+`getArtistStreamingStats` is still address-keyed throughout — the catalogue filter at
+`lib/epk/chain.ts:134`, `artistLifetimePlays(artist)`, and `artistMonthlyPayouts(month, artist)`.
+The tracks now resolve because masters 8–12 carry the artist's address. The counters do not,
+because the history stayed behind:
+
+```
+artistLifetimePlays(0x33fFCcb1…)  = 0   <- what the EPK reads
+artistLifetimePlays(0x8dF64bAC…)  = 8   <- where the plays actually are
+```
+
+**So the remaining question is smaller and different.** Not "give it a fid" — a fid would drag the
+five suspended masters back into the catalogue alongside their live re-mints. It is whether 8
+orphaned plays and the old licence sales are worth carrying forward at all. The cheap honest
+option is to stop asserting a counter that is structurally zero: render "—" the way
+`uniqueListeners` already does, rather than printing a 0 that reads as a measurement.
 
 ### G. Every client-signed transaction was failing — **FIXED 2026-08-29, watch for fallout**
 
