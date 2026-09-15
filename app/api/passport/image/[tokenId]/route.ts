@@ -1,16 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { generatePassportSVG, PassportStamp } from '@/lib/passport/generatePassportSVG';
-import { getCountryByCode } from '@/lib/passport/countries';
-import { getStampImages } from '@/lib/stamp-images';
-import { createPublicClient, http } from 'viem';
-import { activeChain } from '@/app/chains';
+import { NextRequest, NextResponse } from "next/server";
+import {
+  generatePassportSVG,
+  PassportStamp,
+} from "@/lib/passport/generatePassportSVG";
+import { getCountryByCode } from "@/lib/passport/countries";
+import { getStampImages } from "@/lib/stamp-images";
+import { createPublicClient, http } from "viem";
+import { activeChain } from "@/app/chains";
 import {
   getPassportDetails,
   getItineraryStamps,
   getVenueStamps,
-} from '@/lib/passport-lookup';
+} from "@/lib/passport-lookup";
 
-const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as `0x${string}`;
+const PASSPORT_NFT_ADDRESS = process.env
+  .NEXT_PUBLIC_PASSPORT_NFT as `0x${string}`;
 
 /**
  * Dynamic Passport Image Generator
@@ -20,18 +24,18 @@ const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as `0x${string
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ tokenId: string }> }
+  { params }: { params: Promise<{ tokenId: string }> },
 ) {
   try {
     const { tokenId } = await params;
     const tokenIdNum = parseInt(tokenId);
 
     if (isNaN(tokenIdNum)) {
-      return NextResponse.json({ error: 'Invalid token ID' }, { status: 400 });
+      return NextResponse.json({ error: "Invalid token ID" }, { status: 400 });
     }
 
-    let countryCode = 'XX';
-    let countryName = 'Unknown';
+    let countryCode = "XX";
+    let countryName = "Unknown";
 
     // Read the contract directly. This used to try the indexer first and fall back to chain,
     // but the indexer's passport entry is two contract generations behind — it never saw V4 — so
@@ -47,14 +51,18 @@ export async function GET(
         transport: http(),
       });
 
-      const [passport] = await getPassportDetails(publicClient, PASSPORT_NFT_ADDRESS, [
-        { tokenId, countryCode: '' },
-      ]);
+      const [passport] = await getPassportDetails(
+        publicClient,
+        PASSPORT_NFT_ADDRESS,
+        [{ tokenId, countryCode: "" }],
+      );
 
       if (passport?.countryCode) {
         countryCode = passport.countryCode;
         countryName =
-          passport.countryName || getCountryByCode(countryCode)?.name || countryCode;
+          passport.countryName ||
+          getCountryByCode(countryCode)?.name ||
+          countryCode;
       }
 
       const itinerary = await getItineraryStamps(
@@ -83,33 +91,43 @@ export async function GET(
         );
         stamps = venue.map((s) => ({
           locationName: s.location,
-          city: 'Unknown',
-          country: 'Unknown',
+          city: "Unknown",
+          country: "Unknown",
           stampedAt: s.timestamp,
         }));
       }
 
-      console.log('[PassportImage] token', tokenId, countryCode, stamps.length, 'stamps');
+      console.log(
+        "[PassportImage] token",
+        tokenId,
+        countryCode,
+        stamps.length,
+        "stamps",
+      );
     } catch (err) {
       // A read failure must still produce an image: the SVG generator handles the 'XX' default,
       // and a broken picture is worse than a generic one.
-      console.error('[PassportImage] chain read failed:', err);
+      console.error("[PassportImage] chain read failed:", err);
     }
 
     // Generate the SVG
-    const svg = generatePassportSVG(countryCode, countryName, tokenIdNum, stamps);
+    const svg = generatePassportSVG(
+      countryCode,
+      countryName,
+      tokenIdNum,
+      stamps,
+    );
 
     // Return as SVG image
     return new NextResponse(svg, {
       status: 200,
       headers: {
-        'Content-Type': 'image/svg+xml',
-        'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+        "Content-Type": "image/svg+xml",
+        "Cache-Control": "public, max-age=300", // Cache for 5 minutes
       },
     });
-
   } catch (error: any) {
-    console.error('[PassportImage] Error:', error);
+    console.error("[PassportImage] Error:", error);
 
     // Return a fallback SVG
     const fallbackSvg = `<svg width="400" height="600" xmlns="http://www.w3.org/2000/svg">
@@ -120,8 +138,8 @@ export async function GET(
     return new NextResponse(fallbackSvg, {
       status: 200,
       headers: {
-        'Content-Type': 'image/svg+xml',
-        'Cache-Control': 'no-cache',
+        "Content-Type": "image/svg+xml",
+        "Cache-Control": "no-cache",
       },
     });
   }
