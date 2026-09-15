@@ -28,45 +28,37 @@ strategic, then hygiene. Effort is a rough guide, not an estimate.
 
 ## Tier 1 — something is exposed or wrong for a real user
 
-### 1. Rotate the Pimlico API key — *external exposure, do first*
+### 1. Credential rotation — *do first*
 
-A live key was written to the Railway logs on 2026-08-23 and is in that log store now. The code
-leak is fixed (`eb1502d`) and the redactor is verified, but **that stops the next key, not this
-one.** Nothing else on this list involves a credential a third party can already read.
+A provider credential needs rotating. The code-side cause is fixed (`eb1502d`) and the redactor
+is verified, so this is about the existing credential rather than a live code path.
 
-Effort: minutes, in the Pimlico dashboard. Then update `PIMLICO_BUNDLER_URL` on Railway.
+Details are deliberately not in this file — see the operator notes outside the repo. **This
+repository is public**; where a credential sits, and what still reads it, are not facts to
+publish while the rotation is outstanding.
+
+Effort: minutes, at the provider, then update the corresponding Railway variable.
 
 ### 2. `ENFORCE_QUICK_AUTH` — **the drain was already closed; the real gap was next to it**
 
-This item, and `SECURITY_ACTIONS.md` #2, both said `send_mon` / `send_tours` /
-`withdraw_to_user` "take an attacker-chosen recipient" until the flag is set. **They do not.**
-`execute-delegated:155` has a `fundMovingActions` set that fails closed on `authz.ownsAddress`
-and deliberately ignores `authz.allowed`, which is the field the flag governs. Its own comment
-says why: *"their safety must NOT depend on an env flag being set."*
+This item, and `SECURITY_ACTIONS.md` #2, both described a drain that **does not exist**: every
+action that moves funds fails closed on ownership, independently of this flag, and deliberately
+so. The route's own comment says why — *"their safety must NOT depend on an env flag being set."*
 
-`platform_send_mon` is likewise gated, by `authenticateAdminAction` over the exact recipient and
-amount.
+A separate real gap was found and **fixed 2026-08-25**: a number of value-moving handlers sat
+outside the fail-closed set. All are now gated, and `tools/verify-value-actions-gated.ts` decides
+which handlers move value by what they do and requires each to be gated, so a future one fails
+the check the day it is written. Handlers that touch value harmlessly are listed with reasons
+rather than skipped.
 
-**What was actually open**, fixed 2026-08-25: nine other actions sat in `publicActions` — which
-skips the delegation check — while spending the user's Safe, and were not in the fail-closed set.
-`buy_music`, `music-subscribe`, `mint_music`, `mint_collector`, the four radio payments,
-`studio_pay`, the vault actions, and — found by the new check rather than by reading —
-`mint_passport` (**150 WMON**) and `dao_create_deployment_proposal` (**100 MON**).
+**What remains is cleanup, not a security fix.** The flag governs non-value actions only; the
+gate that matters no longer depends on it. Order: mint a service credential for token-less
+internal callers, confirm from the logs that only known server callers are unauthenticated, then
+enable it.
 
-A stranger could POST a victim's address and make them buy a track, take out a subscription, mint
-a passport, or burn 100 MON on a DAO proposal, repeatedly. The money went to an artist or the
-platform rather than the attacker, so it is griefing rather than theft — and it is still the
-victim's funds leaving on somebody else's instruction. All are now fail-closed.
-
-`tools/verify-value-actions-gated.ts` parses both lists out of the route and every `case` body,
-decides which handlers move value by what they do, and requires each public one to be gated. A
-future action that spends a Safe fails it the day it is written. Handlers that touch value
-harmlessly — `wrap_mon`, claims, burns — are listed with reasons rather than skipped.
-
-**What remains of this item is smaller than it was.** `ENFORCE_QUICK_AUTH` is still off, so
-non-value actions still allow unauthenticated callers, and the gate that matters no longer
-depends on it. Turning it on is now cleanup, not a security fix: mint a service credential for
-token-less internal callers, watch for `[QuickAuth] … unauthenticated` in the logs, then flip it.
+Specifics — which handlers, which routes, what an unauthenticated caller can still reach — are
+kept out of this file on purpose. **This repository is public.** A ranked list of what is not yet
+enforced, with file and line, is a map; the work item is all that needs to be here.
 
 Note `radio_mark_played` is documented as the expected token-less server caller and **has no
 caller anywhere in the repo** — worth resolving before anyone plans around it.
@@ -449,10 +441,11 @@ for an unknown period. Worth one real transaction to confirm.
 
 ## Tier 4 — hygiene, real but not urgent
 
-### 13. Disable the leaked Google Maps keys in the Console
+### 13. Disable two unused third-party keys at the provider
 
-Nothing reads them since `bc3292b`, so this is not a vulnerability any more. But a key that
-leaked into a public bundle stays live until someone turns it off, and billing stays enabled.
+Nothing has read them since `bc3292b`, so there is no live code path. They stay billable until
+someone turns them off, which is the whole of the task. Provider and key identities are in the
+operator notes outside the repo.
 
 ### 14. The "AI Music" labelling — **SOURCE FIXED 2026-08-29; the LIVE page is item E**
 
@@ -483,9 +476,10 @@ can fail and does not, rather than a check that stopped looking.
 Every route this named now has a limiter: `bot-command`, `oracle/chat`, and all four upload routes
 (`upload`, `upload-json-to-ipfs`, `upload-metadata`, `upload-to-ipfs`).
 
-**CSP stands.** Production sends a `content-security-policy` header, but it carries
-`frame-ancestors` only — the Farcaster client allow-list. There is no `script-src`. The presence of
-the header is why this is worth stating precisely: anyone checking for "is there a CSP" gets a yes.
+**CSP stands.** A `content-security-policy` header is sent, but it does not yet cover script
+sources — so a check for "is there a CSP at all" answers yes and tells you nothing. Verify the
+directive list rather than the header's presence. Current contents are not restated here; this
+repository is public.
 
 ### 20. ~~82~~ 70 lint warnings
 
