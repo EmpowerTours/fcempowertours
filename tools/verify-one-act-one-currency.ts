@@ -119,6 +119,75 @@ if (rewardsBlock && /TOURS/i.test(rewardsBlock[1])) {
   );
 }
 
+/**
+ * ---- The copy has to stop promising it too.
+ *
+ * Everything above measures the MECHANISM, and that is how two of these survived: `3199f50`
+ * removed the accruals nineteen minutes after `11911f0` wrote a comment, and an error message
+ * the user reads, both stating that the TOURS ledger was still growing. The code was right and
+ * this file passed. The product went on telling people a frozen, unpayable balance was rising —
+ * which is the promise the double-pay rule exists to avoid, arriving as a sentence rather than
+ * as a line of code.
+ *
+ * So: no prose in these routes may assert that TOURS is still accruing. Stripping comments here
+ * would defeat the point — a comment is how the next person decides what the code does.
+ *
+ * Note the consequence, which is deliberate: this bans the phrasings outright, including in a
+ * comment quoting them to explain the ban. It caught this file's own first draft. Describe the
+ * old claim, do not reproduce it.
+ */
+const ACCRUAL_CLAIMS = [
+  /still accruing/i,
+  /accrual continues/i,
+  /continues? to accrue/i,
+  /keeps? accruing/i,
+  /is accruing/i,
+  /are accruing/i,
+];
+
+const earningsPath = join(
+  here,
+  "..",
+  "app",
+  "api",
+  "listener-earnings",
+  "route.ts",
+);
+const prose: [string, string][] = [
+  ["live-radio", src],
+  ["listener-earnings", readFileSync(earningsPath, "utf8")],
+];
+
+for (const [label, text] of prose) {
+  for (const claim of ACCRUAL_CLAIMS) {
+    checks++;
+    const hit = claim.exec(text);
+    if (!hit) continue;
+    // Only a claim about TOURS is wrong: the WMON pool genuinely does accrue over an open month.
+    const from = Math.max(0, hit.index - 400);
+    const context = text.slice(from, hit.index + 400);
+    if (!/TOURS/.test(context)) continue;
+    failures.push(
+      `${label} says "${hit[0]}" about TOURS. Nothing has incremented the TOURS ledger\n` +
+        `     since the accruals were removed — \`rewardEarned\` is a literal 0. Saying a frozen\n` +
+        `     balance is growing is the double-pay promise made in prose.`,
+    );
+  }
+}
+
+/** And the endpoint must not publish that ledger at all — an unread field is where a bad claim hides. */
+checks++;
+const earnings = readFileSync(earningsPath, "utf8").replace(
+  /\/\*[\s\S]*?\*\//g,
+  " ",
+);
+if (/\btours:\s*\{/.test(earnings)) {
+  failures.push(
+    "listener-earnings returns a `tours` block again. It publishes a balance that no\n" +
+      "     settlement path can pay — authorizedDistributors(V6) is false on the reward manager.",
+  );
+}
+
 if (failures.length > 0) {
   console.error(`✗ an act is rewarded in two currencies\n`);
   for (const f of failures) console.error(`  ✗ ${f}`);

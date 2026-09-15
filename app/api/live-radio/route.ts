@@ -1209,8 +1209,17 @@ export async function POST(req: NextRequest) {
       // WITHOUT transferring any TOURS, trusting a caller-supplied `txHash` it never verified.
       // Its client was removed on 2026-09-03 with the TOURS UI ("radio_claim_rewards removed",
       // execute-delegated), so nothing calls it — but reaching it destroyed the balance it
-      // claimed to pay. Accrual continues in `heartbeat`; the ledger is preserved until a
-      // settlement path exists that actually moves tokens and verifies the transaction.
+      // claimed to pay.
+      //
+      // The ledger is FROZEN, not growing. Until 2026-09-14 this comment claimed the heartbeat
+      // was still adding to it, and the message below told the user the same thing; `3199f50`
+      // removed the three accruals nineteen minutes after both were written, and neither was
+      // revisited. Nothing increments `pendingRewards` anywhere in this file any more —
+      // `rewardEarned` is a literal 0. Listening pays WMON, via computeListenerPoints and
+      // /api/listener-earnings.
+      //
+      // Historic balances stay exactly as they are: a record of what people did under the old
+      // rules. Preserved, not payable, not growing.
       console.warn(
         "[LiveRadio] claim_rewards refused: no settlement path. Preserved",
         stats.pendingRewards,
@@ -1222,7 +1231,9 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error:
-            "TOURS claiming is not available yet. Your balance is safe and still accruing.",
+            "TOURS claiming is not available. This balance is from an earlier reward scheme " +
+            "and is preserved but frozen — listening now earns WMON, claimable from the " +
+            "rewards panel.",
           pendingRewards: stats.pendingRewards,
         },
         { status: 503 },

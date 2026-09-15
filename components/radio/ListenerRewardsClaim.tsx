@@ -50,11 +50,9 @@ interface PendingData {
 
 interface EarningsData {
   pending?: PendingData;
-  tours: {
-    pendingRewards: number;
-    totalRewardsEarned: number;
-    firstListenerBonuses: number;
-  };
+  // No `tours` block: /api/listener-earnings stopped returning one on 2026-09-14. Nothing here
+  // ever read it — the Pending TOURS tile came out on 2026-09-03, see the comment below the
+  // Total Claimed stat. Listening pays WMON.
   wmon: {
     totalClaimable: string;
     totalClaimed: string;

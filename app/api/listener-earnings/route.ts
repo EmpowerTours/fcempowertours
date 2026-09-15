@@ -20,13 +20,23 @@ import {
 /**
  * Listener Earnings API
  *
- * Shows a listener's WMON earnings from the 20% DAO reserve pool,
- * plus their TOURS rewards from radio listening.
+ * What a listener has earned, and it is WMON only. Listening does not pay TOURS — the three
+ * accruals were removed in `3199f50` because each one billed a second currency for an act the
+ * WMON split already paid for. See `lib/listener-points.ts`.
+ *
+ * This used to return a `tours` block as well, carrying `pendingRewards` off the Redis ledger.
+ * Removed 2026-09-14: nothing has rendered it since the TOURS UI came out on 2026-09-03, nothing
+ * increments it since 3199f50, and `radio_claim_rewards` fails closed because there is no
+ * settlement path — `authorizedDistributors(MusicSubscriptionV6)` is `false` on the reward
+ * manager, confirmed on chain. Publishing a balance in an API is a promise; this one could not be
+ * kept in any currency, and an unread field is exactly where that kind of claim survives unnoticed.
+ * The Redis balances themselves are untouched — they are a record of what people did, and
+ * deleting them is a separate decision with a separate blast radius.
  *
  * Data sources:
- * - Redis: live-radio listener stats (songs listened, streaks, pending TOURS)
+ * - Redis: live-radio listener stats (songs listened, streaks) + verified claim receipts
  * - On-chain: ListenerRewardPool (WMON allocations and claims)
- * - On-chain: MusicSubscriptionV5 (total reserve balance)
+ * - On-chain: MusicSubscriptionV6 (reserve balance, month stats, RESERVE_PERCENTAGE)
  */
 
 const redis = new Redis({
@@ -310,13 +320,8 @@ export async function GET(req: NextRequest) {
       address: listenerAddress,
       // Not yet claimable — accruing for the open month.
       pending,
-      // TOURS rewards (from radio listening)
-      tours: {
-        pendingRewards: stats.pendingRewards,
-        totalRewardsEarned: stats.totalRewardsEarned,
-        firstListenerBonuses: stats.firstListenerBonuses,
-      },
-      // WMON rewards (from 20% DAO reserve)
+      // WMON rewards, from the reserve share of subscription revenue. The only currency
+      // listening pays in; see the header for why the `tours` block is gone.
       wmon: wmonEarnings,
       // Listening activity
       activity: {
