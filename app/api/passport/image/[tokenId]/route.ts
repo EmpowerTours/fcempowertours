@@ -89,11 +89,23 @@ export async function GET(
           PASSPORT_NFT_ADDRESS,
           tokenIdNum,
         );
+        // `city` carries the label, not `locationName`: generatePassportSVG reads
+        // `stamp.city || stamp.locationName`, so a placeholder in `city` wins the chain and
+        // the real name is never reached. This mapped it to the literal "Unknown", so
+        // passport #4 rendered "UNKNOWN 07 SEPT 26" here while the pinned NFT image — written
+        // by lib/passport/refresh.ts, which sets `city: s.location` — read "UNIFY34".
+        //
+        // `verified` was dropped entirely, which is the worse half: the SVG treats a missing
+        // claim as unattested by design, so an oracle-attested stamp rendered PENCILLED —
+        // the visual language for "nobody signed this". Both values are on the struct and
+        // were already being read; only this mapping discarded them.
         stamps = venue.map((s) => ({
           locationName: s.location,
-          city: "Unknown",
-          country: "Unknown",
+          city: s.location,
+          country: countryName,
           stampedAt: s.timestamp,
+          experienceType: s.eventType,
+          verified: s.verified,
         }));
       }
 
