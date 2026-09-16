@@ -46,6 +46,9 @@ export function EPKModal({
   const isEdit = !!existingEpk;
   const [step, setStep] = useState<Step>("artist");
   const [publishing, setPublishing] = useState(false);
+  // What the user is waiting on. Pinning and signing are separate waits and the second one
+  // needs their attention, so it says so rather than spinning silently.
+  const [publishStep, setPublishStep] = useState<string | null>(null);
   const [published, setPublished] = useState(false);
   const [publishResult, setPublishResult] = useState<any>(null);
   const [error, setError] = useState("");
@@ -309,12 +312,49 @@ export function EPKModal({
         throw new Error(data.error || "Failed to publish EPK");
       }
 
-      setPublishResult(data);
-      setPublished(true);
+      // ---- The document is pinned; now the ARTIST registers it.
+      //
+      // The route used to do this itself, relaying through the user's Safe — which made the Safe
+      // the `msg.sender` the registry keys on, and is how the platform Safe became a registered
+      // artist in February. The press kit belongs to the address that signs for it, so the
+      // signature has to come from here.
+      //
+      // Pinning without registering is a real half-state and is reported as one: the CID exists,
+      // the public page has not moved. Saying "published" at this point would be the same lie as
+      // announcing a claim for a transaction that reverted.
+      if (data.tx) {
+        setPublishStep("Confirm in your wallet to publish…");
+        try {
+          const { publishEPKOnChain } = await import("@/lib/epk-publish");
+          const result = await publishEPKOnChain(
+            data.tx,
+            userAddress as `0x${string}`,
+            data.ipfsCid,
+            isEdit,
+          );
+          setPublishResult({
+            ...data,
+            txHash: result.txHash,
+            explorer: `https://monadscan.com/tx/${result.txHash}`,
+          });
+          setPublished(true);
+        } catch (chainErr: unknown) {
+          const { explainPublishError: explain } = await import(
+            "@/lib/epk-publish"
+          );
+          setError(
+            `${explain(chainErr)} The document is pinned (${data.ipfsCid}) but the press kit has not changed — publishing again will retry the signature.`,
+          );
+        }
+      } else {
+        setPublishResult(data);
+        setPublished(true);
+      }
     } catch (err: any) {
       setError(err.message || "Publishing failed");
     } finally {
       setPublishing(false);
+      setPublishStep(null);
     }
   };
 
@@ -803,7 +843,9 @@ export function EPKModal({
                     {publishing ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        {isEdit ? "Updating..." : "Publishing..."}
+                        {/* Two waits, not one: pinning is passive, signing needs them. */}
+                        {publishStep ||
+                          (isEdit ? "Updating..." : "Publishing...")}
                       </>
                     ) : (
                       <>
