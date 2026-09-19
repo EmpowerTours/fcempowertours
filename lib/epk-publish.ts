@@ -31,6 +31,9 @@ import {
 import { activeChain } from "@/app/chains";
 import { resolveWalletProvider } from "@/lib/wallet-provider";
 
+/** Monad mainnet, 143. The chain every call in this file is for. */
+const MONAD_CHAIN_ID_HEX = "0x8f";
+
 const REGISTRY_ABI = parseAbi([
   "function artistEPKs(address) view returns (string ipfsCid, uint256 artistFid, uint256 createdAt, uint256 updatedAt, bool active)",
 ]);
@@ -134,9 +137,29 @@ export async function publishEPKOnChain(
 
   const provider = await getProvider();
 
+  // ---- Name the chain, or the wallet signs on Base.
+  //
+  // The Farcaster wallet stays on whatever chain it is already on — Base by default — and will
+  // cheerfully present a Monad transaction there. Confirming does nothing: the contract does not
+  // exist on that chain, and nothing errors. The user taps confirm and watches an empty result.
+  //
+  // `tools/verify-tx-names-its-chain.ts` exists because this already happened to the catalogue
+  // re-publish. It walks app/ and components/ and did not walk lib/, which is why this file
+  // shipped without it. The scan now covers lib/ too.
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: MONAD_CHAIN_ID_HEX }],
+    });
+  } catch {
+    // Already on Monad, or the host does not support switching.
+  }
+
   const hash = (await provider.request({
     method: "eth_sendTransaction",
-    params: [{ from, to: tx.to, data: tx.data }],
+    // chainId is named on the transaction as well as switched: a host that ignores the switch
+    // request still gets told which chain this is for, rather than defaulting to its current one.
+    params: [{ from, to: tx.to, data: tx.data, chainId: MONAD_CHAIN_ID_HEX }],
   })) as Hex;
 
   const receipt = await publicClient().waitForTransactionReceipt({

@@ -57,6 +57,20 @@ export default function ApproveGaslessPage() {
       // Request accounts if needed
       await ethereum.request({ method: "eth_requestAccounts" });
 
+      // The contract is on Monad mainnet; ask the wallet to switch if it is not.
+      // Without this the wallet stays on whatever chain it is on — Base by default — and offers
+      // to sign a Monad transaction there. Confirming does nothing at all, because the contract
+      // does not exist on that chain, and nothing errors. Found 2026-09-19 by widening
+      // tools/verify-tx-names-its-chain.ts to scan lib/, which surfaced this page too.
+      try {
+        await ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0x8f" }],
+        });
+      } catch {
+        // Already on Monad, or the host does not support switching.
+      }
+
       // Send transaction
       const hash = await ethereum.request({
         method: "eth_sendTransaction",
@@ -66,6 +80,7 @@ export default function ApproveGaslessPage() {
             to: MUSIC_NFT_V5,
             data,
             value: "0x0",
+            chainId: "0x8f",
           },
         ],
       });
