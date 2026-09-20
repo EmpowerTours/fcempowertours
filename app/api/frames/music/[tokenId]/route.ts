@@ -94,7 +94,10 @@ export async function GET(
           type: "launch_frame",
           name: "EmpowerTours",
           url: artistProfileUrl,
-          splashImageUrl: `${APP_URL}/splash.png`,
+          // public/ has images/splash.png and no bare splash.png, so this 404d — the frame still
+          // launched, with a broken splash on the first screen a new listener sees. The manifest
+          // and six other references already use the /images/ path; these two did not.
+          splashImageUrl: `${APP_URL}/images/splash.png`,
           splashBackgroundColor: "#0f172a",
         },
       },
