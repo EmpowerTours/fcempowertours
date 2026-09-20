@@ -1,3 +1,4 @@
+import { signedHosts } from "@/lib/farcaster-associations";
 import { NextRequest } from "next/server";
 import { createClient, Errors } from "@farcaster/quick-auth";
 
@@ -45,19 +46,45 @@ export function isQuickAuthEnforced(): boolean {
  * host exactly — a token minted for another domain is not valid here.
  */
 export function getQuickAuthDomain(): string {
-  const explicit = process.env.QUICK_AUTH_DOMAIN;
-  if (explicit)
-    return explicit.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  return acceptedQuickAuthDomains()[0];
+}
 
+/**
+ * Every domain a Quick Auth token may legitimately have been issued for.
+ *
+ * A token's `aud` is the domain the mini app was LAUNCHED from — not the domain we would prefer
+ * it to be. Both signed hosts serve a manifest naming themselves as `homeUrl`, so a client that
+ * fetched the old one keeps launching there and keeps minting tokens for it.
+ *
+ * Checking a single domain broke exactly that case: after the cutover to art.empowertours.xyz,
+ * a mint from a client still on the Railway host was refused with
+ * `unexpected "aud" claim value`, and because useActionAuth has no wallet fallback inside
+ * Farcaster, there was no second chance — the mint just failed.
+ *
+ * So accept any host we sign for, which is the same set the manifest serves. `QUICK_AUTH_DOMAIN`
+ * still wins when set, for pinning to one host deliberately; unset is the better default,
+ * because it needs no attention on the next domain move.
+ */
+export function acceptedQuickAuthDomains(): string[] {
+  const explicit = process.env.QUICK_AUTH_DOMAIN;
+  if (explicit) {
+    return [explicit.replace(/^https?:\/\//, "").replace(/\/.*$/, "")];
+  }
+
+  const domains: string[] = [];
   const appUrl = process.env.NEXT_PUBLIC_URL;
   if (appUrl) {
     try {
-      return new URL(appUrl).host;
+      domains.push(new URL(appUrl).host);
     } catch {
       // fall through
     }
   }
-  return "fcempowertours-production-6551.up.railway.app";
+  for (const h of signedHosts()) if (!domains.includes(h)) domains.push(h);
+  if (domains.length === 0) {
+    domains.push("fcempowertours-production-6551.up.railway.app");
+  }
+  return domains;
 }
 
 function extractBearerToken(req: NextRequest): string | null {
@@ -119,10 +146,20 @@ export async function verifyQuickAuth(
   }
 
   try {
-    const payload = await client.verifyJwt({
-      token,
-      domain: getQuickAuthDomain(),
-    });
+    // Try each signed host. The token names ONE of them; which one depends on where the client
+    // launched the app, which we do not control.
+    const domains = acceptedQuickAuthDomains();
+    let payload: Awaited<ReturnType<typeof client.verifyJwt>> | null = null;
+    let lastErr: unknown = null;
+    for (const domain of domains) {
+      try {
+        payload = await client.verifyJwt({ token, domain });
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (!payload) throw lastErr;
 
     const fid = Number(payload.sub);
     if (!Number.isInteger(fid) || fid <= 0) {

@@ -81,6 +81,28 @@ export function signedDomain(a: AccountAssociation): string | null {
   }
 }
 
+/**
+ * Every host we hold a signed association for.
+ *
+ * A Quick Auth token's `aud` is the domain the mini app was LAUNCHED from, and a client keeps
+ * launching whichever host's manifest it last fetched. Both hosts here serve a valid manifest
+ * advertising themselves as `homeUrl` — deliberately, because a signature is bound to one domain
+ * and neither would validate otherwise during a cutover.
+ *
+ * So both can legitimately mint tokens, and the token verifier has to accept both. It did not:
+ * it checked a single domain, and every fund-moving action from a client still on the old host
+ * failed with `unexpected "aud" claim value`. The manifest layer was multi-host and the auth
+ * layer was not.
+ *
+ * If we sign for a host, we accept tokens from it. Drop a host from the map and it stops being
+ * accepted in the same change — which is the point.
+ */
+export function signedHosts(): string[] {
+  return Object.keys({ ...BUILT_IN, ...fromEnv() }).map((h) =>
+    h.split(":")[0].toLowerCase(),
+  );
+}
+
 export function associationForHost(host: string | null | undefined): {
   association: AccountAssociation;
   matched: boolean;
