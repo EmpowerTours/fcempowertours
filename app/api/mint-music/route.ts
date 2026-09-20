@@ -239,7 +239,23 @@ export async function POST(req: NextRequest) {
     const sanitizedTitle = sanitizeInput(songTitle || 'Untitled', 200);
 
     // Parse price
-    const MIN_PRICE = 35;
+    //
+    // Lowered from 35 to 0.5 on 2026-09-20, to let a work be priced under one
+    // MON. This is an APP floor, not a contract rule: SalesController only
+    // ever refuses exactly zero (`if (price == 0) revert ZeroPrice()` in
+    // _createMaster, purchase and setPricing), so 0.5 is a product decision
+    // and nothing on chain cares.
+    //
+    // It exists because hunt pays a spawn 1 MON and a hunter signs their own
+    // purchase, so the transfer costs gas on top of the price. Priced at 1 a
+    // wallet holding exactly one spawn cannot buy — it needs 1.0022 — and the
+    // work becomes a two-spawn item. At 0.9 a single spawn covers price and
+    // gas with room to spare, which makes it the first thing a new hunter can
+    // ever afford.
+    //
+    // Note Math.max below: a request BELOW the floor is silently raised, not
+    // rejected. Ask for 0.1 and you get 0.5 with no error.
+    const MIN_PRICE = 0.5;
     let finalPrice = MIN_PRICE;
     let priceInWei: bigint;
     try {
