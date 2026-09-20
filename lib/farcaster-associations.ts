@@ -30,15 +30,20 @@ const BUILT_IN: Record<string, AccountAssociation> = {
       "MHg0ZDcxNzU1ZjA0N2I4ZjE4Zjg5ZWM3YWFhMmU1NjUwNmY4MGFhOTg0ZDc0Y2ZkMmMxY2JkZGI0NjJmZmZlOGEwNWU2N2U1NTI2NWJjZDg0MmNlYTI5YzA2MmZmNzMzNTA5ZGQ3MjJmYWYzMDI3N2E4YWRmMDg0M2NhMzZkOWRkODFi",
   },
   // Signed 2026-09-20 with the same FID 765994 custody key. Note the signature
-  // encoding differs from the one above: the current Farcaster tool emits the raw
-  // 65-byte secp256k1 signature base64-encoded, where the older blob is a base64
-  // of the "0x…" hex string. Both are accepted; do not "normalise" either one.
-  "music.empowertours.xyz": {
+  // encoding differs from the railway blob above: the current Farcaster tool emits
+  // the raw 65-byte secp256k1 signature base64-encoded, where the older blob is a
+  // base64 of the "0x…" hex string. Both are accepted; do not "normalise" either.
+  //
+  // art.empowertours.xyz is the canonical domain: the app carries both ART and MUSIC
+  // masters, and "art" reads as inclusive of music where "music" excludes visual art.
+  // music.empowertours.xyz was signed earlier the same day and then retired so the
+  // label can be reused for a different service.
+  "art.empowertours.xyz": {
     header:
       "eyJmaWQiOjc2NTk5NCwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDVDNDQwOWM4ODcxQzc1NjAzOTI2NGZmQTE3QTUxNENFMzE3RjdhM2MifQ",
-    payload: "eyJkb21haW4iOiJtdXNpYy5lbXBvd2VydG91cnMueHl6In0",
+    payload: "eyJkb21haW4iOiJhcnQuZW1wb3dlcnRvdXJzLnh5eiJ9",
     signature:
-      "75gB1x5797kGTjGuCatOUBl6nUGFE8LNBCgaD0FnFxgMgpA5ZS+TPapBCZMrdTQGV3HMjKruxPRUFEv2lUmgjxs=",
+      "yfKRxDepiutH4XkfuVFIMkZg+kZXdkXx/KNnQMhMX2gmwpNLUpV6jQWTtq31jKxgoDG3S7YM67pcZ0OVz8JaMBs=",
   },
 };
 
