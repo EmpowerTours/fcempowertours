@@ -468,13 +468,21 @@ export function CreateNFTModal({
       rejectAt(2, "If providing a preview, please also provide the full track");
       return;
     }
-    // 35 is the floor both price inputs already advertise with min="35". HTML
-    // min does not constrain a value set in state, and neither
-    // validateMintRequest nor the contract has a floor — so nothing enforced it
-    // anywhere, and a mistyped or defaulted price went on chain silently.
+    // The floor both price inputs advertise with min=. HTML min does not
+    // constrain a value set in state, and neither validateMintRequest nor the
+    // contract has a floor — the contract refuses only exactly zero — so
+    // nothing else enforces this, and a mistyped or defaulted price would go
+    // on chain silently. That is why the check exists, and it still does.
+    //
+    // Lowered 35 -> 0.5 on 2026-09-20 so a work can be priced under one MON.
+    // A hunt spawn pays 1 MON and a hunter signs their own purchase, so they
+    // need the price PLUS gas: priced at 1 a single spawn is not enough, at
+    // 0.8 it is. Read the sale-economics note on that coupling before raising
+    // this back. The guard keeps its job — 0.5 still catches a price that
+    // defaulted to nothing, which is the mistake it was written for.
     const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum < 35 || priceNum > 100_000_000) {
-      rejectAt(3, "Licence price must be between 35 and 100,000,000 WMON");
+    if (isNaN(priceNum) || priceNum < 0.5 || priceNum > 100_000_000) {
+      rejectAt(3, "Licence price must be between 0.5 and 100,000,000 WMON");
       return;
     }
     // Collector edition validations
@@ -1468,7 +1476,7 @@ export function CreateNFTModal({
                       <input
                         type="number"
                         step="1"
-                        min="35"
+                        min="0.5"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
                         placeholder="Enter amount"
@@ -1532,10 +1540,10 @@ export function CreateNFTModal({
                           <input
                             type="number"
                             step="1"
-                            min="35"
+                            min="0.5"
                             value={price}
                             onChange={(e) => setPrice(e.target.value)}
-                            placeholder="35"
+                            placeholder="0.8"
                             className={`flex-1 px-6 py-3 text-lg rounded-sm border focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 ${
                               isDarkMode
                                 ? "bg-ink-raised border-amber-500/30 text-white placeholder-gray-500"
@@ -2240,7 +2248,7 @@ Full agreement text is stored on IPFS and referenced in the NFT metadata as a cr
             <ul className="text-sm text-gray-300 space-y-2">
               <li className="flex items-start gap-2">
                 <span className="text-muted">•</span>
-                <span>Set your price in WMON (minimum 35 WMON)</span>
+                <span>Set your price in WMON (minimum 0.5 WMON)</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-muted">•</span>
