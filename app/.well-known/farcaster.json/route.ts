@@ -1,43 +1,62 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { APP_URL } from "../../../lib/constants";
-export async function GET() {
+import { associationForHost } from "../../../lib/farcaster-associations";
+
+/**
+ * Serve the manifest for the domain it was requested on.
+ *
+ * Both the URLs and the accountAssociation have to match the serving host: the
+ * signature is bound to one domain, and Farcaster reads homeUrl from the manifest
+ * it fetched. Deriving the origin from the request lets the railway domain and the
+ * custom domain both serve valid manifests during a cutover.
+ */
+function originFrom(req: Request): string {
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  if (!host) return APP_URL;
+  const proto =
+    req.headers.get("x-forwarded-proto") ??
+    (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+export async function GET(req: Request) {
+  const origin = originFrom(req);
+  const host = new URL(origin).host;
+  const { association, matched } = associationForHost(host);
+
   const farcasterConfig = {
     frame: {
       name: "EmpowerTours",
       version: "1",
-      iconUrl: `${APP_URL}/images/icon.png`,
-      homeUrl: `${APP_URL}`,
-      imageUrl: `${APP_URL}/images/feed.png`,
+      iconUrl: `${origin}/images/icon.png`,
+      homeUrl: `${origin}`,
+      imageUrl: `${origin}/images/feed.png`,
       buttonTitle: "EmpowerTours",
-      splashImageUrl: `${APP_URL}/images/splash.png`,
+      splashImageUrl: `${origin}/images/splash.png`,
       splashBackgroundColor: "#353B48",
-      webhookUrl: `${APP_URL}/api/webhook`,
+      webhookUrl: `${origin}/api/webhook`,
       subtitle: "Travel Stamp Buy Experiences",
-      description: "Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.",
+      description:
+        "Mint and share Travel and Music NFTs on EmpowerTours, powered by Monad and Farcaster.",
       primaryCategory: "social",
-      screenshotUrls: [
-        `${APP_URL}/images/screenshot1.png`
-      ],
-      heroImageUrl: `${APP_URL}/images/hero.png`,
-      tags: [
-        "travel",
-        "music",
-        "nfts",
-        "farcaster",
-        "monad"
-      ],
+      screenshotUrls: [`${origin}/images/screenshot1.png`],
+      heroImageUrl: `${origin}/images/hero.png`,
+      tags: ["travel", "music", "nfts", "farcaster", "monad"],
       tagline: "Unlock travel adventures",
       ogTitle: "EmpowerTours - DigitalPassport",
       ogDescription: "Mint and share Travel and Music NFTs on EmpowerTours.",
-      ogImageUrl: `${APP_URL}/images/og-image.png`,
-      castShareUrl: `${APP_URL}/share-cast`
+      ogImageUrl: `${origin}/images/og-image.png`,
+      castShareUrl: `${origin}/share-cast`,
     },
-    accountAssociation: {
-      header: "eyJmaWQiOjc2NTk5NCwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDVDNDQwOWM4ODcxQzc1NjAzOTI2NGZmQTE3QTUxNENFMzE3RjdhM2MifQ",
-      payload: "eyJkb21haW4iOiJmY2VtcG93ZXJ0b3Vycy1wcm9kdWN0aW9uLTY1NTEudXAucmFpbHdheS5hcHAifQ",
-      signature: "MHg0ZDcxNzU1ZjA0N2I4ZjE4Zjg5ZWM3YWFhMmU1NjUwNmY4MGFhOTg0ZDc0Y2ZkMmMxY2JkZGI0NjJmZmZlOGEwNWU2N2U1NTI2NWJjZDg0MmNlYTI5YzA2MmZmNzMzNTA5ZGQ3MjJmYWYzMDI3N2E4YWRmMDg0M2NhMzZkOWRkODFi"
-    }
+    accountAssociation: association,
   };
+
+  if (!matched) {
+    console.warn(
+      `farcaster.json served on unsigned host "${host}" - manifest will not validate there`,
+    );
+  }
+
   return NextResponse.json(farcasterConfig);
 }
