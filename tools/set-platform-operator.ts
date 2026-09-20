@@ -31,11 +31,15 @@ const EXPECTED_CHAIN_ID = 143;
 //
 // The pre-flight below refuses anything where the signer is not owner(), so a
 // wrong address fails before it can spend.
-const PASSPORT =
+const PASSPORT_ARG =
   process.argv[2] || "0x4D5533e29Cf190131885Dc7Dbef22e31F4252410";
-if (!/^0x[0-9a-fA-F]{40}$/.test(PASSPORT)) {
-  throw new Error(`Not an address: ${PASSPORT}`);
+if (!/^0x[0-9a-fA-F]{40}$/.test(PASSPORT_ARG)) {
+  throw new Error(`Not an address: ${PASSPORT_ARG}`);
 }
+// A regex test cannot narrow `string` to viem's `0x${string}`, so the assertion
+// states what the throw above already guarantees. It is narrowing after a real
+// check, not a cast used to silence one.
+const PASSPORT = PASSPORT_ARG as `0x${string}`;
 
 const abi = parseAbi([
   "function owner() view returns (address)",
@@ -43,7 +47,7 @@ const abi = parseAbi([
   "function setPlatformOperator(address operator) external",
 ]);
 
-function loadKey() {
+function loadKey(): `0x${string}` {
   const line = readFileSync(".env", "utf8")
     .split("\n")
     .find((l) => l.startsWith("DEPLOYER_PRIVATE_KEY="));
@@ -52,7 +56,9 @@ function loadKey() {
     .slice("DEPLOYER_PRIVATE_KEY=".length)
     .trim()
     .replace(/^["']|["']$/g, "");
-  return raw.startsWith("0x") ? raw : "0x" + raw;
+  // Normalised to 0x above, so the assertion restates a guarantee this function
+  // itself provides. The key is read and passed on; it is never printed.
+  return (raw.startsWith("0x") ? raw : "0x" + raw) as `0x${string}`;
 }
 
 const account = privateKeyToAccount(loadKey());
@@ -72,7 +78,11 @@ if (chainId !== EXPECTED_CHAIN_ID) {
   throw new Error(`Wrong chain: ${chainId}, expected ${EXPECTED_CHAIN_ID}`);
 }
 
-const owner = await pub.readContract({ address: PASSPORT, abi, functionName: "owner" });
+const owner = await pub.readContract({
+  address: PASSPORT,
+  abi,
+  functionName: "owner",
+});
 if (owner.toLowerCase() !== account.address.toLowerCase()) {
   throw new Error(`Signer ${account.address} is not owner() ${owner}`);
 }

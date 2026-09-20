@@ -12,6 +12,8 @@
     "dev": "NODE_OPTIONS='--no-deprecation' next dev -H 0.0.0.0",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_OPTIONS='--no-deprecation' PORT=${PORT:-8080} NODE_ENV=production node .next/standalone/server.js",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "tsx tools/e2e/run.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "prepare": "husky"
   },

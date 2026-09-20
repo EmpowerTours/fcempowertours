@@ -1,0 +1,17 @@
+{
+  "//": "The root tsconfig EXCLUDES tools/, so `npm run typecheck` never sees it. This config is the root one with that exclusion lifted. It lives at the repo root on purpose: `paths` ({ \"@/*\": [\"./*\"] }) resolves relative to the config file that declares it, so a tools/tsconfig.json would silently break every @/ import and report 'Cannot find module' on files that are fine.",
+  "extends": "./tsconfig.json",
+  "//allowImportingTsExtensions": "The invariants run under `node --experimental-strip-types`, which requires the .ts extension on relative imports. Without it the typechecker rejects the very import style the runtime demands. (tsc rejects unknown keys INSIDE compilerOptions, so notes live at the top level.)",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true
+  },
+  "include": ["next-env.d.ts", "tools/**/*.ts", "lib/**/*.ts", "app/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "contracts",
+    "scripts",
+    "discord-bot",
+    "mon-rescue-service",
+    "monad-trading-bot"
+  ]
+}

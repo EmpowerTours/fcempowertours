@@ -1,0 +1,41 @@
+{
+  "//": "Real eth_call return data, recorded from Monad mainnet so the decode can be tested with no network. Re-record with the commands in `capturedBy` if the contract is redeployed; do NOT hand-edit the hex.",
+  "//keyScannerNote": "Every `raw` value below is ABI-encoded CALL RETURN DATA. It is hash-shaped -- 64-hex words, the same shape as a private key or a keccak digest -- which is why the pre-commit key scanner stops on it. These are public chain reads of monthlyStats and two percentage getters, recorded at a named block from a public RPC, and contain no key material.",
+  "chainId": 143,
+  "block": 106510529,
+  "capturedAtUtc": "2026-09-20",
+  "contracts": {
+    "musicSubscriptionV6": "0xc7EDB67B59B8B89cF4E9bA9bd7b940052563611B",
+    "salesController": "0xf824D444AAf251EB2197836FFb218d48927F8cB1"
+  },
+  "capturedBy": [
+    "cast call $V6 'monthlyStats(uint256)' 689 --rpc-url https://rpc.monad.xyz --block 106510529",
+    "cast call $V6 'monthlyStats(uint256)' 690 --rpc-url https://rpc.monad.xyz --block 106510529",
+    "cast call $V6 'RESERVE_PERCENTAGE()'  --rpc-url https://rpc.monad.xyz --block 106510529",
+    "cast call $V6 'ARTIST_POOL_PERCENTAGE()' --rpc-url https://rpc.monad.xyz --block 106510529",
+    "cast call $SC 'treasuryFeeBps()' --rpc-url https://rpc.monad.xyz --block 106510529"
+  ],
+
+  "monthlyStats": {
+    "//": "MonthlyStats is (uint256 totalRevenue, uint256 totalPlays, uint256 distributedAmount, bool finalized) — FOUR words, decoded BY POSITION by live app routes.",
+    "689": {
+      "note": "A finalized month. 15 WMON in, 10.5 WMON distributed to the artist pool.",
+      "//shape": "bytes32 words, hash-shaped, not key material",
+      "raw": "0x000000000000000000000000000000000000000000000000d02ab486cedc0000000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000091b77e5e5d9a00000000000000000000000000000000000000000000000000000000000000000001"
+    },
+    "690": {
+      "note": "The month that was current at capture: revenue taken, nothing distributed yet.",
+      "//shape": "bytes32 words, hash-shaped, not key material",
+      "raw": "0x000000000000000000000000000000000000000000000000d02ab486cedc0000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+
+  "scalars": {
+    "//": "Single uint256 returns, recorded raw for the same reason.",
+    "//shape": "bytes32 words, hash-shaped, not key material",
+    "reservePercentage": "0x0000000000000000000000000000000000000000000000000000000000000014",
+    "artistPoolPercentage": "0x0000000000000000000000000000000000000000000000000000000000000046",
+    "//shape2": "bytes32 word, hash-shaped, not key material",
+    "treasuryFeeBps": "0x00000000000000000000000000000000000000000000000000000000000003e8"
+  }
+}

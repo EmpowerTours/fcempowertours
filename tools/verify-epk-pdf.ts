@@ -103,7 +103,12 @@ const live = JSON.parse(
         ),
       },
     ]),
-  ) as EPKMetadata["technicalRider"];
+    // Via `unknown` on purpose. TechnicalRider names its sections (stage, sound,
+    // lighting, ...) and this deliberately supplies twelve arbitrary ones — the
+    // point of the case is a rider the type does not describe, which is what
+    // production actually sent. A direct cast is rejected for exactly that
+    // reason, so widening first is the honest way to say "yes, wrong shape".
+  ) as unknown as EPKMetadata["technicalRider"];
 
   const pdf = await render(huge);
   check("an EPK built to overflow still finishes", pdf !== null, true);

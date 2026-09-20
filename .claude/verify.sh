@@ -109,6 +109,103 @@ if [ -f package.json ]; then
 fi
 
 # =============================================================================
+# BROWSER - the only step here that opens a page
+# =============================================================================
+# Everything else in this file reads source or decodes a fixture. The bugs that
+# have actually reached users were display bugs, which is the one thing none of
+# that can see. tools/e2e/run.ts boots the app and asserts four things that are
+# wrong on any page, forever: raw wei shown to a human, a page with no
+# stylesheet, a page that threw, a manifest naming a host that did not serve it.
+#
+# Costs ~90s (it builds nothing, but it does boot next start), so it follows the
+# build's convention: OFF for the in-session stop-gate, ON for the commit gate.
+#
+#   VERIFY_SKIP_E2E=0   force it on
+if [ -f tools/e2e/run.ts ]; then
+    step "browser"
+    if [ "${VERIFY_SKIP_E2E:-0}" = "1" ]; then
+        skip "browser checks (VERIFY_SKIP_E2E=1)"
+    elif [ ! -d node_modules/playwright ]; then
+        skip "playwright not installed"
+    elif [ ! -d "$HOME/.cache/ms-playwright" ]; then
+        # Could-not-check, not a pass: `npx playwright install chromium` fixes it.
+        skip "no chromium build - run: npx playwright install chromium"
+    else
+        E2E_TIMEOUT=$(( STEP_TIMEOUT > 300 ? STEP_TIMEOUT : 300 ))
+        run "browser checks" bash -lc "E2E_PORT=3319 timeout $E2E_TIMEOUT npx tsx tools/e2e/run.ts"
+    fi
+fi
+
+# =============================================================================
+# DEPLOY ARTIFACT - the thing that actually ships, not just the thing that compiles
+# =============================================================================
+# A green typecheck+build says the source is sound. It does NOT say the artifact
+# the host runs was produced. Both failure modes below have a shipped precedent:
+# a Dockerfile that stopped building while CI stayed green, and a Next standalone
+# tree served with no CSS and no images because the build's `cp` steps were lost.
+#
+#   VERIFY_SKIP_DOCKER=1   skip the (slow) image build
+#
+# Deliberately placed BEFORE the safety section so these count toward RAN: they
+# are proof about code, not repo hygiene.
+
+if [ -f Dockerfile ]; then
+    step "deploy artifact (docker)"
+    if [ "${VERIFY_SKIP_DOCKER:-0}" = "1" ]; then
+        skip "docker build (VERIFY_SKIP_DOCKER=1)"
+    elif ! command -v docker >/dev/null 2>&1; then
+        skip "docker not installed"
+    elif ! docker info >/dev/null 2>&1; then
+        # A stopped daemon must not read as a pass, and must not read as a fail
+        # either - it is a could-not-check.
+        skip "docker daemon not reachable"
+    else
+        # Tag is repo-scoped so parallel repo verifies do not clobber each other.
+        run "docker build" bash -lc "docker build -q -t verify-$(basename "$PWD"):ci . >/dev/null"
+    fi
+fi
+
+# Next.js standalone output: `next build` alone emits server.js with NO static
+# assets and NO public/, so the deploy serves an unstyled, imageless site. The
+# build script copies both in; this asserts the copies actually landed. Gated on
+# the build script naming standalone, so a non-standalone Next repo skips it.
+if [ -f package.json ] && grep -q '\.next/standalone' package.json 2>/dev/null; then
+    step "deploy artifact (next standalone)"
+    if [ "${VERIFY_SKIP_BUILD:-0}" = "1" ]; then
+        skip "standalone artifact (build was skipped, so there is nothing to check)"
+    elif [ ! -d .next/standalone ]; then
+        fail "package.json builds a standalone tree but .next/standalone is absent"
+    else
+        # Next nests the entrypoint under the path from its inferred file-tracing
+        # ROOT to the app, so server.js is flat on Railway (app at /app) but at
+        # .next/standalone/projects/fcempowertours/ here, where a parent dir holds
+        # node_modules. Asserting the prod path would fail locally on a correct
+        # build - the check every developer learns to ignore. Find it instead.
+        # -not -path node_modules is load-bearing: react-dom ships its own
+        # server.js, and matching that made this pass on a tree with no Next
+        # entrypoint at all. A check that cannot fail is not a check.
+        SA_SERVER=$(find .next/standalone -maxdepth 5 -name server.js \
+            -not -path '*/node_modules/*' -print -quit 2>/dev/null)
+        if [ -n "$SA_SERVER" ]; then pass "standalone has an entrypoint ($SA_SERVER)"
+        else fail "standalone has NO server.js - 'output: standalone' missing from next.config?"; fi
+
+        # The two cp steps in the build script. Their destination is the top of
+        # the standalone tree in both layouts, so these paths ARE portable.
+        if [ -d .next/standalone/public ]; then pass "standalone has public/ (images, manifest icons)"
+        else fail "standalone is MISSING public/ - the build's 'cp -r public' step was lost"; fi
+
+        # `cp -r .next/static .next/standalone/.next/` lands at .next/static when
+        # that dir already exists, and AS .next when it does not. Either way the
+        # chunks arrive; their absence means the cp itself is gone.
+        if find .next/standalone/.next -maxdepth 2 -name 'chunks' -print -quit 2>/dev/null | grep -q .; then
+            pass "standalone has static assets (CSS/JS)"
+        else
+            fail "standalone is MISSING static assets - the build's 'cp -r .next/static' step was lost"
+        fi
+    fi
+fi
+
+# =============================================================================
 # PYTHON
 # =============================================================================
 if [ -f requirements.txt ] || [ -f pyproject.toml ]; then
@@ -167,6 +264,40 @@ fi
 if ls tools/verify-*.ts >/dev/null 2>&1; then
     step "repo invariants"
     INV=0
+
+    # tsconfig.json EXCLUDES "tools", so `npm run typecheck` silently skips every
+    # file here - that is how a dangling call to a deleted function survived a
+    # "tsc clean" report. tools/ runs migrations and pins metadata, and the
+    # invariants below live here too: an invariant that no longer compiles is an
+    # invariant that is not defending anything.
+    #
+    # tsconfig.tools.json is the root config with that exclusion lifted. It must
+    # stay at the repo root: `paths` resolves relative to the file declaring it,
+    # so a tools/tsconfig.json reports "Cannot find module '@/lib/...'" on code
+    # that is perfectly fine - 19 of the first 27 errors here were that.
+    if [ -f tsconfig.tools.json ]; then
+        TT_OUT=$(timeout "$STEP_TIMEOUT" npx tsc --noEmit -p tsconfig.tools.json 2>&1)
+        # A peer session edits this repo live, so tools/ can hold somebody's
+        # uncommitted work in progress. The gate's job is the REPO: an untracked
+        # file must not turn it red, and every tracked one still must. Filtered
+        # by path from git, not by a name pinned in this file, so the exemption
+        # disappears by itself the moment the file is committed.
+        TT_UNTRACKED=$(git ls-files --others --exclude-standard -- 'tools/*.ts' 2>/dev/null)
+        TT_REAL="$TT_OUT"
+        for TT_U in $TT_UNTRACKED; do
+            TT_REAL=$(printf '%s\n' "$TT_REAL" | grep -vF "$TT_U" || true)
+        done
+        TT_REAL=$(printf '%s\n' "$TT_REAL" | grep "error TS" || true)
+        if [ -n "$TT_REAL" ]; then
+            fail "tools/ typecheck"
+            printf '%s\n' "$TT_REAL" | head -15 | sed 's/^/      /'
+        else
+            pass "tools/ typecheck"
+            [ -n "$TT_UNTRACKED" ] && \
+                skip "untracked tools/ files not checked: $(printf '%s' "$TT_UNTRACKED" | tr '\n' ' ')"
+        fi
+    fi
+
     for V in tools/verify-*.ts; do
         run "$(basename "$V")" npx tsx "$V"
         INV=$((INV+1))
