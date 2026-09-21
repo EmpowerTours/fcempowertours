@@ -1728,8 +1728,11 @@ const EPKViewContent = ({
         {/* Streaming Stats */}
         {stats && (stats.totalPlays > 0 || stats.totalSales > 0) && (
           <section>
+            {/* Not "On-Chain Stats" any more: the play figure may include the ledger window,
+ and a heading that calls a part-ledger number on-chain is the same overclaim
+ "Verified on Monad" made on the press kit. See lib/epk/chain.ts. */}
             <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              On-Chain Stats
+              Stats
             </h2>
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
@@ -1737,8 +1740,12 @@ const EPKViewContent = ({
                   <Play className="w-3.5 h-3.5 text-muted" />
                   <span className="text-xs text-slate-400">Plays</span>
                 </div>
+                {/* `83+` when the figure is a lower bound. A floor shown as a total looks
+ precise, which is worse than no number at all. */}
                 <p className="text-lg font-bold text-white">
-                  {stats.totalPlays.toLocaleString()}
+                  {stats.totalPlaysIsFloor
+                    ? `${stats.totalPlays.toLocaleString()}+`
+                    : stats.totalPlays.toLocaleString()}
                 </p>
               </div>
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
@@ -1766,7 +1773,9 @@ const EPKViewContent = ({
               <div className="bg-[#1e293b] rounded-lg p-3 border border-white/5">
                 <div className="flex items-center gap-2 mb-1">
                   <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="text-xs text-slate-400">Revenue</span>
+                  {/* Subscription pool only — licence sales settle through SalesController
+ and never appear in artistMonthlyPayouts. */}
+                  <span className="text-xs text-slate-400">Payouts</span>
                 </div>
                 <p className="text-lg font-bold text-white">
                   {stats.totalRevenue} WMON

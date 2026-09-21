@@ -9,6 +9,13 @@ Where something is unverified, it says so — that is a finding, not a gap in th
 Items **A, E and F** were re-read against mainnet and production on **2026-09-14** and had moved;
 each carries its own dated correction.
 
+**On 2026-09-21 E and F were re-read again and both had moved further.** E was already done and
+nobody had closed it. F's stated diagnosis was wrong — the defect was not an understated zero but
+a page that contradicted itself — and the fix this file proposed would have made it worse. Item
+**H** was found while checking F's premise. Two lessons, both already in the list above: read the
+production value before trusting the item, and a note saying a problem "has stopped growing" is
+an observation until some code enforces it.
+
 **On 2026-09-15 the remaining open items were audited for whether their stated test can actually
 distinguish done from not-done.** Five could not, or had drifted: 6, 12, 15, 19 and C. Item 6 is
 the one worth learning from — it tested `ownerOf(1000004)` for a migration that never preserves
@@ -363,66 +370,74 @@ The better argument is correctness, not speed: passing the values means the card
 title, price and cover even when the catalogue read is stale or fails — and a track minted
 seconds ago is precisely the case a stale indexer does not have yet.
 
-### E. The published EPK still says "AI-generated music" — **RE-PINNED 2026-09-14, one transaction left**
+### E. ~~The published EPK still says "AI-generated music"~~ — **DONE 2026-09-19, verified 2026-09-21**
 
-Item 14 fixed the source. That changed nothing anyone can see: the live press kit is an
-**immutable IPFS document**, and the page renders whatever CID the registry holds, not whatever
-the repo says. Correcting the source and correcting the publication are two different jobs.
-
-The corrected document is pinned:
+Read off mainnet and fetched back from the gateway:
 
 ```
-old  QmZzaviA2WwWCAn1tN4cJJyB4c4z5Wpg6E3QX6PN9npV1u   pinned 2026-02-02 08:06 UTC
-new  QmXv14bTumtoFkLqTdP6yUxK3Uzfex4cL1b7PWmAAXZL9v   pinned 2026-09-14
+EPKRegistry 0x232D2fF4…  artistEPKs(0x33fFCcb1…)
+  cid        QmU6mhNb9F3BBLspZb5JmxpPx7iGQ3G4B4uqcrHvyks8tM
+  createdAt  2026-02-02 08:06 UTC
+  updatedAt  2026-09-19 18:32 UTC      <- it has been updated
 ```
 
-`tools/repin-epk.ts` built it by fetching what is actually published and replacing exactly two
-fields, rather than rebuilding from `EARVIN_GALLARDO_EPK` — the constants and the publication have
-already drifted (the constants carry an `onChain` key the publication does not), so a rebuild
-would have shipped every other difference along with the fix, with no way to tell from the CID
-which changes were intended. Fetched back from the gateway and diffed: `artist.bio` and
-`artist.genre` differ, nothing else. `media.videos[0].title` still reads "(AI Music Video)",
-which is accurate and deliberate.
+The published bio now reads "at the intersection of **music and blockchain**"; genre is
+`Electronic, Alternative Hip-Hop, Experimental`. The only surviving AI mention in the whole
+document is `Money Making Machine (AI Music Video)`, which is accurate and deliberate (item 14).
 
-**Still live, still wrong.** `artistEPKs(0x33fFCcb1…)` has `createdAt == updatedAt ==
-1770019589`, so it has never been updated, and a booker still reads the old bio. Publishing needs
-one `updateEPK(string)` call on `0x232D2fF45459e9890ABA3a95e5E0c73Fe85D621D`, passing
-`QmXv14bTumtoFkLqTdP6yUxK3Uzfex4cL1b7PWmAAXZL9v` — the exact command is printed by the tool.
+**The live CID is a third document**, not the `QmXv14bTum…` this item said was pinned and not the
+old `QmZzaviA2…` — so the transaction went out with a freshly built kit rather than the patched
+one `tools/repin-epk.ts` produced. The content is right, which is what matters, but the tool's
+"fetch what is published and change exactly two fields" guarantee does **not** describe what is
+now live. If that document is ever audited, diff it rather than assuming the two-field patch.
 
-It must come from the artist wallet itself. `updateEPKFor` is `onlyOwner` and `owner()` is the
-platform Safe `0xf3b9D123…`, read on chain as **threshold 2 of 3** — so that path needs two
-signatures for a record the artist can update alone.
+### F. The EPK contradicted itself about plays — **FIXED 2026-09-21**
 
-Re-running the tool after the transaction prints "nothing to do", which is the confirmation.
-
-### F. The EPK reports zero plays and zero sales — **HALF RESOLVED; re-scoped 2026-09-14**
-
-This item said the press kit "shows an empty catalogue and no figures". **The catalogue half is
-fixed**, by the re-mint recorded in item A rather than by anything done here. Read from production
-2026-09-14:
+This item used to say the press kit "reports zero plays and zero sales" and proposed rendering
+"—" instead of a 0. **That diagnosis was wrong, and the fix would have been wrong too.** Read
+from production 2026-09-21:
 
 ```
-topSongs     5   Suddenly, Money Making Machine, Sloppy, Killah, MARINA
 totalPlays   0
-totalSales   0
-totalRevenue 0.00
+topSongs     Killah 20 · Sloppy 16 · Dime Que Si 15 · MARINA 13 · Suddenly 10 · Money Making Machine 9
+totalSales   2      totalRevenue 0.00
 ```
 
-`getArtistStreamingStats` is still address-keyed throughout — the catalogue filter at
-`lib/epk/chain.ts:134`, `artistLifetimePlays(artist)`, and `artistMonthlyPayouts(month, artist)`.
-The tracks now resolve because masters 8–12 carry the artist's address. The counters do not,
-because the history stayed behind:
+`EPKPage.tsx:162` renders that song list and `:173` renders the stat cards — **eleven lines apart
+on one page**. So the press kit printed **"Total Plays: 0 — Verified on Monad"** directly above
+six songs totalling **83**. Not an understated zero: a document that disproves itself, with the
+chain stamp under the wrong half. The same pair went into the EPK generation prompt beneath "use
+these facts, do not invent", leaving the model to repeat the zero or invent a reconciliation.
 
-```
-artistLifetimePlays(0x33fFCcb1…)  = 0   <- what the EPK reads
-artistLifetimePlays(0x8dF64bAC…)  = 8   <- where the plays actually are
-```
+Cause, as item A predicted: `artistLifetimePlays` is keyed by **address**, the masters were
+re-minted under the artist's wallet, and the counter stayed with the deployer key. Per-song
+counts come from the Redis ledger window, which did not move.
 
-**So the remaining question is smaller and different.** Not "give it a fid" — a fid would drag the
-five suspended masters back into the catalogue alongside their live re-mints. It is whether 8
-orphaned plays and the old licence sales are worth carrying forward at all. The cheap honest
-option is to stop asserting a counter that is structurally zero: render "—" the way
-`uniqueListeners` already does, rather than printing a 0 that reads as a measurement.
+**What changed.** `lib/epk/chain.ts` now takes `max(artistLifetimePlays, sum(per-song))`. Both
+sources are lower bounds — the chain figure is exact for one address and blind to any history
+that moved or predates the v3 cutover; the ledger is a trimmed window complete for no period at
+all — so the larger is the better bound, and being at least the ledger sum it can never be
+smaller than the parts printed beside it. `totalPlaysIsFloor` marks it, and both surfaces render
+`83+` rather than `83`, because a floor shown as a total looks precise.
+
+Also corrected while in there, same class of defect:
+
+- **"Verified on Monad" sat under all four cards** and was wrong under three. Each card now
+  states its own provenance; "—" for unique listeners says "no contract keeps a listener roster".
+- **"Revenue (WMON)" is `artistMonthlyPayouts` — the subscription pool only.** Licence sales
+  settle through SalesController straight to the artist and never pass through it, so `0.00` sat
+  next to `2` sales and implied the sales earned nothing. Relabelled "Subscription Payouts"
+  on the press kit and "Payouts" in `ProfileModal`, which also stopped calling a part-ledger
+  figure "On-Chain Stats".
+
+`tools/verify-epk-stats-consistent.ts` holds the invariant — a total drawn on a page is at least
+the sum of the parts drawn on the same page — against the real function with a stub client.
+**Made to fail on purpose:** reverting the `max` to the bare chain read turns two of its eleven
+checks red with `expected 83, actual 0`.
+
+**Not fixed, and deliberately not:** the 8 orphaned plays and old licence sales still sit on the
+deployer address. Nothing carries them forward, and after this change nothing needs to — the
+figure the booker reads no longer depends on them.
 
 ### G. Every client-signed transaction was failing — **FIXED 2026-08-29, watch for fallout**
 
@@ -436,6 +451,38 @@ Fixed and covered by `tools/verify-wallet-and-migration.ts`, but **nothing signe
 been exercised end to end since** — display-name claims and catalogue migration were both dead
 for an unknown period. Worth one real transaction to confirm.
 
+### H. A suspended master still earns — **OPEN, found 2026-09-21**
+
+`MusicSubscriptionV6.recordPlay` (`contracts/MusicSubscriptionV6.sol:415-456`) checks the
+subscription, the cooldowns, the daily caps, `getMasterType` and `artist != address(0)`. It
+**never checks `masterSuspended`**. Nor does any of the four off-chain paths that drive the
+oracle: `lib/play-recording.ts`, `app/api/record-play/route.ts:248`,
+`app/api/venue/[venueId]/route.ts:364`, `app/api/live-radio/route.ts:205`. The registry's
+suspension stops LiveRadioV3 queueing a track (`active` is false) and the catalogue filters it,
+but nothing stops a play being *credited* for one.
+
+Chain state 2026-09-21:
+
+```
+masters 1–5  artist 0x8dF64bACf6b7… (deployer)  suspended=true   month690=3  lifetime=8
+master  6    artist 0x05d15996…                 suspended=false  month690=1  lifetime=1
+masters 7–13 artist 0x33fFCcb1… (the artist)    7 suspended      month690=0  lifetime=0
+month 690 (2026-09-04 → 10-04)   4 plays, 15 WMON revenue, not finalized
+```
+
+So month 690's pool is currently on course to pay **3/4 to the deployer key and nothing to the
+artist**, on plays of masters that are suspended. Item A says "the problem has stopped growing" —
+that is an **observation, not a control**; nothing in the code enforces it, and the next
+suspension will behave the same way.
+
+Not claimed: whether those three plays post-date the suspension. The public RPC serves no archive
+state, so the suspension cannot be dated from a terminal and the `MasterSuspensionSet` log is
+behind a 100-block `eth_getLogs` cap. **The gap is what is verified, not an exploitation of it.**
+
+V6 is deployed and immutable, so the fix is off-chain: one shared `masterSuspended` check in
+front of every `oracle.recordPlay` call, plus an invariant that fails the day a fifth call site
+is written without it. Effort: an hour.
+
 ---
 
 ## Tier 4 — hygiene, real but not urgent
@@ -446,7 +493,7 @@ Nothing has read them since `bc3292b`, so there is no live code path. They stay 
 someone turns them off, which is the whole of the task. Provider and key identities are in the
 operator notes outside the repo.
 
-### 14. The "AI Music" labelling — **SOURCE FIXED 2026-08-29; the LIVE page is item E**
+### 14. ~~The "AI Music" labelling~~ — **CLOSED 2026-09-21: source fixed 08-29, publication 09-19**
 
 Bio and genre corrected in `lib/epk/constants.ts`; the `['AI Music']` fallback in
 `epk/generate` is now an empty list, so it no longer asserts anything about other artists' work.
@@ -454,7 +501,7 @@ Bio and genre corrected in `lib/epk/constants.ts`; the `['AI Music']` fallback i
 the "(AI Music Video)" video credit, the Nano Banana stamp images, and EPKModal's "AI-generated
 draft", which describes Gemini-written text.
 
-**This does not change what is published.** See item E.
+The publication caught up on 2026-09-19 and was verified from chain and gateway on 09-21 — see item E. Both halves are done.
 
 ### 15. ~~Three unreachable modals~~ — **DONE; the guard has been silent for some time (2026-09-15)**
 

@@ -8,10 +8,19 @@ interface StreamingStatsProps {
 }
 
 export default function StreamingStats({ stats }: StreamingStatsProps) {
+  // Each card carries its own provenance. A single "Verified on Monad" under all four was wrong
+  // under three of them: "—" is not a chain reading, the play total is part ledger, and the
+  // revenue figure is the subscription pool rather than everything the artist earned.
   const statCards = [
     {
       label: "Total Plays",
-      value: stats.totalPlays.toLocaleString(),
+      // `83+`, never a bare `83`, when the figure is a lower bound — see `totalPlaysIsFloor`.
+      value: stats.totalPlaysIsFloor
+        ? `${stats.totalPlays.toLocaleString()}+`
+        : stats.totalPlays.toLocaleString(),
+      note: stats.totalPlaysIsFloor
+        ? "On-chain plus a recent window — at least this many"
+        : "Verified on Monad",
       icon: Play,
       color: "text-purple-400",
       bg: "bg-purple-400/10",
@@ -24,20 +33,29 @@ export default function StreamingStats({ stats }: StreamingStatsProps) {
         stats.uniqueListeners === null
           ? "—"
           : stats.uniqueListeners.toLocaleString(),
+      note:
+        stats.uniqueListeners === null
+          ? "No contract keeps a listener roster"
+          : "Verified on Monad",
       icon: Users,
       color: "text-blue-400",
       bg: "bg-blue-400/10",
     },
     {
-      label: "Total Sales",
+      label: "Licences Sold",
       value: stats.totalSales.toLocaleString(),
+      note: "Verified on Monad",
       icon: Music,
       color: "text-green-400",
       bg: "bg-green-400/10",
     },
     {
-      label: "Revenue (WMON)",
+      // Not "Revenue": this is `artistMonthlyPayouts` only. Licence sales settle straight to the
+      // artist through SalesController and never pass through here, so the old label put 0.00
+      // next to a non-zero sale count and implied the sales earned nothing.
+      label: "Payouts (WMON)",
       value: stats.totalRevenue,
+      note: "Subscription pool only — excludes licence sales",
       icon: DollarSign,
       color: "text-amber-400",
       bg: "bg-amber-400/10",
@@ -60,7 +78,7 @@ export default function StreamingStats({ stats }: StreamingStatsProps) {
             </span>
           </div>
           <p className="text-2xl font-bold text-white">{stat.value}</p>
-          <p className="text-xs text-slate-500 mt-1">Verified on Monad</p>
+          <p className="text-xs text-slate-500 mt-1">{stat.note}</p>
         </div>
       ))}
     </div>

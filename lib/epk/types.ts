@@ -110,8 +110,24 @@ export interface ArtistStreamingStats {
    * Zero would claim nobody has ever listened, which is a different and false statement.
    */
   uniqueListeners: number | null;
+  /**
+   * True when `totalPlays` is a lower bound rather than a count, because the trimmed play
+   * ledger contributed to it. Render it as `83+`, not `83`.
+   *
+   * It is not cosmetic. `artistLifetimePlays` is keyed by ADDRESS, so an artist whose masters
+   * were re-minted under a new wallet reads zero on the new one while the ledger still holds
+   * their plays — which is how the live press kit came to print "Total Plays: 0" directly
+   * above six songs totalling 83. See the note in `lib/epk/chain.ts`.
+   */
+  totalPlaysIsFloor: boolean;
   totalSales: number;
-  totalRevenue: string; // formatted WMON
+  /**
+   * Formatted WMON, and it is **subscription-pool payouts only** — `artistMonthlyPayouts`.
+   * Licence sales settle through SalesController straight to the artist and never appear here,
+   * so this may read 0.00 beside a non-zero `totalSales`. Label it for what it is; calling it
+   * "Revenue" beside a sale count says the sale earned nothing.
+   */
+  totalRevenue: string;
   topSongs: SongStats[];
 }
 

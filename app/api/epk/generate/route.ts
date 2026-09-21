@@ -274,10 +274,10 @@ ARTIST DATA (use these facts, do not invent):
 - Farcaster Username: ${profile?.username || "N/A"}
 - Farcaster Bio: ${profile?.bio || "N/A"}
 - Wallet: ${userAddress}
-- Total Plays: ${stats.totalPlays}
-- Unique Listeners: ${stats.uniqueListeners}
-- Total Sales: ${stats.totalSales}
-- Total Revenue: ${stats.totalRevenue} WMON
+- Total Plays: ${stats.totalPlays}${stats.totalPlaysIsFloor ? " (at least — this is a lower bound, never state it as exact)" : ""}
+- Unique Listeners: ${stats.uniqueListeners ?? "not tracked on-chain — do not mention listener counts"}
+- Licences Sold: ${stats.totalSales}
+- Subscription Payouts: ${stats.totalRevenue} WMON (monthly pool only; licence sales settle separately and are NOT in this figure, so do not call it total earnings)
 - Top Songs: ${topSongTitles || "No songs yet"}
 - Detected Genres: ${genres.length > 0 ? genres.join(", ") : "Unknown"}
 
@@ -507,9 +507,17 @@ function buildFallbackDraft(
 ): EPKMetadata {
   const artistName =
     profile?.displayName || `Artist ${userAddress.slice(0, 6)}`;
+  // This becomes the artist's PUBLISHED bio when Farcaster has none, so it must not assert a
+  // figure it cannot stand behind. It used to read "With 0 on-chain plays and 2 sales" for an
+  // artist whose songs were listed a few lines below with 83 plays between them — and "on-chain"
+  // was wrong besides, since the figure may include the ledger window. A zero is dropped rather
+  // than published, and a lower bound is written as one.
+  const playClause = stats.totalPlays
+    ? `With ${stats.totalPlaysIsFloor ? "at least " : ""}${stats.totalPlays} plays and ${stats.totalSales} ${stats.totalSales === 1 ? "licence" : "licences"} sold, they are`
+    : "They are";
   const bio =
     profile?.bio ||
-    `${artistName} is a Web3 music artist on EmpowerTours. With ${stats.totalPlays} on-chain plays and ${stats.totalSales} sales, they are building a decentralized music career on Monad blockchain.`;
+    `${artistName} is a Web3 music artist on EmpowerTours. ${playClause} building a decentralized music career on Monad blockchain.`;
 
   return {
     version: EPK_VERSION,

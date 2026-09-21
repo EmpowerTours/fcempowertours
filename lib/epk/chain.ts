@@ -203,11 +203,42 @@ export async function readArtistStreamingStats(
 
   const totalSales = topSongs.reduce((sum, s) => sum + s.sales, 0);
 
+  // The headline total and the per-song list are rendered on the same page — `EPKPage.tsx:162`
+  // draws the songs, `:173` draws the cards, eleven lines apart — and until 2026-09-21 they came
+  // from different sources and contradicted each other in production:
+  //
+  //     Total Plays  0            <- artistLifetimePlays(artist), read from V6
+  //     Killah 20, Sloppy 16, Dime Que Si 15, MARINA 13, Suddenly 10, Money Making Machine 9
+  //                                <- the ledger window, 83 between them
+  //
+  // stamped "Verified on Monad", on an artist's press kit, for a booker to read. The cause is
+  // that `artistLifetimePlays` is keyed by ADDRESS: these masters were re-minted under the
+  // artist's own wallet after the originals were minted from the deployer key, and the counter
+  // stayed behind with the old address.
+  //
+  // Neither source is the truth and neither ever will be. The chain figure is exact for one
+  // address and blind to any history that moved, and blind to everything before the v3 cutover;
+  // the ledger is a trimmed window, complete for no period at all. Both are LOWER BOUNDS, so
+  // the larger of the two is the better lower bound — and, being at least the ledger sum, it
+  // can never be smaller than the parts printed beside it. That last property is the invariant;
+  // `tools/verify-epk-stats-consistent.ts` holds it, so a future change to either source cannot
+  // quietly reintroduce a total that its own page disproves.
+  const onChainPlays = totalPlays;
+  const ledgerTotal = topSongs.reduce((sum, s) => sum + s.plays, 0);
+  totalPlays = Math.max(onChainPlays, ledgerTotal);
+
+  // A floor whenever the window contributed the figure, or was itself full and so is short.
+  // When the chain figure wins over an unsaturated window it is reported as a count, which is
+  // what it is for that address.
+  const totalPlaysIsFloor =
+    ledgerTotal > onChainPlays || (ledger?.saturated ?? false);
+
   // Not derivable from any contract. See the note at the top of this file.
   unavailable.push("uniqueListeners");
 
   return {
     totalPlays,
+    totalPlaysIsFloor,
     uniqueListeners: null,
     totalSales,
     totalRevenue: (Number(totalRevenueWei) / 1e18).toFixed(2),
