@@ -37,6 +37,8 @@ import type { EPKMetadata, ArtistStreamingStats } from "@/lib/epk/types";
 import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";
 import { CatalogueMigration } from "@/app/components/oracle/CatalogueMigration";
 import { DisplayNameSetting } from "@/app/components/oracle/DisplayNameSetting";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
+import { ensureDelegationCovers } from "@/lib/ensure-delegation-covers";
 
 interface ProfileModalProps {
   walletAddress: string;
@@ -138,6 +140,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchedUser, setSearchedUser] = useState<SearchedUser | null>(null);
   const [safeBalance, setSafeBalance] = useState<SafeBalance | null>(null);
+  // Fund-moving actions need proven ownership; execute-delegated fails closed on it
+  // regardless of ENFORCE_QUICK_AUTH. In Farcaster this is the Quick Auth token, in a browser a
+  // wallet signature.
+  const authFor = useActionAuth();
+  const [wrapAmount, setWrapAmount] = useState("");
+  const [wrapping, setWrapping] = useState(false);
+  const [wrapResult, setWrapResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [selectedPassport, setSelectedPassport] = useState<PassportData | null>(
     null,
@@ -209,6 +221,59 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       }
     } catch (error) {
       console.error("[ProfileModal] Safe balance load error:", error);
+    }
+  };
+
+  /**
+   * Wrap MON to WMON in the user's Safe.
+   *
+   * `wrap_mon` is a fund-moving action, so execute-delegated fails closed on proven ownership
+   * regardless of ENFORCE_QUICK_AUTH — the auth headers are not optional here, and omitting them
+   * is what made every browser passport mint 401 in August.
+   *
+   * The balance is reloaded from chain afterwards rather than adjusted locally: a receipt is not
+   * a balance, and showing a number we computed instead of one we read is how a UI ends up
+   * confidently wrong.
+   */
+  const wrapMon = async () => {
+    if (!walletAddress || !(parseFloat(wrapAmount) > 0)) return;
+    setWrapping(true);
+    setWrapResult(null);
+    try {
+      // wrap_mon is delegation-covered, so no wallet prompt appears -- and a delegation issued
+      // before that permission existed 403s here with nothing for the user to recover from.
+      // app/passport/page.tsx hit exactly this and repairs the delegation first; so does this.
+      await ensureDelegationCovers(walletAddress, "wrap_mon", authFor, userFid);
+
+      const res = await fetch("/api/execute-delegated", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authFor("execute-delegated:wrap_mon")),
+        },
+        body: JSON.stringify({
+          action: "wrap_mon",
+          userAddress: walletAddress,
+          params: { amount: wrapAmount },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Wrap failed");
+      }
+      setWrapResult({
+        ok: true,
+        message: `Wrapped ${wrapAmount} MON to WMON.`,
+      });
+      setWrapAmount("");
+      await loadSafeBalance(walletAddress);
+    } catch (err: unknown) {
+      setWrapResult({
+        ok: false,
+        message: err instanceof Error ? err.message : "Wrap failed",
+      });
+    } finally {
+      setWrapping(false);
     }
   };
 
@@ -707,6 +772,69 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       {copiedAddress ? "Copied" : "Copy"}
                     </button>
                   </div>
+
+                  {/* Wrap MON -> WMON.
+                      Everything in this app is priced in WMON -- licences, mints, the passport,
+                      subscriptions -- but people are sent MON. Until now wrapping only happened
+                      folded into another action ("Wrap MON & Subscribe", and inside the passport
+                      mint), so a user holding MON and wanting only to hold WMON had to start a
+                      purchase to get there. This is the same wrap_mon action with nothing
+                      attached.
+
+                      It wraps the SAFE's MON, not the connected wallet's -- that is what
+                      wrap_mon does and what every purchase path reads. Funding the wallet
+                      instead of the Safe is a known way to be confused here, which is why the
+                      balances above are the Safe's and this sits beneath them. */}
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={wrapAmount}
+                      onChange={(e) => setWrapAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="flex-1 bg-black/30 rounded-lg px-3 py-2 text-sm text-white outline-none"
+                      aria-label="Amount of MON to wrap"
+                    />
+                    <button
+                      onClick={() => setWrapAmount(safeBalance.monBalance)}
+                      className="px-2 py-2 rounded text-xs text-muted hover:text-white"
+                    >
+                      max
+                    </button>
+                    <button
+                      onClick={wrapMon}
+                      disabled={
+                        wrapping ||
+                        !(parseFloat(wrapAmount) > 0) ||
+                        parseFloat(wrapAmount) >
+                          parseFloat(safeBalance.monBalance)
+                      }
+                      className="px-4 py-2 rounded-lg text-sm font-medium bg-ink-raised hover:bg-ink-raised text-white disabled:opacity-40"
+                    >
+                      {wrapping ? "Wrapping..." : "Wrap to WMON"}
+                    </button>
+                  </div>
+                  {/* Gas is paid in MON, so wrapping the whole balance leaves nothing to send
+                      the next transaction with. Said plainly rather than silently capped: the
+                      amount is the user's to choose. */}
+                  {parseFloat(wrapAmount) > 0 &&
+                    parseFloat(safeBalance.monBalance) -
+                      parseFloat(wrapAmount) <
+                      0.05 && (
+                      <p className="text-xs text-yellow-400 mt-2">
+                        That leaves almost no MON for gas. Keep a little back or
+                        the next transaction cannot be sent.
+                      </p>
+                    )}
+                  {wrapResult && (
+                    <p
+                      className={`text-xs mt-2 ${wrapResult.ok ? "text-good" : "text-red-400"}`}
+                    >
+                      {wrapResult.message}
+                    </p>
+                  )}
 
                   {parseFloat(safeBalance.monBalance) < 0.1 && (
                     <p className="text-sm text-yellow-400 mt-3 text-center">
