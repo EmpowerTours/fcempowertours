@@ -54,6 +54,22 @@ export interface CatalogueRow {
   artistFid: number;
   price: string;
   /**
+   * The collector tier's price, or "0" when this master has no collector tier.
+   *
+   * Exposed because hunt draws edition cards from this endpoint and could
+   * previously offer only the standard licence — the collector tier was
+   * invisible to it, so a work's limited edition could never be found in the
+   * game, only bought here.
+   */
+  collectorPrice: string;
+  /**
+   * How many collector editions are still mintable: maxCollectorEditions minus
+   * collectorsMinted. Zero means sold out OR no collector tier at all, and a
+   * caller must not offer either — `purchase` reverts once the cap is reached,
+   * so placing a sold-out card costs a hunter a wasted tap.
+   */
+  collectorsRemaining: number;
+  /**
    * Unix seconds from the registry's `createdAt`. Zero on the legacy contract, which stores no
    * mint time at all — a feed sorting on this must treat 0 as unknown rather than as 1970.
    */
@@ -139,7 +155,7 @@ export async function readCatalogueFromChain(opts: {
     // SalesController and that `masterTokens` survives only as a view with hardcoded zeros.
     // Inlining that decision here to save one more round trip is how a price ends up right in
     // one place and wrong in another.
-    const [masters, uris, prices] = await Promise.all([
+    const [masters, uris, prices, collectorPrices] = await Promise.all([
       client.multicall({
         contracts: ids.map((id) => ({
           address: nft,
@@ -167,6 +183,20 @@ export async function readCatalogueFromChain(opts: {
           }).catch(() => null),
         ),
       ),
+      // The collector tier, read with the same helper and the same failure
+      // posture. A master with no collector tier prices at zero, which
+      // readMasterPrice already returns as null, so "no tier" and "unreadable"
+      // arrive identically — and both must mean "do not offer it".
+      Promise.all(
+        ids.map((id) =>
+          readMasterPrice(client, {
+            nftAddress: nft,
+            salesController,
+            tokenId: id,
+            isCollector: true,
+          }).catch(() => null),
+        ),
+      ),
     ]);
 
     const rows: CatalogueRow[] = [];
@@ -187,6 +217,14 @@ export async function readCatalogueFromChain(opts: {
         isArt: Number(master[5]) === 1,
         artist: artist.toLowerCase(),
         price: (prices[i] ?? 0n).toString(),
+        collectorPrice: (collectorPrices[i] ?? 0n).toString(),
+        // Indices 3 and 4 of getMaster: maxCollectorEditions, collectorsMinted.
+        // Clamped at zero — a cap that has somehow been exceeded must read as
+        // sold out, not as a negative that a caller might treat as truthy.
+        collectorsRemaining: Math.max(
+          0,
+          Number(master[3] ?? 0) - Number(master[4] ?? 0),
+        ),
         // getMaster returns MULTIPLE NAMED VALUES, which viem decodes as a positional tuple —
         // unlike a named struct, which decodes as an object. Index 1 is `artistFid`, index 2
         // `createdAt`. Reading these off by one yields a plausible number, not an error.
@@ -222,6 +260,17 @@ export async function readCatalogueFromChain(opts: {
       isArt: Number(m[11]) === 1,
       artist: artist.toLowerCase(),
       price: (m[4] as bigint).toString(),
+      // masterTokens positions 5, 8 and 9: collectorPrice, maxCollectorEditions,
+      // collectorsMinted. This is the PRE-v3 contract, where those fields are
+      // still populated — on v3 the same accessor survives as a view returning
+      // hardcoded zeros, which is why the v3 branch above reads pricing from
+      // the SalesController instead. Zero here therefore means "no collector
+      // tier", which is the correct answer for a legacy master.
+      collectorPrice: (m[5] as bigint).toString(),
+      collectorsRemaining: Math.max(
+        0,
+        Number(m[8] ?? 0) - Number(m[9] ?? 0),
+      ),
       // The legacy layout puts artistFid FIRST and the artist address second — the opposite of
       // v3's. Swapping them here would name every track after a number.
       artistFid: Number(m[0] ?? 0),
