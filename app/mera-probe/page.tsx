@@ -41,8 +41,26 @@ export default function MeraProbe() {
     // A webview is the case we most expect to fail, so name it explicitly rather than inferring
     // it later from a confusing error.
     const inIframe = window.self !== window.top;
-    push("in iframe/webview", String(inIframe), !inIframe);
-    push("user agent", navigator.userAgent.slice(0, 90));
+    push("in iframe", String(inIframe), !inIframe);
+
+    // An in-app browser is NOT an iframe — it is top-level, so the check above cannot see it.
+    // Labelling that check "webview" claimed a detection it never performed, and on a real
+    // iPhone it reported a clean environment for a browser that could not create a passkey.
+    //
+    // iOS tells them apart by UA tail: standalone Safari carries "Version/… Safari/…", while a
+    // WKWebView embedded in another app stops at "Mobile/…". This is a heuristic, so it is
+    // reported as a suspicion rather than a verdict.
+    const ua = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/.test(ua);
+    const looksInApp = isIOS && !/Version\/[\d.]+.*Safari\//.test(ua);
+    push(
+      "in-app browser (iOS)",
+      looksInApp ? "likely — open in Safari instead" : "no",
+      !looksInApp,
+    );
+    // Full, not truncated: the tail is exactly the part that distinguishes them, and slicing it
+    // to 90 characters cut off the evidence.
+    push("user agent", ua);
 
     const hasWebAuthn = typeof window.PublicKeyCredential !== "undefined";
     push("WebAuthn available", String(hasWebAuthn), hasWebAuthn);
@@ -65,7 +83,7 @@ export default function MeraProbe() {
   async function runCeremony() {
     setBusy(true);
     try {
-      const { createPasskeyWithPrfOutput, createSecp256k1SigningSession } =
+      const { getPasskeyPrfOutput, createSecp256k1SigningSession } =
         await import("@category-labs/mera");
       const { toViemAccount } = await import("@category-labs/mera/viem");
       const { HDKey } = await import("@scure/bip32");
@@ -74,12 +92,24 @@ export default function MeraProbe() {
       );
       const { wordlist } = await import("@scure/bip39/wordlists/english.js");
 
-      push("step", "creating passkey — approve the prompt");
-      const { prfOutput } = await createPasskeyWithPrfOutput({
-        // rp.id must be the registrable domain the page is served from, or the ceremony is
-        // rejected. Derived rather than hardcoded so this probe is honest on any host.
-        rp: { id: window.location.hostname, name: "EmpowerTours" },
-        user: { name: "mera-probe", displayName: "Mera probe" },
+      push("step", "choose your existing passkey at the prompt");
+      // ---- OPENS the existing wallet. It does not create one, and that matters.
+      //
+      // This probe first called createPasskeyWithPrfOutput against window.location.hostname,
+      // which was merely useless: a credential for art.empowertours.xyz derives a different
+      // address from the ecosystem's empowertours.xyz, so it tested a wallet nobody would use.
+      //
+      // Pointing it at the real rp id made it dangerous instead. There is already a Mera wallet
+      // on this rp id — the one hunt and cota derive — and creating there mints a SECOND
+      // credential for the same face, silently, with a different address and no error. The
+      // useful question was never "can this device make a passkey"; it is "does this device
+      // reproduce MY wallet".
+      const { EMPOWERTOURS_RP_ID, EMPOWERTOURS_PRF_SALT } = await import(
+        "@/lib/passkey/derive"
+      );
+      const { prfOutput } = await getPasskeyPrfOutput({
+        rpId: EMPOWERTOURS_RP_ID,
+        prfSalt: EMPOWERTOURS_PRF_SALT,
       });
       push("PRF output", `${prfOutput.length} bytes`, prfOutput.length === 32);
 
@@ -111,7 +141,7 @@ export default function MeraProbe() {
       push(
         "verdict",
         recovered
-          ? "PRF works here — Mera is usable on this device/browser"
+          ? "PRF works here. If the address above is your hunt wallet, this device reproduces it."
           : "signature did not recover; do not build on this",
         recovered,
       );
@@ -122,7 +152,9 @@ export default function MeraProbe() {
         "verdict",
         /NotSupported|prf|PRF/.test(msg)
           ? "PRF unsupported here — expected inside a webview; try a normal browser"
-          : "ceremony failed for another reason — read the message above",
+          : "creation failed. If 'platform authenticator' is false above, this browser cannot " +
+            "make a passkey at all — open the page in Safari (not an in-app browser) and " +
+            "check Settings > Passwords is on.",
         false,
       );
     } finally {
@@ -140,8 +172,8 @@ export default function MeraProbe() {
     >
       <h1 style={{ fontSize: 20, marginBottom: 4 }}>Mera passkey probe</h1>
       <p style={{ opacity: 0.7, fontSize: 13, marginTop: 0 }}>
-        Creates a passkey, derives an address, signs and recovers. Touches no
-        contracts and spends nothing.
+        Opens your existing EmpowerTours passkey, derives the address, signs and
+        recovers. Creates nothing, touches no contracts, spends nothing.
       </p>
 
       <div style={{ display: "flex", gap: 8, margin: "16px 0" }}>
@@ -149,7 +181,7 @@ export default function MeraProbe() {
           1. Check environment
         </button>
         <button onClick={runCeremony} disabled={busy} style={btn}>
-          {busy ? "running…" : "2. Create passkey + sign"}
+          {busy ? "running…" : "2. Open my wallet + sign"}
         </button>
       </div>
 
