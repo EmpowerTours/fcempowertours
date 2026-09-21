@@ -275,14 +275,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!ownershipProven && authMethod === "farcaster") {
+    // ---- Not gated on authMethod, and that gate was a bug.
+    //
+    // authorizeUserAddress tries Quick Auth FIRST and falls back to a wallet signature in the
+    // headers — the two proofs useActionAuth produces, one inside Farcaster and one in a
+    // browser. Running it only for authMethod === "farcaster" meant a browser wallet's
+    // signature was never examined, so the request fell through to the body-signature branch
+    // below and answered:
+    //
+    //   "Missing required fields: userAddress, signature, timestamp, nonce."
+    //
+    // The caller had proven ownership perfectly well; nothing looked. ensureDelegationCovers
+    // sends header auth for both paths, so every wallet-only user hitting a delegation-covered
+    // action got that message with nothing to act on — first seen wrapping MON from a passkey
+    // wallet in a browser.
+    //
+    // execute-delegated has always accepted either proof. This makes create-delegation agree.
+    if (!ownershipProven) {
       const authz = await authorizeUserAddress(
         req,
         userAddress,
         "create-delegation",
       );
 
-      if (!authz.allowed) {
+      // A failure here is only fatal for authMethod "farcaster", which has no other proof to
+      // offer. Everything else must FALL THROUGH to the body-signature branch below:
+      // a caller using the GET ?nonce=true flow sends no auth headers at all, so rejecting on
+      // their absence would break the path this route was originally built around. Widening
+      // who may be checked must not narrow who may pass.
+      if (!authz.allowed && authMethod === "farcaster") {
         return NextResponse.json(
           {
             success: false,
@@ -311,14 +332,24 @@ export async function POST(req: NextRequest) {
             `Set ENFORCE_QUICK_AUTH=true to reject these.`,
         );
       }
-      // Fall through to delegation creation below
+      // Fall through to the body-signature check below
     }
+
     // SECURITY: Standard wallet signature auth.
-    // Skipped when ownership is ALREADY proven -- a radio session carries the
-    // same assertion and has no signature to offer. Without this guard the
-    // request 400s immediately after logging that ownership was proven, which
-    // is exactly what it did.
-    else if (!ownershipProven && (!signature || !timestamp || !nonce)) {
+    //
+    // Skipped when ownership is ALREADY proven -- a radio session, a Quick Auth token or a
+    // header wallet signature all carry the same assertion and have no body signature to
+    // offer. Without that guard the request 400s immediately after logging that ownership was
+    // proven, which is exactly what it did.
+    //
+    // A STANDALONE `if`, deliberately, and this is the second bug in this block. It used to be
+    // `else if` chained to the authorizer above. When that authorizer's condition widened from
+    // `authMethod === "farcaster"` to plain `!ownershipProven`, the two conditions became the
+    // same test and this branch could never run: anyone the authorizer failed to prove fell
+    // straight past the body-signature requirement instead of being asked for one. Removing the
+    // chain is what keeps this reachable, and `!ownershipProven` re-read here is what keeps it
+    // skipped for callers who already proved it -- both properties at once.
+    if (!ownershipProven && (!signature || !timestamp || !nonce)) {
       return NextResponse.json(
         {
           success: false,
