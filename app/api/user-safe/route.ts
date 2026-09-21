@@ -79,6 +79,27 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // The WALLET's own MON, not the Safe's.
+    //
+    // Every balance above is the Safe's, and the profile showed only those — two tiles labelled
+    // "MON" and "WMON" above a Safe address. A user whose wallet holds 25 MON and whose Safe
+    // holds none reads that as "I have nothing", which is exactly backwards: they have the
+    // money, it is one transfer from where the app spends it. Returning both lets the UI show
+    // the gap instead of leaving it to be inferred.
+    let walletMonBalance = "0.0000";
+    balancePromises.push(
+      publicClient
+        .getBalance({ address: address as `0x${string}` })
+        .then((bal) => {
+          walletMonBalance = (Number(bal) / 1e18).toFixed(4);
+        })
+        .catch((e) => {
+          // Non-fatal: the Safe balances are what gate transactions. A missing wallet figure
+          // costs a hint, not a capability.
+          console.error("Failed to get wallet MON balance:", e);
+        }),
+    );
+
     if (WMON_ADDRESS) {
       balancePromises.push(
         publicClient
@@ -156,6 +177,7 @@ export async function GET(req: NextRequest) {
       toursBalanceWei,
       toursWalletBalance,
       toursWalletBalanceWei,
+      walletMonBalance,
       isFunded: safeInfo.isFunded,
       isAdequatelyFunded,
       minRequired: safeInfo.minRequired,

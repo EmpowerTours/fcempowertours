@@ -38,6 +38,8 @@ import { claimArtistPayoutsFromEOA } from "@/lib/artist-claim";
 import { CatalogueMigration } from "@/app/components/oracle/CatalogueMigration";
 import { DisplayNameSetting } from "@/app/components/oracle/DisplayNameSetting";
 import { useActionAuth } from "@/app/hooks/useActionAuth";
+import { useWalletContext } from "@/app/hooks/useWalletContext";
+import { monadMainnet } from "@/app/chains";
 import { ensureDelegationCovers } from "@/lib/ensure-delegation-covers";
 
 interface ProfileModalProps {
@@ -84,6 +86,8 @@ interface UserStats {
 interface SafeBalance {
   safeAddress: string;
   monBalance: string;
+  /** The WALLET's MON — not the Safe's. The gap between them is the thing people trip on. */
+  walletMonBalance: string;
   wmonBalance: string;
   toursBalance: string;
   toursWalletBalance: string;
@@ -144,6 +148,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   // regardless of ENFORCE_QUICK_AUTH. In Farcaster this is the Quick Auth token, in a browser a
   // wallet signature.
   const authFor = useActionAuth();
+  // Funding the Safe is the user spending their OWN MON from their OWN wallet, so it is a
+  // wallet transaction rather than a delegated one. This is the same unified sender the rest
+  // of the app uses, which routes to the Farcaster wallet or to wagmi as appropriate.
+  const { sendTransaction } = useWalletContext();
+  const [fundAmount, setFundAmount] = useState("");
+  const [funding, setFunding] = useState(false);
+  const [fundResult, setFundResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [wrapAmount, setWrapAmount] = useState("");
   const [wrapping, setWrapping] = useState(false);
   const [wrapResult, setWrapResult] = useState<{
@@ -214,6 +228,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         setSafeBalance({
           safeAddress: data.safeAddress || "",
           monBalance: data.balance || "0",
+          walletMonBalance: data.walletMonBalance || "0",
           wmonBalance: data.wmonBalance || "0",
           toursBalance: data.toursBalance || "0",
           toursWalletBalance: data.toursWalletBalance || "0",
@@ -221,6 +236,59 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       }
     } catch (error) {
       console.error("[ProfileModal] Safe balance load error:", error);
+    }
+  };
+
+  /**
+   * Move MON from the user's own wallet into their Safe.
+   *
+   * The Safe is what every purchase path spends from, and nothing in the app moved money there —
+   * the only hint was a line of text naming the address, which appeared solely when the Safe was
+   * nearly empty. Funding the wallet and finding "insufficient" is a documented way to get stuck
+   * here, and this is the missing step made pressable.
+   *
+   * The user signs it themselves. This is their own MON leaving their own wallet, so it is a
+   * wallet transaction rather than a delegated one, and no delegation or Safe relay is involved.
+   *
+   * No explicit gas limit is set: a Safe has a receive() and costs meaningfully more than the
+   * 21000 of a plain EOA transfer — ~62k in this codebase's experience, where a 21000 limit
+   * reverts AND is charged in full, because Monad bills the limit rather than the usage. viem
+   * estimates instead of guessing.
+   */
+  const fundSafe = async () => {
+    if (!walletAddress || !safeBalance || !(parseFloat(fundAmount) > 0)) return;
+    setFunding(true);
+    setFundResult(null);
+    try {
+      const { parseEther } = await import("viem");
+      await sendTransaction({
+        // This modal renders inside Farcaster as well as in a browser, and there
+        // sendTransaction routes to the Farcaster wallet — which stays on whatever chain it is
+        // already on, Base by default, when no chainId is given. The user would approve a
+        // transfer that does nothing at all, with no error. Caught by
+        // verify-tx-names-its-chain before it shipped.
+        chainId: monadMainnet.id,
+        to: safeBalance.safeAddress,
+        value: parseEther(fundAmount).toString(),
+      });
+      setFundResult({
+        ok: true,
+        message: `Sent ${fundAmount} MON to your Safe.`,
+      });
+      setFundAmount("");
+      // Re-read rather than adjust locally: the transfer may still be pending, and a number we
+      // computed is not a number we read.
+      await loadSafeBalance(walletAddress);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Transfer failed";
+      setFundResult({
+        ok: false,
+        message: /user rejected|denied/i.test(msg)
+          ? "Cancelled in wallet."
+          : msg,
+      });
+    } finally {
+      setFunding(false);
     }
   };
 
@@ -735,18 +803,31 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {/* Two tiles, two columns. Removing TOURS left this as
  grid-cols-3 holding two -- the third mismatch of its kind
  today. */}
-                  <div className="grid grid-cols-2 gap-2 mb-3">
+                  {/* Three tiles, each saying WHOSE balance it is.
+                      Two tiles labelled plainly "MON" and "WMON" were the Safe's, and nothing
+                      said so. Somebody whose wallet held 25 MON and whose Safe held none read
+                      that as having nothing — exactly backwards. They had the money; it was one
+                      transfer from where the app spends it. Showing both makes the gap visible
+                      instead of leaving it to be inferred from a hint that only appears when the
+                      Safe is nearly empty. */}
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <p className="text-xl font-bold text-white">
+                        {parseFloat(safeBalance.walletMonBalance).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-gray-400">Wallet MON</p>
+                    </div>
                     <div className="bg-black/30 rounded-lg p-3 text-center">
                       <p className="text-xl font-bold text-white">
                         {parseFloat(safeBalance.monBalance).toFixed(2)}
                       </p>
-                      <p className="text-xs text-gray-400">MON</p>
+                      <p className="text-xs text-gray-400">Safe MON</p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-3 text-center">
                       <p className="text-xl font-bold text-muted">
                         {parseFloat(safeBalance.wmonBalance).toFixed(2)}
                       </p>
-                      <p className="text-xs text-gray-400">WMON</p>
+                      <p className="text-xs text-gray-400">Safe WMON</p>
                     </div>
                     {/* The TOURS tile was removed on 2026-09-04. Nothing in
  this app is priced in TOURS -- licences, mints, the
@@ -772,6 +853,68 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       {copiedAddress ? "Copied" : "Copy"}
                     </button>
                   </div>
+
+                  {/* Fund the Safe.
+                      The Safe is what every purchase path spends from, and until now nothing in
+                      the app moved money there — the only hint was a line of text naming the
+                      address, shown solely once the Safe was nearly empty. Funding the wallet
+                      and then finding "insufficient" is a documented way to get stuck. This is
+                      the missing step, made pressable, next to the balances that explain why it
+                      is needed. */}
+                  {parseFloat(safeBalance.walletMonBalance) > 0 && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        value={fundAmount}
+                        onChange={(e) => setFundAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="flex-1 bg-black/30 rounded-lg px-3 py-2 text-sm text-white outline-none"
+                        aria-label="Amount of MON to move from your wallet to your Safe"
+                      />
+                      <button
+                        onClick={() => {
+                          // Leave a little for gas: this transfer is paid from the wallet, so
+                          // sending literally everything cannot succeed.
+                          const keep = 0.02;
+                          const max =
+                            parseFloat(safeBalance.walletMonBalance) - keep;
+                          setFundAmount(max > 0 ? max.toFixed(4) : "0");
+                        }}
+                        className="px-2 py-2 rounded text-xs text-muted hover:text-white"
+                      >
+                        max
+                      </button>
+                      <button
+                        onClick={fundSafe}
+                        disabled={
+                          funding ||
+                          !(parseFloat(fundAmount) > 0) ||
+                          parseFloat(fundAmount) >
+                            parseFloat(safeBalance.walletMonBalance)
+                        }
+                        className="px-4 py-2 rounded-lg text-sm font-medium bg-ink-raised hover:bg-ink-raised text-white disabled:opacity-40"
+                      >
+                        {funding ? "Sending..." : "Fund Safe"}
+                      </button>
+                    </div>
+                  )}
+                  {fundResult && (
+                    <p
+                      className={`text-xs mt-2 ${fundResult.ok ? "text-good" : "text-red-400"}`}
+                    >
+                      {fundResult.message}
+                    </p>
+                  )}
+                  {parseFloat(safeBalance.walletMonBalance) > 0 &&
+                    parseFloat(safeBalance.monBalance) === 0 && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        Your wallet holds MON but your Safe is empty. Purchases
+                        spend from the Safe, so move some across first.
+                      </p>
+                    )}
 
                   {/* Wrap MON -> WMON.
                       Everything in this app is priced in WMON -- licences, mints, the passport,
