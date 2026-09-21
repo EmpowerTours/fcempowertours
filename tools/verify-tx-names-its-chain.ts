@@ -152,7 +152,17 @@ for (const file of walkRoots(root)) {
     // check: it trains you to ignore the one time it is right.
     const literal = objectLiteralAt(code, start + m[0].length - 1);
     checks++;
-    if (!/chainId/.test(literal)) {
+    // Two spellings, both of which genuinely name the chain:
+    //
+    //   chainId:  the EIP-1193 / useFarcasterContext form this check was written for
+    //   chain:    viem's walletClient.sendTransaction, which takes a chain OBJECT
+    //
+    // Accepting only the first flagged lib/passkey/connector.ts, where the chain is named
+    // correctly in viem's own vocabulary. That is a false positive, and this file argues twice
+    // that a false positive is worse than no check — it is the one that gets ignored when it is
+    // right. Recognising the second spelling is not a loophole: a literal carrying
+    // `chain: monadMainnet` has said which chain it is for.
+    if (!/chainId/.test(literal) && !/\bchain\s*:/.test(literal)) {
       failures.push(
         `${relative(root, file)} calls sendTransaction without a chainId — the ` +
           "Farcaster wallet will prompt on whatever chain it is on (Base by " +

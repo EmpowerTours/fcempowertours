@@ -8,12 +8,21 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { monadMainnet } from '@/app/chains';
 import { mainnet } from 'wagmi/chains';
+import { passkeyRainbowWallet } from '@/lib/passkey/connector';
 
 const config = getDefaultConfig({
   appName: 'EmpowerTours',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'empowertours-standalone',
   // Allow both Monad and Ethereum mainnet for message signing (no chain switch required)
   chains: [monadMainnet, mainnet],
+  // The passkey wallet, offered alongside RainbowKit's defaults. `getDefaultConfig` owns its
+  // connector list and rejects a bare connector, so it goes in as a wallet group — which also
+  // puts it in the connect modal, where somebody would look for it.
+  //
+  // Appended, never replacing: somebody arriving with MetaMask must still be able to use it.
+  // Browser-only by design — inside Farcaster that host's own wallet is used and this group is
+  // never reached.
+  wallets: [{ groupName: 'EmpowerTours', wallets: [passkeyRainbowWallet] }],
   ssr: true,
 });
 
