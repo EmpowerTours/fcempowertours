@@ -52,7 +52,13 @@ export default function MeraProbe() {
     // reported as a suspicion rather than a verdict.
     const ua = navigator.userAgent;
     const isIOS = /iPhone|iPad|iPod/.test(ua);
-    const looksInApp = isIOS && !/Version\/[\d.]+.*Safari\//.test(ua);
+    // Chrome, Firefox and Edge on iOS are REAL browsers that carry no "Version/" token — they
+    // use CriOS/FxiOS/EdgiOS instead. A first version tested only for "Version/… Safari/…" and
+    // so flagged Chrome on iOS as an in-app browser, on a run where everything worked. A check
+    // that cries wolf on a working setup is worse than no check.
+    const namedBrowser = /CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+    const looksInApp =
+      isIOS && !namedBrowser && !/Version\/[\d.]+.*Safari\//.test(ua);
     push(
       "in-app browser (iOS)",
       looksInApp ? "likely — open in Safari instead" : "no",
@@ -77,7 +83,7 @@ export default function MeraProbe() {
     // There is no feature-detect for PRF that does not involve creating a credential — the
     // extension only reports back from a real ceremony. So this is the honest answer until the
     // button below is pressed.
-    push("PRF support", "unknown until a passkey is created");
+    push("PRF support", "unknown until the passkey answers");
   }
 
   async function runCeremony() {
