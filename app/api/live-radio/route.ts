@@ -152,6 +152,13 @@ async function recordRadioPlays(tokenId: string, duration: number) {
     return;
   }
 
+  // Once for the track, before the per-listener loop below: a suspended or purged master must
+  // not be credited, and recordPlay cannot refuse one itself. See lib/master-playable.ts.
+  {
+    const { mayRecordPlay } = await import("@/lib/master-playable");
+    if (!(await mayRecordPlay(tokenId, "LiveRadio"))) return;
+  }
+
   try {
     const { JsonRpcProvider, Wallet, Contract } = await import("ethers");
     const MONAD_RPC =

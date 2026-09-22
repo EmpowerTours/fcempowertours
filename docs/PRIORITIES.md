@@ -451,17 +451,20 @@ Fixed and covered by `tools/verify-wallet-and-migration.ts`, but **nothing signe
 been exercised end to end since** — display-name claims and catalogue migration were both dead
 for an unknown period. Worth one real transaction to confirm.
 
-### H. A suspended master still earns — **OPEN, found 2026-09-21**
+### H. ~~A suspended master still earns~~ — **FIXED 2026-09-21**
 
 `MusicSubscriptionV6.recordPlay` (`contracts/MusicSubscriptionV6.sol:415-456`) checks the
 subscription, the cooldowns, the daily caps, `getMasterType` and `artist != address(0)`. It
-**never checks `masterSuspended`**. Nor does any of the four off-chain paths that drive the
-oracle: `lib/play-recording.ts`, `app/api/record-play/route.ts:248`,
-`app/api/venue/[venueId]/route.ts:364`, `app/api/live-radio/route.ts:205`. The registry's
-suspension stops LiveRadioV3 queueing a track (`active` is false) and the catalogue filters it,
-but nothing stops a play being *credited* for one.
+**never checks `masterSuspended`**, and cannot be made to — it is deployed and immutable. Nor did
+any of the **five** call sites that drive the oracle (`lib/play-recording.ts` ×2,
+`app/api/record-play/route.ts`, `app/api/live-radio/route.ts`,
+`app/api/venue/[venueId]/route.ts` — this item said four; the scan found the fifth).
 
-Chain state 2026-09-21:
+Suspension was only ever a *display* control: it makes the registry report `active: false`, which
+stops LiveRadioV3 queueing the track, and `lib/catalogue-source.ts` filters it out of the
+catalogue. Neither touches crediting.
+
+Chain state when found, 2026-09-21:
 
 ```
 masters 1–5  artist 0x8dF64bACf6b7… (deployer)  suspended=true   month690=3  lifetime=8
@@ -470,18 +473,35 @@ masters 7–13 artist 0x33fFCcb1… (the artist)    7 suspended      month690=0 
 month 690 (2026-09-04 → 10-04)   4 plays, 15 WMON revenue, not finalized
 ```
 
-So month 690's pool is currently on course to pay **3/4 to the deployer key and nothing to the
-artist**, on plays of masters that are suspended. Item A says "the problem has stopped growing" —
-that is an **observation, not a control**; nothing in the code enforces it, and the next
-suspension will behave the same way.
+Three quarters of that month's pool was on course to pay the deployer key for tracks that had
+been taken down, and nothing to the artist. Item A said the problem "had stopped growing" — true,
+but because the catalogue stopped listing those masters, not because anything refused to credit
+them. An observation, not a control.
 
-Not claimed: whether those three plays post-date the suspension. The public RPC serves no archive
-state, so the suspension cannot be dated from a terminal and the `MasterSuspensionSet` log is
-behind a 100-block `eth_getLogs` cap. **The gap is what is verified, not an exploitation of it.**
+**What changed.** `lib/master-playable.ts` is the control, and all five call sites go through it.
+It reads `masterSuspended`, `masterPurged` and `getMaster` and **fails closed**: a read that does
+not come back means "cannot confirm this may earn", and the play is not recorded — the same
+posture `catalogue-source.ts` already takes for the same flags. The radio and venue paths check
+once per track rather than once per listener, because suspension is a property of the master. It
+is deliberately **not cached**: a takedown exists to take effect in seconds, and a TTL is exactly
+how long it would keep paying afterwards.
 
-V6 is deployed and immutable, so the fix is off-chain: one shared `masterSuspended` check in
-front of every `oracle.recordPlay` call, plus an invariant that fails the day a fifth call site
-is written without it. Effort: an hour.
+The existence check earns its place separately. A master that does not exist reads
+`suspended=false, purged=false`, so the two flags alone waved token id 999 through; `recordPlay`
+would revert on `artist != address(0)`, and **Monad charges the full gas limit on a revert**, so
+that is real MON spent to be told no. Verified against mainnet: ids 1, 5 and 7 refuse as
+suspended, 6, 8 and 13 pass, 999 refuses as nonexistent.
+
+`tools/verify-suspended-masters-earn-nothing.ts` holds it — a source scan requiring every
+contract-level `recordPlay` call to sit below a gate in its own file, plus stub-client checks
+that suspended, purged, nonexistent and unreadable all refuse. It does not hard-code the five
+files: a sixth route is the case it exists for, and a list would not contain it. **Made to fail
+on purpose:** removing the gate from the venue route turns it red naming
+`app/api/venue/[venueId]/route.ts:370`.
+
+**Not done, and it is a separate decision:** the 8 plays and the month-690 credit already on the
+deployer key are not reversed. `artistMonthlyPlays` has no setter and month 690 is unfinalized;
+whether to let it settle as-is is a call about ~11 WMON, not a code change.
 
 ---
 

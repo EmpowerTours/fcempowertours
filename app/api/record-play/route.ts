@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { JsonRpcProvider, Wallet, Contract } from "ethers";
 import { Redis } from "@upstash/redis";
 import { authorizeUserAddress } from "@/lib/quick-auth";
+import { isMasterPlayable } from "@/lib/master-playable";
 
 // Configuration - Updated Dec 27, 2025
 const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE!;
@@ -238,6 +239,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Could not verify replay eligibility" },
         { status: 503 },
+      );
+    }
+
+    // A suspended or purged master must not earn. recordPlay itself has no such check and the
+    // contract is immutable, so refusing here is the only way it is refused at all.
+    const playable = await isMasterPlayable(masterTokenId);
+    if (!playable.playable) {
+      console.warn(`[RecordPlay] refusing: ${playable.reason}`);
+      return NextResponse.json(
+        { success: false, error: "This track is not available" },
+        { status: 409 },
       );
     }
 

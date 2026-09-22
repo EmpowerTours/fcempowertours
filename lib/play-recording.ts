@@ -1,4 +1,5 @@
 import { stampDiscovery } from "@/lib/discovery-stamp";
+import { mayRecordPlay } from "@/lib/master-playable";
 import { Redis } from "@upstash/redis";
 
 /**
@@ -30,6 +31,11 @@ export async function recordPlay(
     );
     return null;
   }
+
+  // A suspended or purged master must not be credited. The contract cannot refuse one —
+  // recordPlay has no such check and is immutable — so this is the only place it can be
+  // stopped. See lib/master-playable.ts.
+  if (!(await mayRecordPlay(tokenId, "PlayRecording"))) return null;
 
   try {
     const { JsonRpcProvider, Wallet, Contract } = await import("ethers");
@@ -85,6 +91,12 @@ export async function recordPlaysForListeners(
     console.log(
       "[PlayRecording] Skipping batch: missing PLAY_ORACLE or DEPLOYER_PRIVATE_KEY",
     );
+    return { recorded: 0, total: 0 };
+  }
+
+  // Once for the track, not once per listener: suspension is a property of the master, so
+  // checking it inside the loop below would pay for the same answer N times.
+  if (!(await mayRecordPlay(tokenId, "PlayRecording"))) {
     return { recorded: 0, total: 0 };
   }
 

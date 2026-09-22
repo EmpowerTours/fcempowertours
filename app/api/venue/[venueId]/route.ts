@@ -348,6 +348,13 @@ async function recordVenuePlay(tokenId: string, duration: number) {
     return;
   }
 
+  // A suspended or purged master must not be credited, and recordPlay cannot refuse one — the
+  // contract has no such check and is immutable. See lib/master-playable.ts.
+  {
+    const { mayRecordPlay } = await import('@/lib/master-playable');
+    if (!(await mayRecordPlay(tokenId, 'VenueAPI'))) return;
+  }
+
   try {
     const { JsonRpcProvider, Wallet, Contract } = await import('ethers');
     const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
