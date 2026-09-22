@@ -33,12 +33,16 @@ export async function GET(request: NextRequest) {
       'cf-connecting-ip': cfConnectingIp,
     });
 
+    // No token is "we cannot tell", not "the user is American". Answering 200 with a country
+    // we invented is what makes this dangerous: the caller cannot distinguish a real answer
+    // from a guess, and the only thing this endpoint feeds is a passport mint that cannot be
+    // undone. See the territory note below for the time that actually happened.
     if (!IPINFO_TOKEN) {
       console.error('❌ IPINFO_TOKEN not configured');
-      return NextResponse.json({
-        country: 'US',
-        country_name: 'United States'
-      }, { status: 200 });
+      return NextResponse.json(
+        { country: null, error: 'Location lookup is not configured' },
+        { status: 503 },
+      );
     }
 
     // Call IPInfo API
@@ -81,7 +85,14 @@ export async function GET(request: NextRequest) {
       city: data.city,
       timezone: data.timezone,
     });
-    const countryCode = territory.countryCode || 'US';
+    const countryCode = territory.countryCode;
+    if (!countryCode) {
+      console.error('❌ IPInfo returned no usable country for', data.ip);
+      return NextResponse.json(
+        { country: null, error: 'Could not determine your country' },
+        { status: 503 },
+      );
+    }
     if (territory.corrected) {
       console.log(
         `✅ Territory corrected: ${data.country} → ${countryCode} (by ${territory.source})`,
@@ -90,7 +101,9 @@ export async function GET(request: NextRequest) {
 
     // Get full country info from our 195 countries database
     const countryInfo = getCountryByCode(countryCode);
-    const countryName = countryInfo?.name || 'United States';
+    // The ISO code is the fact; the pretty name is a lookup. An unknown code means our database
+    // is behind, which is a reason to show the code — never a reason to say United States.
+    const countryName = countryInfo?.name || countryCode;
 
     console.log('🌍 Country:', countryInfo?.flag, countryName);
 
@@ -104,11 +117,12 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Geolocation error:', error);
-    
-    // Fallback to US
-    return NextResponse.json({
-      country: 'US',
-      country_name: 'United States'
-    }, { status: 200 });
+
+    // Deliberately NOT a fallback country. A caller that gets a 503 shows the user an error and
+    // lets them retry; a caller that gets `US` mints them a United States passport forever.
+    return NextResponse.json(
+      { country: null, error: 'Location lookup failed' },
+      { status: 503 },
+    );
   }
 }

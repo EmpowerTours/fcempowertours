@@ -843,9 +843,18 @@ Click below to open the transaction page and connect your Farcaster wallet with 
       try {
         console.log("[BOT] Minting passport for:", userAddress);
 
-        // 🔥 CRITICAL: Detect country FIRST
-        let countryCode = "US";
-        let countryName = "United States";
+        // 🔥 CRITICAL: Detect country FIRST — and refuse to mint if we cannot.
+        //
+        // This used to seed `US` / `United States` and overwrite them only on success, so every
+        // failure path minted a United States passport. PassportNFTV4 has no burn and no country
+        // setter, and a wallet gets one passport per country, so that permanently spends the
+        // holder's slot on a country they may never have visited. It is not hypothetical: the
+        // note in app/api/geo/route.ts records passport #3 minted as China on 2026-02-10 for
+        // exactly this class of mistake.
+        //
+        // A refusal is recoverable. A wrong passport is not.
+        let countryCode: string;
+        let countryName: string;
         try {
           const geoRes = await fetch(`${APP_URL}/api/geo`, {
             headers: {
@@ -855,11 +864,19 @@ Click below to open the transaction page and connect your Farcaster wallet with 
             },
           });
           const geoData = await geoRes.json();
-          countryCode = geoData.country || "US";
-          countryName = geoData.country_name || "United States";
+          if (!geoRes.ok || !geoData?.country) {
+            throw new Error(geoData?.error || `geo lookup returned ${geoRes.status}`);
+          }
+          countryCode = geoData.country;
+          countryName = geoData.country_name || geoData.country;
           console.log(`📍 Detected country: ${countryCode} ${countryName}`);
-        } catch {
-          console.warn("Location detection failed, using default");
+        } catch (geoError) {
+          console.error("[BOT] Location detection failed, refusing to mint:", geoError);
+          return NextResponse.json({
+            success: false,
+            message:
+              "I could not work out which country you are in, and a passport is minted for one country permanently — so I would rather not guess. Please try again in a moment.",
+          });
         }
 
         // ✅ QUERY INDEXER: Check if user already owns a passport for this country
