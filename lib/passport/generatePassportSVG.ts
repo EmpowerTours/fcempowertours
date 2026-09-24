@@ -330,6 +330,55 @@ export function generatePassportSVG(
  * The visa pages. Empty is the normal state for a new passport and is set as a
  * ruled blank rather than an advert — a document does not tell you to buy things.
  */
+/**
+ * The mark that says what KIND of place this was.
+ *
+ * Real passports carry a pictogram for the mode of entry — plane, car, boat —
+ * and that is exactly the job here: the ring already says WHERE and WHEN, and
+ * whether an oracle signed it. Nothing said what you did there, so a crag and a
+ * music venue struck identically: a ring, a name, a date. Passport #4 carried
+ * "UNIFY34" and a climbing stamp would have sat beside it indistinguishable.
+ *
+ * Two axes, kept independent on purpose:
+ *   attested vs self-recorded  ->  ring style and colour (already existed)
+ *   what kind of place         ->  this glyph
+ * Neither should be readable off the other.
+ *
+ * `eventType` is a free string on the contract, so an unrecognised value draws
+ * NOTHING rather than guessing. A wrong pictogram is worse than none — it is a
+ * claim about something that did not happen.
+ *
+ * Geometry is bounded to y -16..-9 at |x| <= 7, which clears the r=18 inner ring
+ * (at x=7 the ring is at y=-16.6) and sits above the place text's ascender.
+ */
+function stampGlyph(experienceType: string | undefined, fill: string): string {
+  const kind = (experienceType || "").trim().toLowerCase();
+  if (kind === "climbing") {
+    // Twin peaks. A single triangle reads as a generic shape at 7px; the second
+    // peak is what makes it unmistakably mountains.
+    return `<path d="M-7 -9 L-2.5 -15.5 L0.5 -11.5 L3.5 -14.5 L7 -9 Z" fill="none" stroke="${fill}" stroke-width="0.9" stroke-linejoin="round" opacity="0.9"/>`;
+  }
+  if (kind === "discovery") {
+    // An equaliser, not a quaver. A note needs a curved head and a stem, and
+    // both turn to mush at this size; four bars stay crisp and read as audio.
+    return `<g stroke="${fill}" stroke-width="1.1" stroke-linecap="round" opacity="0.9">
+      <line x1="-5.5" y1="-13" x2="-5.5" y2="-10.5"/>
+      <line x1="-2" y1="-15.5" x2="-2" y2="-9"/>
+      <line x1="2" y1="-14.5" x2="2" y2="-9.5"/>
+      <line x1="5.5" y1="-12" x2="5.5" y2="-11"/>
+    </g>`;
+  }
+  return "";
+}
+
+/** Human label for the accessible title, so the mark is not visual-only. */
+function stampKindLabel(experienceType: string | undefined): string {
+  const kind = (experienceType || "").trim().toLowerCase();
+  if (kind === "climbing") return "Climb";
+  if (kind === "discovery") return "Artist discovery";
+  return "Visit";
+}
+
 function generateStampsSection(stamps: PassportStamp[]): string {
   if (stamps.length === 0) {
     return `
@@ -395,11 +444,13 @@ function generateStampsSection(stamps: PassportStamp[]): string {
     <image href="${esc(art)}" x="-18" y="-18" width="36" height="36" clip-path="url(#stamp${i})" preserveAspectRatio="xMidYMid slice"/>
     <text y="30" font-family="${MONO}" font-size="5.6" fill="${GOLD_LIGHT}" text-anchor="middle">${date}</text>`
       : `${attested ? `<circle r="18" fill="none" stroke="${GOLD_LIGHT}" stroke-width="0.4" opacity="0.45"/>` : ""}
+    ${stampGlyph(stamp.experienceType, textFill)}
     <text y="-3" font-family="${SERIF}" font-size="${placeSize}" fill="${textFill}" text-anchor="middle" letter-spacing="0.4" opacity="0.9">${place}</text>
     <text y="7" font-family="${MONO}" font-size="6" fill="${GOLD_LIGHT}" text-anchor="middle">${date}</text>`;
 
     out += `
   <g transform="translate(${x} ${y}) rotate(${rot})" opacity="${attested ? 0.85 : 0.6}">
+    <title>${esc(stampKindLabel(stamp.experienceType))} — ${esc(raw || "unknown")}, ${esc(date)}</title>
     <circle r="23" fill="none" stroke="${GOLD_LIGHT}" stroke-width="${ringWidth}" opacity="${ringOpacity}"${dash}/>
     ${inner}
   </g>`;
