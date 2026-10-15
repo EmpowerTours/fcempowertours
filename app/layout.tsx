@@ -26,11 +26,11 @@ export const metadata: Metadata = {
     description: 'Mint and share Travel and Music NFTs on EmpowerTours.',
     images: [
       {
-        url: `${APP_URL}/images/og-image.png`,
+        url: `${APP_URL}/images/og-image.jpg?v=2`,
         width: 1200,
         height: 630,
-        alt: 'EmpowerTours - Travel and Music NFTs',
-        type: 'image/png',
+        alt: 'EmpowerTours - Music NFTs, Digital Passport, Live Radio',
+        type: 'image/jpeg',
       },
     ],
   },
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     title: 'EmpowerTours - DigitalPassport',
     description: 'Mint and share Travel and Music NFTs on EmpowerTours.',
     creator: '@empowertours',
-    images: [`${APP_URL}/images/og-image.png`],
+    images: [`${APP_URL}/images/og-image.jpg?v=2`],
   },
   icons: {
     icon: '/images/icon.png',
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
   // Farcaster Frame v2 / Mini App metadata
   other: {
     'fc:frame': 'vNext',
-    'fc:frame:image': `${APP_URL}/images/og-image.png`,
+    'fc:frame:image': `${APP_URL}/images/og-image.jpg?v=2`,
     'fc:frame:button:1': 'Open EmpowerTours',
     'fc:frame:button:1:action': 'launch_frame',
     'fc:frame:button:1:target': APP_URL,

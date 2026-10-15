@@ -177,6 +177,8 @@ dune-analytics/
 # EPK generated files (local only)
 *.pdf
 *.jpg
+# Social preview art is a deployed static asset, not an EPK export
+!public/images/*.jpg
 generate-epk*.cjs
 public/epk/
 

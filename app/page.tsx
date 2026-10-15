@@ -7,7 +7,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // Mini App embed configuration
   const frame = {
     version: "1", // CRITICAL: Must be "1", not "next" or "vNext"
-    imageUrl: `${APP_URL}/images/feed.png`, // 3:2 aspect ratio
+    imageUrl: `${APP_URL}/images/feed.jpg?v=2`, // 3:2 aspect ratio
     button: {
       title: "Open EmpowerTours", // Max 32 characters
       action: {
@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: 'EmpowerTours - DigitalPassport',
       description: 'Mint and share Travel and Music NFTs on EmpowerTours.',
-      images: [`${APP_URL}/images/og-image.png`],
+      images: [`${APP_URL}/images/og-image.jpg?v=2`],
     },
     other: {
       "fc:miniapp": JSON.stringify(frame)
