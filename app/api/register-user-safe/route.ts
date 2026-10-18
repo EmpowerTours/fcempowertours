@@ -7,6 +7,7 @@ import {
   reservePlatformGas,
   PlatformGasBudgets,
 } from "@/lib/platform-gas-budget";
+import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,7 +53,11 @@ export async function POST(req: NextRequest) {
     // rate limit below caps one caller. Neither depends on the signature, and an
     // attacker's cost is unchanged — a delegation itself requires proving
     // ownership once, which is exactly what the second signature asked for.
-    if (!authz.ownsAddress && !(await delegationProvesOwnership(userAddress))) {
+    const sessionSecret = req.headers.get(DELEGATION_SESSION_HEADER);
+    if (
+      !authz.ownsAddress &&
+      !(await delegationProvesOwnership(userAddress, undefined, sessionSecret))
+    ) {
       return NextResponse.json(
         {
           success: false,

@@ -8,6 +8,11 @@ import { ensureDelegationCovers } from "@/lib/ensure-delegation-covers";
 import { ensureSafeRegistered } from "@/lib/ensure-safe-registered";
 import { describeMintFailure } from "@/lib/mint-failure";
 import { authHeaders } from "@/lib/quick-auth-client";
+import {
+  delegationSessionHeaders,
+  readDelegationSession,
+  storeDelegationSession,
+} from "@/lib/delegation-session-client";
 import { walletAuthHeaders } from "@/lib/wallet-auth-client";
 import { useState, useEffect, useCallback } from "react";
 import { useSignMessage } from "wagmi";
@@ -51,18 +56,28 @@ export default function PassportPage() {
    */
   const authFor = useCallback(
     async (context: string): Promise<Record<string, string>> => {
-      if (isFarcaster) return authHeaders();
+      if (isFarcaster) {
+        return {
+          ...(await authHeaders()),
+          ...(walletAddress ? delegationSessionHeaders(walletAddress) : {}),
+        };
+      }
       if (!walletAddress) return {};
       // A proven delegation already authorises these, so prompting again is the
       // friction the delegation was created to remove. The server accepts the
       // delegation as proof; if it is missing or unproven the caller recreates
       // it, which is the one signature the user actually owes.
-      if (delegationCovers(context)) return {};
-      return walletAuthHeaders({
-        address: walletAddress,
-        signMessage: signMessageAsync,
-        context,
-      });
+      if (delegationCovers(context)) {
+        return { ...delegationSessionHeaders(walletAddress) };
+      }
+      return {
+        ...(await walletAuthHeaders({
+          address: walletAddress,
+          signMessage: signMessageAsync,
+          context,
+        })),
+        ...delegationSessionHeaders(walletAddress),
+      };
     },
     [isFarcaster, walletAddress, signMessageAsync],
   );
@@ -194,7 +209,8 @@ export default function PassportPage() {
         delegationData.delegation &&
         Array.isArray(delegationData.delegation.permissions) &&
         delegationData.delegation.permissions.includes("mint_passport") &&
-        delegationData.delegation.ownershipProven === true;
+        delegationData.delegation.ownershipProven === true &&
+        Boolean(readDelegationSession(walletAddress));
 
       if (!hasValidDelegation) {
         console.log("📝 Creating delegation...");
@@ -225,6 +241,7 @@ export default function PassportPage() {
         if (!createData.success) {
           throw new Error("Failed to create delegation: " + createData.error);
         }
+        storeDelegationSession(walletAddress, createData?.delegation?.sessionSecret);
         console.log("✅ Delegation created");
       }
 

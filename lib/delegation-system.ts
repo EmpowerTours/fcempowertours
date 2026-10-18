@@ -26,6 +26,11 @@ export interface Delegation {
    * record can never widen access — it just falls back to a signature prompt.
    */
   ownershipProven?: boolean;
+  /**
+   * SHA-256 hex of the session secret issued to the creating browser.
+   * Required to spend via this delegation; absent means fail closed.
+   */
+  sessionSecretHash?: string;
 }
 
 /**

@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useSignMessage } from "wagmi";
 
 import { authHeaders } from "@/lib/quick-auth-client";
+import { delegationSessionHeaders } from "@/lib/delegation-session-client";
 import { walletAuthHeaders } from "@/lib/wallet-auth-client";
 import { useWalletContext } from "./useWalletContext";
 
@@ -43,14 +44,18 @@ export function useActionAuth() {
       context: string,
       address?: string | null,
     ): Promise<Record<string, string>> => {
-      if (isFarcaster) return authHeaders();
       const signer = address || walletAddress;
+      const session = signer ? delegationSessionHeaders(signer) : {};
+      if (isFarcaster) return { ...(await authHeaders()), ...session };
       if (!signer) return {};
-      return walletAuthHeaders({
-        address: signer,
-        signMessage: signMessageAsync,
-        context,
-      });
+      return {
+        ...(await walletAuthHeaders({
+          address: signer,
+          signMessage: signMessageAsync,
+          context,
+        })),
+        ...session,
+      };
     },
     [isFarcaster, walletAddress, signMessageAsync],
   );

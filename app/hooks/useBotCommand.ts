@@ -6,6 +6,7 @@ import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
 import { authHeaders } from "@/lib/quick-auth-client";
 import { walletAuthHeaders } from "@/lib/wallet-auth-client";
 import { delegationIsProven } from "@/lib/delegation-proven-client";
+import { delegationSessionHeaders } from "@/lib/delegation-session-client";
 
 /** Must match the `context` the server passes to authorizeUserAddress. */
 const AUTH_CONTEXT = "bot-command";
@@ -119,16 +120,19 @@ export function useBotCommand() {
         let skippedSignature = false;
         let auth: Record<string, string>;
         if (inFarcaster) {
-          auth = await authHeaders();
+          auth = {
+            ...(await authHeaders()),
+            ...delegationSessionHeaders(userAddress),
+          };
         } else if (options?.requireWalletAuth) {
           if (await delegationIsProven(userAddress)) {
-            auth = {};
+            auth = { ...delegationSessionHeaders(userAddress) };
             skippedSignature = true;
           } else {
             auth = await signForOwnership();
           }
         } else {
-          auth = {};
+          auth = { ...delegationSessionHeaders(userAddress) };
         }
 
         const send = (headers: Record<string, string>) =>
