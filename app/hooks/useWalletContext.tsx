@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAccount, useConnect, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useFarcasterContext } from "./useFarcasterContext";
+import { openSignIn } from "@/app/components/PasskeySignInDialog";
 
 interface WalletContextReturn {
   // Core wallet state
@@ -245,6 +246,10 @@ export function useWalletContext(): WalletContextReturn {
     if (wagmiAccount.isConnected && wagmiAccount.address) {
       return { address: wagmiAccount.address };
     }
+
+    // The EmpowerTours sign-in dialog: passkey create/open, plus "Use another wallet", which is
+    // this same RainbowKit modal. Falls through to the modal when the dialog is not mounted.
+    if (openSignIn()) return null;
 
     if (openConnectModal) {
       openConnectModal();

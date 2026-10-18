@@ -3,6 +3,7 @@
 import React from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Wallet } from "lucide-react";
+import { openSignIn } from "./PasskeySignInDialog";
 
 interface ConnectWalletButtonProps {
   className?: string;
@@ -40,7 +41,11 @@ export default function ConnectWalletButton({
               if (!connected) {
                 return (
                   <button
-                    onClick={openConnectModal}
+                    // Passkey first (create or open), with every other wallet one tap away.
+                    // Falls back to RainbowKit's modal if the dialog is not mounted.
+                    onClick={() => {
+                      if (!openSignIn()) openConnectModal();
+                    }}
                     className="flex items-center gap-2 px-4 py-2.5 bg-foil hover:bg-foil-bright text-ink font-semibold tracking-wide transition-colors text-sm"
                   >
                     <Wallet className="w-4 h-4" />
