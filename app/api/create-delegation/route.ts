@@ -10,6 +10,10 @@ import {
   SIGNATURE_EXPIRY_MS,
 } from "@/lib/auth";
 import { authorizeUserAddress } from "@/lib/quick-auth";
+import {
+  mintDelegationSessionSecret,
+  hashDelegationSessionSecret,
+} from "@/lib/delegation-session";
 
 /**
  * 🔐 CREATE DELEGATION ENDPOINT (SECURED)
@@ -435,6 +439,12 @@ export async function POST(req: NextRequest) {
     // Deduplicate permissions
     finalPermissions = [...new Set(finalPermissions)];
 
+    // Bind this delegation to the creating browser. Returned once below;
+    // only the hash is stored. Old clients without the secret must re-prove.
+    const sessionSecret = ownershipProven
+      ? mintDelegationSessionSecret()
+      : null;
+
     // Create delegation object
     const delegation = {
       user: userAddress.toLowerCase(),
@@ -450,6 +460,9 @@ export async function POST(req: NextRequest) {
       // SECURITY: whether ownership was PROVEN, not merely claimed. Consumed by
       // execute-delegated's fund-moving gate.
       ownershipProven,
+      ...(sessionSecret
+        ? { sessionSecretHash: hashDelegationSessionSecret(sessionSecret) }
+        : {}),
       // SECURITY: Track auth metadata
       authMetadata: {
         method: authMethod === "farcaster" ? "farcaster" : "signature",
@@ -487,6 +500,9 @@ export async function POST(req: NextRequest) {
         durationHours,
         maxTransactions,
         permissions: finalPermissions,
+        ownershipProven,
+        // Returned once. Client must store and send as x-delegation-session.
+        ...(sessionSecret ? { sessionSecret } : {}),
         message:
           "Delegation created! You can now execute gasless transactions.",
       },

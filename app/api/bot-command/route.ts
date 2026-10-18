@@ -18,6 +18,7 @@ import {
 } from "viem";
 import { activeChain } from "@/app/chains";
 import { findAllPassports } from "@/lib/passport-lookup";
+import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_URL ||
@@ -110,8 +111,10 @@ export async function POST(req: NextRequest) {
       // to are in publicActions, where the permission list is bypassed anyway.
       // A delegation only exists after ownership was proven once, so this
       // asserts exactly what the signature asserted, and nothing more.
+      const sessionSecret = req.headers.get(DELEGATION_SESSION_HEADER);
       const provenByDelegation =
-        !authz.ownsAddress && (await delegationProvesOwnership(userAddress));
+        !authz.ownsAddress &&
+        (await delegationProvesOwnership(userAddress, undefined, sessionSecret));
 
       if (
         (authz.ownsAddress && authz.mode === "wallet") ||

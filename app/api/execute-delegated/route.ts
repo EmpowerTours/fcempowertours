@@ -47,6 +47,7 @@ import {
 import { authorizeUserAddress } from "@/lib/quick-auth";
 import { getResolvedTrack } from "@/lib/catalogue-resolved";
 import { buildPassportTokenURI } from "@/lib/passport/token-uri";
+import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
 
 // Shared by ERC-20 and ERC-721: Transfer(address,address,uint256).
 // ERC-721 indexes the tokenId, so a mint has 4 topics with topics[1] == 0x0;
@@ -231,9 +232,11 @@ export async function POST(req: NextRequest) {
       // requires the signature.
       let delegatedOwnership = false;
       if (fundMovingActions.has(action) && !authz.ownsAddress) {
+        const sessionSecret = req.headers.get(DELEGATION_SESSION_HEADER);
         delegatedOwnership = await delegationProvesOwnership(
           userAddress,
           action,
+          sessionSecret,
         );
         if (delegatedOwnership) {
           console.log(

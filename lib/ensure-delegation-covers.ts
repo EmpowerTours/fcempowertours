@@ -1,3 +1,7 @@
+import {
+  readDelegationSession,
+  storeDelegationSession,
+} from "@/lib/delegation-session-client";
 import { DELEGATION_PERMISSIONS } from "@/lib/delegation-covered";
 
 /**
@@ -48,7 +52,10 @@ export async function ensureDelegationCovers(
       const data = await res.json();
       holds = Boolean(
         data?.delegation?.permissions?.includes(action) &&
-          data.delegation.ownershipProven === true,
+          data.delegation.ownershipProven === true &&
+          // A proven delegation without THIS browser's session secret cannot
+          // authorise spends. Treat as missing so we mint a fresh one.
+          Boolean(readDelegationSession(userAddress)),
       );
     }
   } catch {
@@ -92,7 +99,11 @@ export async function ensureDelegationCovers(
         permissions: [...DELEGATION_PERMISSIONS],
       }),
     });
-    if (viaSession.ok) return;
+    if (viaSession.ok) {
+      const data = await viaSession.json().catch(() => ({}));
+      storeDelegationSession(userAddress, data?.delegation?.sessionSecret);
+      return;
+    }
     // Fall through to the signature path rather than failing outright.
   }
 
@@ -132,6 +143,8 @@ export async function ensureDelegationCovers(
       data?.error || "Could not set up gasless transactions. Please try again.",
     );
   }
+  const created = await res.json().catch(() => ({}));
+  storeDelegationSession(userAddress, created?.delegation?.sessionSecret);
 }
 
 function withTimeout<T>(p: Promise<T>, message: string): Promise<T> {
