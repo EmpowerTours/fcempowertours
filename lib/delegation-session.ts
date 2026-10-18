@@ -11,7 +11,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
  * Redis stores only the SHA-256 hash. A dump of Redis cannot be replayed as a
  * header. Absent hash (delegations created before this field) fails closed.
  */
-export const DELEGATION_SESSION_HEADER = "x-delegation-session";
+export { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session-header";
 
 export function mintDelegationSessionSecret(): string {
   return randomBytes(32).toString("hex");

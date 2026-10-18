@@ -1,6 +1,6 @@
 "use client";
 
-import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
+import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session-header";
 
 const storageKey = (address: string) =>
   `et-delegation-session:${address.toLowerCase()}`;
