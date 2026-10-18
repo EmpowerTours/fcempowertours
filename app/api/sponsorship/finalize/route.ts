@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireInternalSecret } from '@/lib/internal-secret';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
@@ -28,6 +29,8 @@ interface FinalizeRequest {
 export async function POST(req: NextRequest) {
   try {
     const body: FinalizeRequest = await req.json();
+    const denied = requireInternalSecret(req, (body as any).secret);
+    if (denied) return denied;
     const { sponsorshipId } = body;
 
     if (sponsorshipId === undefined) {

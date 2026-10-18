@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUserProof } from "@/lib/require-user-proof";
 import axios from "axios";
 import { Interface } from "ethers";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
@@ -204,12 +205,13 @@ async function uploadMetadataToPinata(
 
 export async function POST(req: NextRequest) {
   try {
-    const { fid, countryCode, countryName, userAddress } = await req.json();
+    const body = await req.json();
+    const { fid, countryCode, countryName } = body;
     console.log("🎫 Passport mint request:", {
       fid,
       countryCode,
       countryName,
-      userAddress,
+      userAddress: body.userAddress,
     });
 
     // Validate required fields
@@ -217,11 +219,14 @@ export async function POST(req: NextRequest) {
       throw new Error("Missing countryCode or countryName");
     }
 
-    if (!userAddress) {
+    if (!body.userAddress) {
       throw new Error("Missing userAddress");
     }
 
-    const normalizedAddress = userAddress.toLowerCase();
+    const proof = await requireUserProof(req, body.userAddress, "mint-passport");
+    if (!proof.ok) return proof.response;
+    const userAddress = proof.address;
+    const normalizedAddress = userAddress;
 
     // ============================================
     // 🛡️ ANTI-GAMING: Server-side geo verification

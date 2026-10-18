@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { forwardAuthHeader } from "@/lib/quick-auth";
+import { requireUserProof } from "@/lib/require-user-proof";
+import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
 import { GoogleGenAI, Type } from "@google/genai";
 import { encodeFunctionData, type Address, type Hex } from "viem";
 import { sendUserSafeTransaction } from "@/lib/user-safe";
@@ -75,13 +77,14 @@ export async function POST(req: NextRequest) {
 
     const {
       message,
-      userAddress,
+      userAddress: claimedUserAddress,
       userFid,
       userLocation,
       confirmPayment,
       adminSignature, // For admin actions (burn NFT)
       adminTimestamp, // Timestamp for admin signature verification
     } = await req.json();
+    let userAddress: string | undefined = claimedUserAddress;
 
     if (!message) {
       return NextResponse.json({ error: "Message required" }, { status: 400 });
@@ -341,6 +344,18 @@ Return valid JSON only.`;
     let txHash: string | null = null;
 
     if (action.type === "execute" && action.transaction) {
+      // Spends require proven ownership — never trust a body-supplied address alone.
+      if (!userAddress) {
+        return NextResponse.json(
+          { success: false, error: "Connect a wallet to run this action." },
+          { status: 401 },
+        );
+      }
+      {
+        const proof = await requireUserProof(req, userAddress, "oracle-chat");
+        if (!proof.ok) return proof.response;
+        userAddress = proof.address;
+      }
       // Aggressively extract function name - Gemini often hallucinates extra text
       const rawFunc = action.transaction.function || "";
       let funcName = rawFunc.replace(/[,\s]+$/, "").trim();
@@ -385,7 +400,17 @@ Return valid JSON only.`;
               `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/api/execute-delegated`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json", ...fwdAuth },
+                headers: {
+                  "Content-Type": "application/json",
+                  ...fwdAuth,
+                  ...(req.headers.get(DELEGATION_SESSION_HEADER)
+                    ? {
+                        [DELEGATION_SESSION_HEADER]: req.headers.get(
+                          DELEGATION_SESSION_HEADER,
+                        )!,
+                      }
+                    : {}),
+                },
                 body: JSON.stringify({
                   action: "buy_music", // Both use the same endpoint
                   userAddress,
@@ -420,6 +445,11 @@ Return valid JSON only.`;
         );
       }
     } else if (action.type === "mint_passport" && userAddress) {
+      {
+        const proof = await requireUserProof(req, userAddress, "oracle-chat");
+        if (!proof.ok) return proof.response;
+        userAddress = proof.address;
+      }
       // Determine country: use Gemini's passport data, or fall back to user's location
       let countryCode = action.passport?.countryCode;
       let countryName = action.passport?.countryName;

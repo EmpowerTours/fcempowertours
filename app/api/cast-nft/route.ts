@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUserProof } from "@/lib/require-user-proof";
+import {
+  requireInternalSecret,
+  presentedInternalSecret,
+} from "@/lib/internal-secret";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 
 const APP_URL =
@@ -56,6 +61,25 @@ export async function POST(req: NextRequest) {
         success: true,
         message: "Nothing to attribute",
       });
+    }
+    // External callers need a user proof. Server-to-server hops (execute-delegated,
+    // live-radio, record-play) may present the internal keeper secret instead.
+    const hasInternal = Boolean(presentedInternalSecret(req));
+    if (hasInternal) {
+      const denied = requireInternalSecret(req);
+      if (denied) return denied;
+    } else {
+      if (!actorAddress) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Cast attribution requires a proven wallet address.",
+          },
+          { status: 401 },
+        );
+      }
+      const proof = await requireUserProof(req, actorAddress, "cast-nft");
+      if (!proof.ok) return proof.response;
     }
 
     /**

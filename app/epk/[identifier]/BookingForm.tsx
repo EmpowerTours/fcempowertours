@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useActionAuth } from '@/app/hooks/useActionAuth';
+import { useWalletContext } from '@/app/hooks/useWalletContext';
 import { Send, Loader2, CheckCircle } from 'lucide-react';
 import { EVENT_TYPES } from '@/lib/epk/constants';
 
@@ -11,6 +13,8 @@ interface BookingFormProps {
 }
 
 export default function BookingForm({ artistAddress, artistName, minimumDeposit }: BookingFormProps) {
+  const { walletAddress } = useWalletContext();
+  const authFor = useActionAuth();
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -37,9 +41,15 @@ export default function BookingForm({ artistAddress, artistName, minimumDeposit 
     setSubmitting(true);
 
     try {
+      if (!walletAddress) {
+        throw new Error('Connect your wallet to submit a booking with a deposit.');
+      }
       const res = await fetch('/api/epk/booking', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(await authFor('epk-booking', walletAddress)),
+        },
         body: JSON.stringify({
           inquiry: {
             artistAddress,
@@ -53,7 +63,7 @@ export default function BookingForm({ artistAddress, artistName, minimumDeposit 
             expectedAttendance: form.expectedAttendance,
             message: form.message,
           },
-          userAddress: '', // Set by wallet connection if available
+          userAddress: walletAddress,
           depositAmount: form.depositAmount,
         }),
       });

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useFarcasterContext } from "@/app/hooks/useFarcasterContext";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
 import PageTransition from "@/app/components/animations/PageTransition";
 
 // Quiz questions with exact scoring from spec
@@ -133,6 +134,7 @@ export default function MonadSyncPage() {
     walletAddress,
     isLoading: contextLoading,
   } = useFarcasterContext();
+  const authFor = useActionAuth();
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -243,7 +245,10 @@ export default function MonadSyncPage() {
     try {
       const response = await fetch("/api/monad-sync/mint-mirror", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authFor("mint-mirror", walletAddress)),
+        },
         body: JSON.stringify({
           userAddress: walletAddress,
           fid: user?.fid,

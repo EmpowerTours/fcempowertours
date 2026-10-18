@@ -50,7 +50,23 @@ export const DELEGATION_PERMISSIONS = [
  * fact the delegation already carries, which is why a first mint cost two
  * wallet prompts instead of one.
  */
-const DELEGATION_COVERED_CONTEXTS = ["register-user-safe"] as const;
+const DELEGATION_COVERED_CONTEXTS = [
+  "register-user-safe",
+  // Identity-only: requireUserProof accepts a proven delegation + session
+  // without naming a permission. These routes spend the Safe or write as the
+  // user; the session binds the browser that created the delegation.
+  "epk-booking",
+  "epk-booking-action",
+  "epk-generate",
+  "mint-passport",
+  "mint-mirror",
+  "oracle-chat",
+  "sponsorship-checkin",
+  "list-for-sale",
+  "cast-nft",
+  "rights-backfill-isrc",
+  "bot-command",
+] as const;
 
 export function delegationCovers(context: string): boolean {
   if ((DELEGATION_COVERED_CONTEXTS as readonly string[]).includes(context)) {

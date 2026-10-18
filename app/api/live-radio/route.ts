@@ -40,6 +40,7 @@ const DAILY_FIRST_LISTENER_KEY = "live-radio:first-listener";
 // full ledger unsaturated the moment this trim changes, and goes back to presenting a
 // floor as a count.
 import { PLAY_HISTORY_KEY, PLAY_HISTORY_TRIM_STOP } from "@/lib/play-ledger";
+import { requireInternalSecret } from "@/lib/internal-secret";
 const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
 const SONG_DURATIONS_KEY = "live-radio:song-durations"; // tokenId -> real seconds, reported by clients
 
@@ -514,8 +515,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action, userAddress, userFid } = body;
 
-    // Admin actions (no userAddress required)
+    // Admin / ops only — fail closed on KEEPER_SECRET.
     if (action === "start_radio" || action === "stop_radio") {
+      const denied = requireInternalSecret(req, body.secret);
+      if (denied) return denied;
       return handleAdminAction(action);
     }
 
@@ -782,7 +785,12 @@ export async function POST(req: NextRequest) {
       {
         fetch(`${APP_URL}/api/cast-nft`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(process.env.KEEPER_SECRET
+              ? { "x-internal-secret": process.env.KEEPER_SECRET }
+              : {}),
+          },
           body: JSON.stringify({
             type: "voice_note",
             fid: userFid,
@@ -869,7 +877,12 @@ export async function POST(req: NextRequest) {
       {
         fetch(`${APP_URL}/api/cast-nft`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(process.env.KEEPER_SECRET
+              ? { "x-internal-secret": process.env.KEEPER_SECRET }
+              : {}),
+          },
           body: JSON.stringify({
             type: "voice_note",
             fid: userFid,

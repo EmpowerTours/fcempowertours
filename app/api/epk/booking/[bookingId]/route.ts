@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUserProof } from '@/lib/require-user-proof';
 import { encodeFunctionData, type Address } from 'viem';
 import { sendUserSafeTransaction } from '@/lib/user-safe';
 import { EPK_REGISTRY_ADDRESS } from '@/lib/epk/constants';
@@ -19,6 +20,10 @@ export async function POST(
     if (!action || !userAddress) {
       return NextResponse.json({ error: 'action and userAddress required' }, { status: 400 });
     }
+
+    const proof = await requireUserProof(req, userAddress, "epk-booking-action");
+    if (!proof.ok) return proof.response;
+    const actor = proof.address;
 
     if (!EPK_REGISTRY_ADDRESS) {
       return NextResponse.json({ error: 'EPK Registry not configured' }, { status: 500 });
@@ -42,7 +47,7 @@ export async function POST(
       args: [BigInt(bookingId)],
     });
 
-    const result = await sendUserSafeTransaction(userAddress, [
+    const result = await sendUserSafeTransaction(actor, [
       { to: EPK_REGISTRY_ADDRESS as Address, value: 0n, data },
     ]);
 

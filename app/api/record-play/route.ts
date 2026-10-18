@@ -292,7 +292,12 @@ export async function POST(req: NextRequest) {
           "https://fcempowertours-production-6551.up.railway.app";
         fetch(`${appUrl}/api/cast-nft`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(process.env.KEEPER_SECRET
+              ? { "x-internal-secret": process.env.KEEPER_SECRET }
+              : {}),
+          },
           body: JSON.stringify({
             type: "play_recorded",
             fid: userFid,

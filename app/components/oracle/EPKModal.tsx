@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import type { EPKMetadata } from "@/lib/epk/types";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
 
 interface EPKModalProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ export function EPKModal({
   userFid,
   existingEpk,
 }: EPKModalProps) {
+  const authFor = useActionAuth();
   const isEdit = !!existingEpk;
   const [step, setStep] = useState<Step>("artist");
   const [publishing, setPublishing] = useState(false);
@@ -167,7 +169,10 @@ export function EPKModal({
     try {
       const res = await fetch("/api/epk/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authFor("epk-generate", userAddress)),
+        },
         body: JSON.stringify({ userAddress, userFid }),
       });
 

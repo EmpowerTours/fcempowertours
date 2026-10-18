@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUserProof } from '@/lib/require-user-proof';
 import { Address } from 'viem';
 import {
   readSponsorship,
@@ -45,7 +46,8 @@ const MAX_DISTANCE_METERS = 500; // Allow 500m radius for GPS variance
 export async function POST(req: NextRequest) {
   try {
     const body: CheckInRequest = await req.json();
-    const { sponsorshipId, guestAddress, latitude, longitude } = body;
+    const { sponsorshipId, latitude, longitude } = body;
+    let guestAddress: Address = body.guestAddress;
 
     if (!sponsorshipId || !guestAddress) {
       return NextResponse.json(
@@ -53,6 +55,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const proof = await requireUserProof(req, guestAddress, "sponsorship-checkin");
+    if (!proof.ok) return proof.response;
+    guestAddress = proof.address as Address;
 
     // Get sponsorship details
     const sponsorship = await readSponsorship(sponsorshipId);

@@ -48,6 +48,7 @@ import { authorizeUserAddress } from "@/lib/quick-auth";
 import { getResolvedTrack } from "@/lib/catalogue-resolved";
 import { buildPassportTokenURI } from "@/lib/passport/token-uri";
 import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
+import { requireInternalSecret } from "@/lib/internal-secret";
 
 // Shared by ERC-20 and ERC-721: Transfer(address,address,uint256).
 // ERC-721 indexes the tokenId, so a mint has 4 topics with topics[1] == 0x0;
@@ -156,7 +157,13 @@ export async function POST(req: NextRequest) {
     // identifies a *user*, which is the wrong question for platform spending —
     // and ops calls these via curl with no Farcaster token at all, so gating
     // them here would lock out the admin without adding any protection.
-    const adminAuthActions = ["platform_send_mon"];
+    // Privileged platform-Safe / ops actions. Not user-address gated —
+    // radio_start / radio_mark_played are scheduler/ops only.
+    const adminAuthActions = [
+      "platform_send_mon",
+      "radio_start",
+      "radio_mark_played",
+    ];
 
     // 💸 Value actions ALWAYS require a verified Quick Auth token whose FID owns
     // userAddress — regardless of ENFORCE_QUICK_AUTH. Their safety must NOT
@@ -272,6 +279,13 @@ export async function POST(req: NextRequest) {
           { status: 401 },
         );
       }
+    }
+
+    // radio_start / radio_mark_played spend the PLATFORM Safe (or flip on-chain
+    // owner state) and must never be callable with a bare userAddress.
+    if (action === "radio_start" || action === "radio_mark_played") {
+      const denied = requireInternalSecret(req, params?.secret);
+      if (denied) return denied;
     }
 
     // Public actions that don't require delegation (anyone can call to earn rewards)
@@ -4393,7 +4407,12 @@ ${enjoyText}
 
             await fetch(`${APP_URL}/api/cast-nft`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(process.env.KEEPER_SECRET
+                  ? { "x-internal-secret": process.env.KEEPER_SECRET }
+                  : {}),
+              },
               body: JSON.stringify({
                 type: "radio_queue_song",
                 fid: params?.fid || (userFid !== "0" ? userFid : undefined),

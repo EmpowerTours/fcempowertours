@@ -1,6 +1,7 @@
 "use client";
 import { TrackSalesControls } from "@/app/components/oracle/TrackSalesControls";
 import { authHeaders } from "@/lib/quick-auth-client";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -101,6 +102,7 @@ export default function ProfilePage() {
     error: contextError,
     requestWallet,
   } = useWalletContext();
+  const authFor = useActionAuth();
 
   const [passportNFTs, setPassportNFTs] = useState<PassportNFT[]>([]);
   const [createdMusic, setCreatedMusic] = useState<MusicNFTWithMetadata[]>([]);
@@ -747,7 +749,7 @@ export default function ProfilePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("list-for-sale", walletAddress)),
         },
         body: JSON.stringify({
           licenseId: selectedResaleLicense.licenseId,

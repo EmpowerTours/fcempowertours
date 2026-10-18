@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireInternalSecret } from "@/lib/internal-secret";
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, frameUrl } = await req.json();
+    const body = await req.json();
+    const denied = requireInternalSecret(req, body?.secret);
+    if (denied) return denied;
+    const { text, frameUrl } = body;
 
     if (!(process.env.NEYNAR_API_KEY || process.env.NEXT_PUBLIC_NEYNAR_API_KEY) || !process.env.BOT_SIGNER_UUID) {
       throw new Error("Missing NEYNAR_API_KEY or BOT_SIGNER_UUID");
