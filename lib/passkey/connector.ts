@@ -50,7 +50,25 @@ import {
   type Hex,
 } from "viem";
 import { monadMainnet } from "@/app/chains";
-import { openSigner } from "./ceremony";
+import { createSigner, openSigner } from "./ceremony";
+
+/**
+ * What a `connect()` call should do with the passkey. Passed straight through wagmi:
+ * `connect({ connector, passkey: { mode: "create", label } })` — wagmi hands every parameter
+ * except `connector` to the connector's own `connect()`.
+ *
+ * Omitted (the RainbowKit modal path) means "open the existing wallet", exactly as before.
+ */
+export interface PasskeyConnectIntent {
+  mode: "create" | "open";
+  /** Shown in the authenticator's own passkey list. A label, never an identity. */
+  label?: string;
+  /** False for "choose another passkey": ignore the remembered credential this once. */
+  useHint?: boolean;
+}
+
+/** The connector id, for callers that need to find it in `useConnect().connectors`. */
+export const PASSKEY_CONNECTOR_ID = "empowertoursPasskey";
 
 type Signer = Awaited<ReturnType<typeof openSigner>>;
 
@@ -127,17 +145,26 @@ export function passkeyConnector() {
   }
 
   return createConnector((config) => ({
-    id: "empowertoursPasskey",
+    id: PASSKEY_CONNECTOR_ID,
     name: "Passkey",
     type: "passkey" as const,
 
     // wagmi types connect() with a `withCapabilities` generic this connector does not
     // implement — it returns plain addresses, never capability objects. The cast is narrowing
     // to the shape actually returned, not hiding a mismatch.
-    async connect() {
-      // Opens the EXISTING wallet. It never creates one: a second credential on this rp id
-      // would be a second address for the same person, silently.
-      signer = await openSigner();
+    async connect(params?: { chainId?: number; isReconnecting?: boolean }) {
+      // The intent rides along as an extra key wagmi forwards untouched; its type does not
+      // declare it, so it is read here rather than widening wagmi's signature.
+      const intent = (params as { passkey?: PasskeyConnectIntent } | undefined)
+        ?.passkey;
+      // Default is to open the EXISTING wallet. Creating happens only when the caller says so
+      // explicitly (the "Create wallet" button): a second credential on this rp id would be a
+      // second address for the same person, so it is never the fallback for a failed open.
+      signer?.session.end();
+      signer =
+        intent?.mode === "create"
+          ? await createSigner(intent.label?.trim() || "EmpowerTours wallet")
+          : await openSigner(undefined, { useHint: intent?.useHint });
       const accounts = [signer.account.address] as readonly Address[];
       config.emitter.emit("connect", { accounts, chainId: CHAIN_ID });
       return { accounts, chainId: CHAIN_ID } as never;

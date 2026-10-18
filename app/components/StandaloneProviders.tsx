@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { monadMainnet } from '@/app/chains';
 import { mainnet } from 'wagmi/chains';
 import { passkeyRainbowWallet } from '@/lib/passkey/connector';
+import PasskeySignInDialog from './PasskeySignInDialog';
 
 const config = getDefaultConfig({
   appName: 'EmpowerTours',
@@ -51,6 +52,9 @@ export default function StandaloneProviders({ children }: { children: React.Reac
           })}
         >
           {children}
+          {/* Create / open an EmpowerTours passkey wallet, or hand over to RainbowKit. Inside
+              RainbowKit so it can open that modal; only ever opened outside Farcaster. */}
+          <PasskeySignInDialog />
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
