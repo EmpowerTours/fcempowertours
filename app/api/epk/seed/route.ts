@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireInternalSecret } from '@/lib/internal-secret';
 import { Redis } from '@upstash/redis';
 import { encodeFunctionData, type Address } from 'viem';
 import { sendSafeTransaction } from '@/lib/pimlico-safe-aa';
@@ -16,7 +17,11 @@ const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'harlequin-used-hare-224.my
  */
 export async function POST(req: NextRequest) {
   try {
-    const { artistAddress, artistFid } = await req.json();
+    const body = await req.json();
+    // One-off ops seed for Earvin Gallardo — not a public endpoint.
+    const denied = requireInternalSecret(req, body?.secret);
+    if (denied) return denied;
+    const { artistAddress, artistFid } = body;
 
     if (!artistAddress) {
       return NextResponse.json({ error: 'artistAddress required' }, { status: 400 });
