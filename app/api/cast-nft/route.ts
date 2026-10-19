@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUserProof } from "@/lib/require-user-proof";
+import { requireUserProof, provenFidFor } from "@/lib/require-user-proof";
 import {
   requireInternalSecret,
-  presentedInternalSecret,
+  INTERNAL_SECRET_HEADER,
 } from "@/lib/internal-secret";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const {
       type, // 'passport' | 'music_mint' | 'music_purchase' | 'play_recorded' | 'top_artist' | 'radio_skip_random' | 'voice_note' | 'radio_queue_song'
-      fid, // Farcaster ID
+      fid: bodyFid, // Farcaster ID (trusted only on the internal branch)
       tokenId, // NFT token ID
       txHash, // Transaction hash
       countryCode, // For passport
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     console.log("🎵 [CAST] Posting cast:", {
       type,
-      fid,
+      fid: bodyFid,
       tokenId,
       countryCode,
       songTitle,
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     //
     // Something to attribute is still required: either an fid or an address.
     const actorAddress = _userAddress || userAddressPlain;
-    if (!fid && !actorAddress) {
+    if (!bodyFid && !actorAddress) {
       console.log("ℹ️ Neither fid nor address provided, skipping cast");
       return NextResponse.json({
         success: true,
@@ -63,8 +63,15 @@ export async function POST(req: NextRequest) {
       });
     }
     // External callers need a user proof. Server-to-server hops (execute-delegated,
-    // live-radio, record-play) may present the internal keeper secret instead.
-    const hasInternal = Boolean(presentedInternalSecret(req));
+    // live-radio, record-play) present the internal secret in its own header.
+    // The branch is chosen by that header only: a user's Quick Auth bearer
+    // token must never be compared against the internal secret. A present but
+    // wrong header is rejected, never downgraded to the user-proof branch.
+    //
+    // On the user-proof branch the FID comes from the proof, never the body:
+    // proving your own wallet must not let you cast under someone else's FID.
+    let fid: number | undefined = bodyFid;
+    const hasInternal = req.headers.get(INTERNAL_SECRET_HEADER) !== null;
     if (hasInternal) {
       const denied = requireInternalSecret(req);
       if (denied) return denied;
@@ -80,6 +87,7 @@ export async function POST(req: NextRequest) {
       }
       const proof = await requireUserProof(req, actorAddress, "cast-nft");
       if (!proof.ok) return proof.response;
+      fid = await provenFidFor(proof, bodyFid);
     }
 
     /**

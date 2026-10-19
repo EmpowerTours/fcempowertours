@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { authorizeUserAddress } from "@/lib/quick-auth";
+import { authorizeUserAddress, fidOwnsAddress } from "@/lib/quick-auth";
 import { delegationProvesOwnership } from "@/lib/delegation-proof";
 import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
 
@@ -103,4 +103,30 @@ export async function requireUserProof(
     authz.reason ||
       "This action requires proof you own this address. Reopen the mini app to sign in with Farcaster, or connect your wallet and sign the prompt.",
   );
+}
+
+/**
+ * The FID a proven request may act or be attributed as.
+ *
+ * requireUserProof proves an ADDRESS. A body-supplied FID is a separate,
+ * unproven claim: proving your own wallet must not let you mint, publish or
+ * cast under someone else's FID. So:
+ *   - a FID carried by the proof itself (Quick Auth) always wins;
+ *   - otherwise a claimed FID is used only if that FID's custody or verified
+ *     addresses include the proven address;
+ *   - anything else yields undefined (callers treat it as "no FID").
+ */
+export async function provenFidFor(
+  proof: UserProofSuccess,
+  claimedFid: unknown,
+): Promise<number | undefined> {
+  if (typeof proof.fid === "number" && proof.fid > 0) return proof.fid;
+  const n =
+    typeof claimedFid === "number"
+      ? claimedFid
+      : typeof claimedFid === "string" && /^\d+$/.test(claimedFid)
+        ? Number(claimedFid)
+        : NaN;
+  if (!Number.isSafeInteger(n) || n <= 0) return undefined;
+  return (await fidOwnsAddress(n, proof.address)) ? n : undefined;
 }
