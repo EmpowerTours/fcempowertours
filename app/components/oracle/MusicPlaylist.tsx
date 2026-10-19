@@ -1,4 +1,5 @@
 import { authHeaders } from "@/lib/quick-auth-client";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
 import { readVia } from "@/lib/via-token";
 import React, { useState, useEffect, useRef, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
@@ -62,6 +63,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({
   onAudioPlay,
   registerPauseAudio,
 }) => {
+  const authFor = useActionAuth();
   const [mounted, setMounted] = useState(false);
   const [ownedSongs, setOwnedSongs] = useState<Song[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
@@ -220,11 +222,15 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({
       try {
         await fetch("/api/music/playlist", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(await authFor("music-playlist", userAddress)),
+          },
           body: JSON.stringify({
             fid: userFid,
             name: "My Playlist",
             songOrder,
+            userAddress,
           }),
         });
         console.log(
@@ -236,7 +242,7 @@ const MusicPlaylistComponent: React.FC<MusicPlaylistProps> = ({
         console.error("[MusicPlaylist] Failed to save playlist:", error);
       }
     },
-    [userFid],
+    [userFid, userAddress, authFor],
   );
 
   // Record play for artist royalties (only for non-preview plays >= 30 seconds)

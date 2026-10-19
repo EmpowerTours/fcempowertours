@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUserProof } from "@/lib/require-user-proof";
 import { Redis } from "@upstash/redis";
 import { encodeFunctionData, type Address } from "viem";
 import { EPK_SLUG_PREFIX, EPK_REGISTRY_ADDRESS } from "@/lib/epk/constants";
@@ -18,14 +19,19 @@ const PINATA_GATEWAY =
  */
 export async function POST(req: NextRequest) {
   try {
-    const { metadata, userAddress, userFid, update } = await req.json();
+    const body = await req.json();
+    const { metadata, userFid, update } = body;
 
-    if (!metadata || !userAddress) {
+    if (!metadata || !body.userAddress) {
       return NextResponse.json(
         { error: "metadata and userAddress required" },
         { status: 400 },
       );
     }
+
+    const proof = await requireUserProof(req, body.userAddress, "epk-publish");
+    if (!proof.ok) return proof.response;
+    const userAddress = proof.address;
 
     // Validate metadata
     const validation = validateEPK(metadata);
@@ -82,9 +88,24 @@ export async function POST(req: NextRequest) {
         })
       : null;
 
-    // Store slug -> address mapping in Redis
+    // Store slug -> address mapping in Redis. Never let one artist hijack
+    // another artist's public /epk/<slug> URL.
     const slug = epkData.artist.slug;
-    await redis.set(`${EPK_SLUG_PREFIX}${slug}`, userAddress.toLowerCase());
+    const slugKey = `${EPK_SLUG_PREFIX}${slug}`;
+    const existingOwner = await redis.get<string>(slugKey);
+    if (
+      existingOwner &&
+      String(existingOwner).toLowerCase() !== userAddress.toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          error: "That press-kit URL is already taken by another wallet.",
+          slug,
+        },
+        { status: 409 },
+      );
+    }
+    await redis.set(slugKey, userAddress.toLowerCase());
 
     // `epk:cache` is deliberately NOT written here. It is the fallback the reader uses when the
     // registry has nothing, so writing it now would serve a document that is pinned but not
@@ -124,13 +145,17 @@ export async function POST(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const { userAddress, ipfsCid, txHash } = await req.json();
-    if (!userAddress || !ipfsCid) {
+    const body = await req.json();
+    const { ipfsCid, txHash } = body;
+    if (!body.userAddress || !ipfsCid) {
       return NextResponse.json(
         { error: "userAddress and ipfsCid required" },
         { status: 400 },
       );
     }
+    const proof = await requireUserProof(req, body.userAddress, "epk-publish");
+    if (!proof.ok) return proof.response;
+    const userAddress = proof.address;
     if (!EPK_REGISTRY_ADDRESS) {
       return NextResponse.json(
         { error: "registry not configured" },
