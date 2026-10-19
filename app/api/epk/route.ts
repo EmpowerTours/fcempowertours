@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUserProof } from "@/lib/require-user-proof";
+import { requireUserProof, provenFidFor } from "@/lib/require-user-proof";
 import { Redis } from "@upstash/redis";
 import { encodeFunctionData, type Address } from "viem";
 import { EPK_SLUG_PREFIX, EPK_REGISTRY_ADDRESS } from "@/lib/epk/constants";
@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
     const proof = await requireUserProof(req, body.userAddress, "epk-publish");
     if (!proof.ok) return proof.response;
     const userAddress = proof.address;
+    // The FID published in the press kit and in createEPK must belong to the
+    // proven wallet; an unverifiable claim is dropped, not published.
+    const verifiedFid = await provenFidFor(proof, userFid);
 
     // Validate metadata
     const validation = validateEPK(metadata);
@@ -48,10 +51,30 @@ export async function POST(req: NextRequest) {
       artist: {
         ...metadata.artist,
         walletAddress: userAddress,
-        farcasterFid: userFid,
+        farcasterFid: verifiedFid,
         slug: metadata.artist.slug || slugify(metadata.artist.name),
       },
     };
+
+    // Claim the public /epk/<slug> URL atomically, before pinning anything.
+    // SET NX means two wallets racing for an unclaimed slug cannot both win;
+    // the existing owner may keep updating, any other wallet gets 409.
+    const slug = epkData.artist.slug;
+    const slugKey = `${EPK_SLUG_PREFIX}${slug}`;
+    const owner = userAddress.toLowerCase();
+    const claimed = await redis.set(slugKey, owner, { nx: true });
+    if (claimed !== "OK") {
+      const existingOwner = await redis.get<string>(slugKey);
+      if (String(existingOwner ?? "").toLowerCase() !== owner) {
+        return NextResponse.json(
+          {
+            error: "That press-kit URL is already taken by another wallet.",
+            slug,
+          },
+          { status: 409 },
+        );
+      }
+    }
 
     // Upload EPK metadata JSON to IPFS via Pinata
     const ipfsCid = await uploadEPKToIPFS(epkData);
@@ -84,28 +107,10 @@ export async function POST(req: NextRequest) {
       ? encodeFunctionData({
           abi: EPKRegistryABI,
           functionName,
-          args: update ? [ipfsCid] : [ipfsCid, BigInt(userFid || 0)],
+          args: update ? [ipfsCid] : [ipfsCid, BigInt(verifiedFid || 0)],
         })
       : null;
 
-    // Store slug -> address mapping in Redis. Never let one artist hijack
-    // another artist's public /epk/<slug> URL.
-    const slug = epkData.artist.slug;
-    const slugKey = `${EPK_SLUG_PREFIX}${slug}`;
-    const existingOwner = await redis.get<string>(slugKey);
-    if (
-      existingOwner &&
-      String(existingOwner).toLowerCase() !== userAddress.toLowerCase()
-    ) {
-      return NextResponse.json(
-        {
-          error: "That press-kit URL is already taken by another wallet.",
-          slug,
-        },
-        { status: 409 },
-      );
-    }
-    await redis.set(slugKey, userAddress.toLowerCase());
 
     // `epk:cache` is deliberately NOT written here. It is the fallback the reader uses when the
     // registry has nothing, so writing it now would serve a document that is pinned but not
