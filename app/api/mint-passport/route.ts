@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUserProof } from "@/lib/require-user-proof";
+import { requireUserProof, provenFidFor } from "@/lib/require-user-proof";
 import axios from "axios";
 import { Interface } from "ethers";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
@@ -206,9 +206,9 @@ async function uploadMetadataToPinata(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { fid, countryCode, countryName } = body;
+    const { fid: claimedFid, countryCode, countryName } = body;
     console.log("🎫 Passport mint request:", {
-      fid,
+      fid: claimedFid,
       countryCode,
       countryName,
       userAddress: body.userAddress,
@@ -227,6 +227,8 @@ export async function POST(req: NextRequest) {
     if (!proof.ok) return proof.response;
     const userAddress = proof.address;
     const normalizedAddress = userAddress;
+    // The FID minted into the passport must belong to the proven wallet.
+    const fid = await provenFidFor(proof, claimedFid);
 
     // ============================================
     // 🛡️ ANTI-GAMING: Server-side geo verification
