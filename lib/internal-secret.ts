@@ -9,6 +9,9 @@ import { NextRequest, NextResponse } from "next/server";
  * accepted alias so a deployment can name the role more clearly without
  * breaking existing Railway config.
  *
+ * CRON_SECRET is deliberately NOT accepted: a cron credential must not carry
+ * internal-route privilege (cast as the bot, finalize, EPK seed).
+ *
  * Fail-CLOSED when unset — the opposite of the old `&& KEEPER_SECRET` pattern
  * that opened the door when the env var was missing.
  */
@@ -16,12 +19,18 @@ import { NextRequest, NextResponse } from "next/server";
 export const INTERNAL_SECRET_HEADER = "x-internal-secret";
 
 function configuredSecret(): string | null {
-  const raw =
-    process.env.KEEPER_SECRET ||
-    process.env.INTERNAL_API_SECRET ||
-    process.env.CRON_SECRET ||
-    "";
+  const raw = process.env.KEEPER_SECRET || process.env.INTERNAL_API_SECRET || "";
   return raw.length > 0 ? raw : null;
+}
+
+/**
+ * Headers for server-to-server calls to routes guarded by
+ * requireInternalSecret. Uses exactly the secret the validator accepts, so a
+ * deployment that only sets INTERNAL_API_SECRET still authorizes its own hops.
+ */
+export function internalSecretHeaders(): Record<string, string> {
+  const s = configuredSecret();
+  return s ? { [INTERNAL_SECRET_HEADER]: s } : {};
 }
 
 function secretsEqual(a: string, b: string): boolean {

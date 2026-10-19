@@ -48,7 +48,10 @@ import { authorizeUserAddress } from "@/lib/quick-auth";
 import { getResolvedTrack } from "@/lib/catalogue-resolved";
 import { buildPassportTokenURI } from "@/lib/passport/token-uri";
 import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
-import { requireInternalSecret } from "@/lib/internal-secret";
+import {
+  requireInternalSecret,
+  internalSecretHeaders,
+} from "@/lib/internal-secret";
 
 // Shared by ERC-20 and ERC-721: Transfer(address,address,uint256).
 // ERC-721 indexes the tokenId, so a mint has 4 topics with topics[1] == 0x0;
@@ -4409,9 +4412,7 @@ ${enjoyText}
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                ...(process.env.KEEPER_SECRET
-                  ? { "x-internal-secret": process.env.KEEPER_SECRET }
-                  : {}),
+                ...internalSecretHeaders(),
               },
               body: JSON.stringify({
                 type: "radio_queue_song",
@@ -4576,7 +4577,10 @@ ${enjoyText}
         {
           fetch(`${APP_URL}/api/cast-nft`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...internalSecretHeaders(),
+            },
             body: JSON.stringify({
               type: "radio_skip_random",
               fid,
