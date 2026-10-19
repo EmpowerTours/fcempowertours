@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireInternalSecret } from '@/lib/internal-secret';
+import { redis } from '@/lib/redis';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
@@ -16,8 +16,15 @@ import {
  * Finalize sponsorship after voting ends.
  * Releases funds to host (if YES majority) or refunds sponsor (if NO majority).
  *
- * Can be called by anyone after voting deadline.
+ * Can be called by anyone after voting deadline. That is the documented
+ * contract and it is safe: the on-chain outcome is fixed by votes and
+ * check-ins, so the caller only chooses WHEN settlement happens, never how.
+ * What a public caller could abuse is the deployer's gas, so the route checks
+ * status and deadline first and holds a per-sponsorship lock while the
+ * transaction is in flight -- concurrent calls cannot each send a finalize.
  */
+
+const FINALIZE_LOCK_SECONDS = 120;
 
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
@@ -29,11 +36,15 @@ interface FinalizeRequest {
 export async function POST(req: NextRequest) {
   try {
     const body: FinalizeRequest = await req.json();
-    const denied = requireInternalSecret(req, (body as any).secret);
-    if (denied) return denied;
-    const { sponsorshipId } = body;
+    const rawId: unknown = body.sponsorshipId;
+    const sponsorshipId =
+      typeof rawId === 'string' && /^\d+$/.test(rawId) ? Number(rawId) : rawId;
 
-    if (sponsorshipId === undefined) {
+    if (
+      typeof sponsorshipId !== 'number' ||
+      !Number.isSafeInteger(sponsorshipId) ||
+      sponsorshipId < 0
+    ) {
       return NextResponse.json(
         { success: false, error: 'Missing sponsorshipId' },
         { status: 400 }
@@ -95,6 +106,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Server not configured to execute transactions' },
         { status: 500 }
+      );
+    }
+
+    // One in-flight finalize per sponsorship. Fails closed if Redis is down.
+    const lockKey = `sponsorship:finalize-lock:${sponsorshipId}`;
+    let locked = false;
+    try {
+      locked =
+        (await redis.set(lockKey, '1', { nx: true, ex: FINALIZE_LOCK_SECONDS })) === 'OK';
+    } catch {
+      locked = false;
+    }
+    if (!locked) {
+      return NextResponse.json(
+        { success: false, error: 'Finalization already in progress. Try again shortly.' },
+        { status: 409 }
       );
     }
 
