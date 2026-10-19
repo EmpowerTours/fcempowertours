@@ -31,6 +31,13 @@ export function useActionAuth() {
     async (
       context: string,
       address?: string | null,
+      opts?: {
+        /**
+         * Skip session-only reuse and always attach a fresh wallet proof. Use
+         * to retry once after the server rejected a session (401).
+         */
+        forceSignature?: boolean;
+      },
     ): Promise<Record<string, string>> => {
       const signer = address || walletAddress;
       const session = signer ? delegationSessionHeaders(signer) : {};
@@ -41,8 +48,14 @@ export function useActionAuth() {
       if (!signer) return {};
 
       // Reuse the 24h session whenever the server will accept it for this
-      // context — no wallet prompt on every action.
-      if (readDelegationSession(signer) && delegationCovers(context)) {
+      // context — no wallet prompt on every action. readDelegationSession
+      // returns null once the delegation has expired, so an expired session
+      // falls through to a fresh signature instead of a silent 401.
+      if (
+        !opts?.forceSignature &&
+        readDelegationSession(signer) &&
+        delegationCovers(context)
+      ) {
         return { ...session };
       }
 

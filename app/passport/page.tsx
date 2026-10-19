@@ -241,7 +241,11 @@ export default function PassportPage() {
         if (!createData.success) {
           throw new Error("Failed to create delegation: " + createData.error);
         }
-        storeDelegationSession(walletAddress, createData?.delegation?.sessionSecret);
+        storeDelegationSession(
+          walletAddress,
+          createData?.delegation?.sessionSecret,
+          createData?.delegation?.expiresAt,
+        );
         console.log("✅ Delegation created");
       }
 

@@ -101,7 +101,11 @@ export async function ensureDelegationCovers(
     });
     if (viaSession.ok) {
       const data = await viaSession.json().catch(() => ({}));
-      storeDelegationSession(userAddress, data?.delegation?.sessionSecret);
+      storeDelegationSession(
+    userAddress,
+    data?.delegation?.sessionSecret,
+    data?.delegation?.expiresAt,
+  );
       return;
     }
     // Fall through to the signature path rather than failing outright.
@@ -144,7 +148,11 @@ export async function ensureDelegationCovers(
     );
   }
   const created = await res.json().catch(() => ({}));
-  storeDelegationSession(userAddress, created?.delegation?.sessionSecret);
+  storeDelegationSession(
+    userAddress,
+    created?.delegation?.sessionSecret,
+    created?.delegation?.expiresAt,
+  );
 }
 
 function withTimeout<T>(p: Promise<T>, message: string): Promise<T> {

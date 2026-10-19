@@ -160,7 +160,11 @@ export function PassportMintModal({
         if (!createData.success) {
           throw new Error("Failed to create delegation: " + createData.error);
         }
-        storeDelegationSession(walletAddress, createData?.delegation?.sessionSecret);
+        storeDelegationSession(
+          walletAddress,
+          createData?.delegation?.sessionSecret,
+          createData?.delegation?.expiresAt,
+        );
       }
 
       // Register the Safe, authorised by the delegation above rather than by a
