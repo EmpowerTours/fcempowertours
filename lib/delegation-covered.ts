@@ -57,6 +57,9 @@ const DELEGATION_COVERED_CONTEXTS = [
   // user; the session binds the browser that created the delegation.
   "epk-booking",
   "epk-booking-action",
+  // Submitting a paid voice note / ad right after its delegated payment.
+  "live-radio:voice_note",
+  "live-radio:voice_ad",
   "epk-generate",
   "mint-passport",
   "mint-mirror",

@@ -1224,7 +1224,7 @@ export function LiveRadioModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor(`live-radio:${action}`)),
         },
         body: JSON.stringify({
           action,

@@ -4250,6 +4250,21 @@ ${enjoyText}
         );
         console.log("✅ Voice note payment TX:", radioVoiceTxHash);
 
+        // Receipt the live-radio submit must consume, so only a paid,
+        // proven submission is queued and cast by the bot.
+        try {
+          const { recordVoiceNoteReceipt } = await import(
+            "@/lib/voice-note-receipt"
+          );
+          await recordVoiceNoteReceipt(
+            radioVoiceTxHash,
+            userAddress,
+            noteType as "shoutout" | "ad",
+          );
+        } catch (err) {
+          console.error("📻 Could not record voice note receipt:", err);
+        }
+
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
           success: true,

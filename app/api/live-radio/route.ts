@@ -40,7 +40,12 @@ const DAILY_FIRST_LISTENER_KEY = "live-radio:first-listener";
 // full ledger unsaturated the moment this trim changes, and goes back to presenting a
 // floor as a count.
 import { PLAY_HISTORY_KEY, PLAY_HISTORY_TRIM_STOP } from "@/lib/play-ledger";
-import { requireInternalSecret } from "@/lib/internal-secret";
+import {
+  requireInternalSecret,
+  internalSecretHeaders,
+} from "@/lib/internal-secret";
+import { requireUserProof, provenFidFor } from "@/lib/require-user-proof";
+import { consumeVoiceNoteReceipt } from "@/lib/voice-note-receipt";
 const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
 const SONG_DURATIONS_KEY = "live-radio:song-durations"; // tokenId -> real seconds, reported by clients
 
@@ -724,6 +729,24 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // The bot casts this with internal authority, so the submitter must be
+      // proven and must have paid: the receipt written by execute-delegated
+      // after the WMON payment is consumed here, once, for this note type.
+      const voiceProof = await requireUserProof(req, userAddress, "live-radio:voice_note");
+      if (!voiceProof.ok) return voiceProof.response;
+      const provenFid = (await provenFidFor(voiceProof, userFid)) ?? 0;
+      if (
+        !(await consumeVoiceNoteReceipt(txHash, voiceProof.address, "shoutout"))
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Voice note payment not found for this wallet. Pay first, then submit.",
+          },
+          { status: 402 },
+        );
+      }
+
       // Ensure duration is a valid number, default to MAX if not provided
       // This fixes issues where client state may not capture the exact recording time
       const validDuration =
@@ -739,7 +762,7 @@ export async function POST(req: NextRequest) {
       const voiceNote: VoiceNote = {
         id: `${userAddress}-${Date.now()}`,
         userAddress,
-        userFid: userFid || 0,
+        userFid: provenFid,
         username,
         audioUrl,
         duration: validDuration,
@@ -787,13 +810,11 @@ export async function POST(req: NextRequest) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(process.env.KEEPER_SECRET
-              ? { "x-internal-secret": process.env.KEEPER_SECRET }
-              : {}),
+            ...internalSecretHeaders(),
           },
           body: JSON.stringify({
             type: "voice_note",
-            fid: userFid,
+            fid: provenFid || undefined,
             userAddress,
             txHash,
             params: {
@@ -834,10 +855,28 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // The bot casts this with internal authority, so the submitter must be
+      // proven and must have paid: the receipt written by execute-delegated
+      // after the WMON payment is consumed here, once, for this note type.
+      const voiceProof = await requireUserProof(req, userAddress, "live-radio:voice_ad");
+      if (!voiceProof.ok) return voiceProof.response;
+      const provenFid = (await provenFidFor(voiceProof, userFid)) ?? 0;
+      if (
+        !(await consumeVoiceNoteReceipt(txHash, voiceProof.address, "ad"))
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Voice ad payment not found for this wallet. Pay first, then submit.",
+          },
+          { status: 402 },
+        );
+      }
+
       const voiceAd: VoiceNote = {
         id: `ad-${userAddress}-${Date.now()}`,
         userAddress,
-        userFid: userFid || 0,
+        userFid: provenFid,
         username,
         audioUrl,
         duration: MAX_VOICE_AD_SECONDS,
@@ -879,13 +918,11 @@ export async function POST(req: NextRequest) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(process.env.KEEPER_SECRET
-              ? { "x-internal-secret": process.env.KEEPER_SECRET }
-              : {}),
+            ...internalSecretHeaders(),
           },
           body: JSON.stringify({
             type: "voice_note",
-            fid: userFid,
+            fid: provenFid || undefined,
             userAddress,
             txHash,
             params: {
