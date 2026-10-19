@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireFidProof } from '@/lib/require-fid-proof';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { checkRateLimit, getClientIP, RateLimiters } from '@/lib/rate-limit';
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { fid, name, songOrder } = body;
+    const { fid, name, songOrder, userAddress } = body;
 
     if (!fid) {
       return NextResponse.json(
@@ -112,6 +113,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const proof = await requireFidProof(req, fid, "music-playlist", {
+      addressHint: userAddress,
+    });
+    if (!proof.ok) return proof.response;
+
     if (!songOrder || !Array.isArray(songOrder)) {
       return NextResponse.json(
         { success: false, error: 'songOrder array required' },
@@ -123,7 +129,7 @@ export async function POST(req: NextRequest) {
     const playlistPath = path.join(PLAYLISTS_DIR, `${fidStr}.json`);
 
     const playlist: PlaylistData = {
-      fid: Number(fid),
+      fid: proof.fid,
       name: name || 'My Playlist',
       songOrder,
       updatedAt: Date.now(),

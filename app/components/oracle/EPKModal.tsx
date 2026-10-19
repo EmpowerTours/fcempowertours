@@ -300,9 +300,13 @@ export function EPKModal({
         onChain: {},
       };
 
+      const publishAuth = await authFor("epk-publish", userAddress);
       const res = await fetch("/api/epk", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...publishAuth,
+        },
         body: JSON.stringify({
           metadata,
           userAddress,
@@ -336,6 +340,7 @@ export function EPKModal({
             userAddress as `0x${string}`,
             data.ipfsCid,
             isEdit,
+            publishAuth,
           );
           setPublishResult({
             ...data,

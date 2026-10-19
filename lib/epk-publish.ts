@@ -129,6 +129,8 @@ export async function publishEPKOnChain(
   from: Address,
   ipfsCid: string,
   isUpdate: boolean,
+  /** Proof headers for PATCH /api/epk (session or signature). */
+  authHeaders: Record<string, string> = {},
 ): Promise<PublishResult> {
   const registry = tx.to as Address;
 
@@ -177,7 +179,7 @@ export async function publishEPKOnChain(
   try {
     await fetch("/api/epk", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ userAddress: from, ipfsCid, txHash: hash }),
     });
   } catch {

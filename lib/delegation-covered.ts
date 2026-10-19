@@ -69,6 +69,9 @@ const DELEGATION_COVERED_CONTEXTS = [
   "cast-nft",
   "rights-backfill-isrc",
   "bot-command",
+  "epk-publish",
+  "music-playlist",
+  "terms-accept",
 ] as const;
 
 export function delegationCovers(context: string): boolean {
