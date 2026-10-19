@@ -340,7 +340,8 @@ export function EPKModal({
             userAddress as `0x${string}`,
             data.ipfsCid,
             isEdit,
-            publishAuth,
+            // A fresh proof for the PATCH; the POST's signature is single-use.
+            () => authFor("epk-publish", userAddress),
           );
           setPublishResult({
             ...data,

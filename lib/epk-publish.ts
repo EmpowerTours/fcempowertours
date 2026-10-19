@@ -129,8 +129,11 @@ export async function publishEPKOnChain(
   from: Address,
   ipfsCid: string,
   isUpdate: boolean,
-  /** Proof headers for PATCH /api/epk (session or signature). */
-  authHeaders: Record<string, string> = {},
+  /**
+   * Fresh proof headers for PATCH /api/epk, fetched only after the receipt.
+   * Must be a new proof: the POST already consumed its one-time signature.
+   */
+  getPatchAuth: () => Promise<Record<string, string>> = async () => ({}),
 ): Promise<PublishResult> {
   const registry = tx.to as Address;
 
@@ -177,11 +180,15 @@ export async function publishEPKOnChain(
   // Tell the server only now, so the read-through cache can never point at a CID the registry
   // does not hold. The server re-reads the chain rather than trusting this call.
   try {
-    await fetch("/api/epk", {
+    const patchAuth = await getPatchAuth();
+    const res = await fetch("/api/epk", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...authHeaders },
+      headers: { "Content-Type": "application/json", ...patchAuth },
       body: JSON.stringify({ userAddress: from, ipfsCid, txHash: hash }),
     });
+    if (!res.ok) {
+      console.warn("[EPK] Cache update after publish failed:", res.status);
+    }
   } catch {
     // Non-fatal: the registry is the source of truth and already holds the CID. The cache is a
     // fallback for when the registry read fails, so a missed write costs nothing that matters.
