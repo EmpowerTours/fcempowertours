@@ -35,16 +35,36 @@ ok(/requireUserProof/.test(fidHelper), "requireFidProof must use requireUserProo
 ok(/status:\s*401/.test(fidHelper), "requireFidProof must 401 when unproven");
 ok(!/\.allowed\b/.test(fidHelper), "requireFidProof must not read .allowed");
 
-// epk POST/PATCH
+// epk POST/PATCH — each handler checked on its own
 const epk = strip(read("app/api/epk/route.ts"));
-ok(/requireUserProof\s*\(/.test(epk), "epk route must call requireUserProof");
+const handler = (src: string, name: string) => {
+  const start = src.indexOf(`export async function ${name}(`);
+  if (start < 0) return "";
+  const next = src.indexOf("export async function", start + 1);
+  return src.slice(start, next < 0 ? undefined : next);
+};
+const epkPost = handler(epk, "POST");
+const epkPatch = handler(epk, "PATCH");
+ok(/requireUserProof\s*\(/.test(epkPost), "epk POST must call requireUserProof");
+ok(/requireUserProof\s*\(/.test(epkPatch), "epk PATCH must call requireUserProof");
 ok(
-  /existingOwner/.test(epk) && /status:\s*409/.test(epk),
-  "epk POST must refuse overwriting another wallet's slug (409)",
+  /redis\.set\(\s*slugKey[^;]*nx:\s*true/.test(epkPost) && /status:\s*409/.test(epkPost),
+  "epk POST must claim the slug atomically (SET NX) and 409 another wallet",
 );
 ok(
-  (epk.match(/requireUserProof\s*\(/g) || []).length >= 2,
-  "epk POST and PATCH must both require proof",
+  !/redis\.set\(\s*slugKey,\s*[^;{]*\);/.test(epkPost),
+  "epk POST must not overwrite the slug owner unconditionally",
+);
+ok(
+  epkPost.indexOf("nx: true") >= 0 &&
+    epkPost.indexOf("nx: true") < epkPost.indexOf("uploadEPKToIPFS("),
+  "epk POST must claim the slug before pinning",
+);
+ok(
+  /provenFidFor\(proof,\s*userFid\)/.test(epkPost) &&
+    !/farcasterFid:\s*userFid/.test(epkPost) &&
+    !/BigInt\(userFid/.test(epkPost),
+  "epk POST must publish only a FID bound to the proven wallet",
 );
 
 // epk/seed — keeper only, fail closed
@@ -63,27 +83,70 @@ ok(
   !/record:\s*acceptanceRecord/.test(terms),
   "terms POST must not return the full acceptanceRecord (leaks IP)",
 );
-ok(
-  /Strip IP|ip \/ userAgent|compliance-only/i.test(read("app/api/terms/accept/route.ts")) ||
-    (/publicRecord/.test(terms) && !/userAgent/.test(terms.split("export async function GET")[1] || "")),
-  "terms GET must not expose IP/userAgent",
-);
-// More precise GET check
-const termsGet = terms.split("export async function GET")[1] || "";
-ok(!/userAgent/.test(termsGet), "terms GET body must not mention userAgent");
-ok(!/\bip\b/.test(termsGet.replace(/acceptedAt/g, "")), "terms GET must not return ip");
+// Runtime: the GET response must not carry ip / userAgent even when the stored
+// record has them. Redis is reached over HTTP, so fetch is stubbed.
+{
+  const stored = {
+    address: "0x" + "2".repeat(40),
+    timestamp: 1,
+    version: "1.0",
+    ip: "203.0.113.7",
+    userAgent: "TestAgent/1.0",
+    acceptedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const realFetch = globalThis.fetch;
+  process.env.UPSTASH_REDIS_REST_URL ??= "https://redis.invalid";
+  process.env.UPSTASH_REDIS_REST_TOKEN ??= "test-token";
+  globalThis.fetch = (async (input: unknown) => {
+    const one = { result: JSON.stringify(stored) };
+    const body = /pipeline/.test(String((input as any)?.url ?? input)) ? [one] : one;
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  try {
+    const { NextRequest } = await import("next/server");
+    // Loaded by path so the tools-only typecheck (no "@/" alias) skips the route's imports.
+    const routePath = "../app/api/terms/accept/route";
+    const route: { GET: (req: InstanceType<typeof NextRequest>) => Promise<Response> } =
+      await import(routePath);
+    const res = await route.GET(
+      new NextRequest(`https://x.invalid/api/terms/accept?address=${stored.address}`),
+    );
+    const text = await res.text();
+    ok(res.status === 200, `terms GET returned ${res.status}`);
+    ok(!text.includes(stored.ip), "terms GET response must not contain the IP");
+    ok(!text.includes(stored.userAgent), "terms GET response must not contain the user agent");
+    ok(text.includes(stored.acceptedAt), "terms GET response must still report acceptance");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
 
 // Clients
 const epkModal = read("app/components/oracle/EPKModal.tsx");
 ok(/authFor\(["']epk-publish["']/.test(epkModal), "EPKModal must auth epk-publish");
-ok(/publishAuth/.test(epkModal), "EPKModal must pass auth into publishEPKOnChain");
+{
+  const call = epkModal.slice(epkModal.indexOf("publishEPKOnChain("), epkModal.indexOf("publishEPKOnChain(") + 500);
+  ok(
+    /\(\)\s*=>\s*authFor\(["']epk-publish["']/.test(call) && !/publishAuth/.test(call),
+    "EPKModal must give the PATCH a fresh proof, not the POST's one-time headers",
+  );
+}
 
 const playlistClient = read("app/components/oracle/MusicPlaylist.tsx");
 ok(/useActionAuth/.test(playlistClient), "MusicPlaylist must use useActionAuth");
 ok(/authFor\(["']music-playlist["']/.test(playlistClient), "MusicPlaylist must send music-playlist proof");
 
 const publish = read("lib/epk-publish.ts");
-ok(/authHeaders/.test(publish), "epk-publish must forward auth headers on PATCH");
+{
+  const p = strip(publish);
+  const receiptAt = p.indexOf("waitForTransactionReceipt");
+  const authAt = p.indexOf("await getPatchAuth()");
+  ok(authAt > receiptAt && receiptAt >= 0, "epk-publish must fetch PATCH proof after the receipt");
+  ok(/\.\.\.patchAuth/.test(p), "epk-publish must send the fresh proof on PATCH");
+}
 
 const covered = read("lib/delegation-covered.ts");
 for (const ctx of ["epk-publish", "music-playlist", "terms-accept"]) {
