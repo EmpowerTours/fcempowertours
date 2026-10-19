@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUserProof } from "@/lib/require-user-proof";
 import { redis } from "@/lib/redis";
 import { createPublicClient, http, Address, parseAbi } from "viem";
 import { activeChain } from "@/app/chains";
@@ -46,15 +47,16 @@ const nftAbi = parseAbi([
 
 export async function POST(req: NextRequest) {
   try {
+    const body = await req.json();
     const {
       licenseId,
       price,
-      sellerAddress,
       sellerFid,
       nftName,
       imageUrl,
       isArt,
-    } = await req.json();
+    } = body;
+    let sellerAddress: string = body.sellerAddress;
 
     if (!licenseId || !price || !sellerAddress) {
       return NextResponse.json(
@@ -64,6 +66,12 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    {
+      const proof = await requireUserProof(req, sellerAddress, "list-for-sale");
+      if (!proof.ok) return proof.response;
+      sellerAddress = proof.address;
     }
 
     // Validate minimum price (35 WMON)
@@ -243,6 +251,11 @@ export async function DELETE(req: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    {
+      const proof = await requireUserProof(req, sellerAddress, "list-for-sale");
+      if (!proof.ok) return proof.response;
     }
 
     // Get listing

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUserProof } from '@/lib/require-user-proof';
 import { sendUserSafeTransaction, getUserSafeAddress } from '@/lib/user-safe';
 import { encodeFunctionData, parseEther, Address, Hex, parseAbi, createPublicClient, http } from 'viem';
 import { activeChain } from '@/app/chains';
@@ -8,14 +9,19 @@ const MONAD_MIRROR_NFT = process.env.NEXT_PUBLIC_MONAD_MIRROR_NFT as Address;
 
 export async function POST(req: NextRequest) {
   try {
-    const { userAddress, fid, clarityScore, tier } = await req.json();
+    const body = await req.json();
+    const { fid, clarityScore, tier } = body;
 
-    if (!userAddress || !fid || clarityScore === undefined || !tier) {
+    if (!body.userAddress || !fid || clarityScore === undefined || !tier) {
       return NextResponse.json(
         { success: false, error: 'Missing required parameters' },
         { status: 400 }
       );
     }
+
+    const proof = await requireUserProof(req, body.userAddress, "mint-mirror");
+    if (!proof.ok) return proof.response;
+    const userAddress = proof.address;
 
     console.log('🔮 Minting Monad Mirror NFT for:', userAddress);
     console.log('   Clarity:', clarityScore, '| Tier:', tier);

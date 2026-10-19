@@ -1,6 +1,6 @@
 "use client";
 
-import { authHeaders } from "@/lib/quick-auth-client";
+import { useActionAuth } from "@/app/hooks/useActionAuth";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -57,6 +57,7 @@ export default function OraclePage() {
   const searchParams = useSearchParams();
   const { user, walletAddress, isFarcaster, isConnected, fid } =
     useWalletContext();
+  const authFor = useActionAuth();
   const { location: geoLocation, loading: geoLoading } = useGeolocation();
 
   const [input, setInput] = useState("");
@@ -310,7 +311,7 @@ export default function OraclePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("oracle-chat", walletAddress)),
         },
         body: JSON.stringify({
           message: userMessage,

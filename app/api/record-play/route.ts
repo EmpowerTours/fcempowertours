@@ -3,6 +3,7 @@ import { JsonRpcProvider, Wallet, Contract } from "ethers";
 import { Redis } from "@upstash/redis";
 import { authorizeUserAddress } from "@/lib/quick-auth";
 import { isMasterPlayable } from "@/lib/master-playable";
+import { internalSecretHeaders } from "@/lib/internal-secret";
 
 // Configuration - Updated Dec 27, 2025
 const PLAY_ORACLE_ADDRESS = process.env.NEXT_PUBLIC_PLAY_ORACLE!;
@@ -292,7 +293,10 @@ export async function POST(req: NextRequest) {
           "https://fcempowertours-production-6551.up.railway.app";
         fetch(`${appUrl}/api/cast-nft`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...internalSecretHeaders(),
+          },
           body: JSON.stringify({
             type: "play_recorded",
             fid: userFid,

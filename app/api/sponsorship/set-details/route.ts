@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireInternalSecret } from '@/lib/internal-secret';
 import {
   readSponsorship,
   oracleSetEventDetails,
@@ -21,6 +22,8 @@ interface SetDetailsRequest {
 export async function POST(req: NextRequest) {
   try {
     const body: SetDetailsRequest = await req.json();
+    const denied = requireInternalSecret(req, (body as any).secret);
+    if (denied) return denied;
     const { sponsorshipId, eventDate, latitude, longitude } = body;
 
     if (!sponsorshipId || !eventDate) {

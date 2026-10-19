@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUserProof } from '@/lib/require-user-proof';
 import { Redis } from '@upstash/redis';
 import { encodeFunctionData, parseAbi, parseEther, type Address } from 'viem';
 import {
@@ -27,6 +28,11 @@ export async function POST(req: NextRequest) {
     if (!inquiry || !userAddress || !inquiry.artistAddress) {
       return NextResponse.json({ error: 'inquiry, userAddress, and artistAddress required' }, { status: 400 });
     }
+
+    const proof = await requireUserProof(req, userAddress, "epk-booking");
+    if (!proof.ok) return proof.response;
+    // Bind to the proven address — never trust a mismatched body field.
+    const spender = proof.address;
 
     const inquiryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const bookingInquiry: BookingInquiry = {
@@ -60,7 +66,7 @@ export async function POST(req: NextRequest) {
         // funded in MON. Wrap the shortfall first, as every other paid action
         // does — otherwise approve() succeeds against a zero balance and
         // createBooking reverts with nothing useful to show the booker.
-        const safeAddress = await getUserSafeAddress(userAddress);
+        const safeAddress = await getUserSafeAddress(spender);
         const heldWmon = (await publicClient.readContract({
           address: WMON_ADDRESS,
           abi: ERC20ABI,
@@ -96,7 +102,7 @@ export async function POST(req: NextRequest) {
           args: [inquiry.artistAddress as Address, depositWei, eventDetailsCid || ''],
         });
 
-        const result = await sendUserSafeTransaction(userAddress, [
+        const result = await sendUserSafeTransaction(spender, [
           ...wrapCalls,
           { to: WMON_ADDRESS, value: 0n, data: approveData },
           { to: EPK_REGISTRY_ADDRESS as Address, value: 0n, data: bookingData },

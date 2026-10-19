@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { forwardAuthHeader } from "@/lib/quick-auth";
+import { requireUserProof, provenFidFor } from "@/lib/require-user-proof";
+import { issueOwnershipAttestation } from "@/lib/ownership-attestation";
+import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
 import { GoogleGenAI, Type } from "@google/genai";
 import { encodeFunctionData, type Address, type Hex } from "viem";
 import { sendUserSafeTransaction } from "@/lib/user-safe";
@@ -75,13 +78,14 @@ export async function POST(req: NextRequest) {
 
     const {
       message,
-      userAddress,
+      userAddress: claimedUserAddress,
       userFid,
       userLocation,
       confirmPayment,
       adminSignature, // For admin actions (burn NFT)
       adminTimestamp, // Timestamp for admin signature verification
     } = await req.json();
+    let userAddress: string | undefined = claimedUserAddress;
 
     if (!message) {
       return NextResponse.json({ error: "Message required" }, { status: 400 });
@@ -341,6 +345,18 @@ Return valid JSON only.`;
     let txHash: string | null = null;
 
     if (action.type === "execute" && action.transaction) {
+      // Spends require proven ownership — never trust a body-supplied address alone.
+      if (!userAddress) {
+        return NextResponse.json(
+          { success: false, error: "Connect a wallet to run this action." },
+          { status: 401 },
+        );
+      }
+      {
+        const proof = await requireUserProof(req, userAddress, "oracle-chat");
+        if (!proof.ok) return proof.response;
+        userAddress = proof.address;
+      }
       // Aggressively extract function name - Gemini often hallucinates extra text
       const rawFunc = action.transaction.function || "";
       let funcName = rawFunc.replace(/[,\s]+$/, "").trim();
@@ -385,7 +401,17 @@ Return valid JSON only.`;
               `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/api/execute-delegated`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json", ...fwdAuth },
+                headers: {
+                  "Content-Type": "application/json",
+                  ...fwdAuth,
+                  ...(req.headers.get(DELEGATION_SESSION_HEADER)
+                    ? {
+                        [DELEGATION_SESSION_HEADER]: req.headers.get(
+                          DELEGATION_SESSION_HEADER,
+                        )!,
+                      }
+                    : {}),
+                },
                 body: JSON.stringify({
                   action: "buy_music", // Both use the same endpoint
                   userAddress,
@@ -420,6 +446,15 @@ Return valid JSON only.`;
         );
       }
     } else if (action.type === "mint_passport" && userAddress) {
+      let mintFid: number | undefined;
+      let mintProofHeaders: Record<string, string> = {};
+      {
+        const proof = await requireUserProof(req, userAddress, "oracle-chat");
+        if (!proof.ok) return proof.response;
+        userAddress = proof.address;
+        mintFid = await provenFidFor(proof, userFid);
+        mintProofHeaders = await downstreamProofHeaders(req, proof.address);
+      }
       // Determine country: use Gemini's passport data, or fall back to user's location
       let countryCode = action.passport?.countryCode;
       let countryName = action.passport?.countryName;
@@ -441,8 +476,8 @@ Return valid JSON only.`;
           userAddress,
           countryCode,
           countryName || countryCode,
-          userFid,
-          fwdAuth,
+          mintFid,
+          mintProofHeaders,
         );
         txHash = result.txHash;
         if (result.error) {
@@ -452,11 +487,23 @@ Return valid JSON only.`;
         }
       }
     } else if (action.type === "sponsorship" && action.sponsorship) {
-      // Handle sponsorship actions
+      // Handle sponsorship actions. Check-in acts for the user, so prove the
+      // caller here and hand the downstream route a proof it accepts.
+      let sponsorshipProofHeaders: Record<string, string> = {};
+      if (action.sponsorship.action === "checkin" && userAddress) {
+        const proof = await requireUserProof(req, userAddress, "oracle-chat");
+        if (!proof.ok) return proof.response;
+        userAddress = proof.address;
+        sponsorshipProofHeaders = await downstreamProofHeaders(
+          req,
+          proof.address,
+        );
+      }
       const sponsorshipResult = await handleSponsorshipAction(
         action.sponsorship,
         userAddress,
         userLocation,
+        sponsorshipProofHeaders,
       );
       if (sponsorshipResult.txHash) {
         txHash = sponsorshipResult.txHash;
@@ -631,6 +678,24 @@ function isProhibitedActivity(message: string): boolean {
   const lowerMessage = message.toLowerCase();
   return EMERGENCY_KEYWORDS.some((keyword) => lowerMessage.includes(keyword));
 }
+/**
+ * Proof headers for internal hops made on behalf of a caller this route has
+ * already proven: the forwarded Quick Auth bearer, the delegation session, and
+ * a short-lived ownership attestation (covers wallet-signature callers, whose
+ * one-time signature cannot be replayed downstream).
+ */
+async function downstreamProofHeaders(
+  req: NextRequest,
+  provenAddress: string,
+): Promise<Record<string, string>> {
+  const session = req.headers.get(DELEGATION_SESSION_HEADER);
+  return {
+    ...forwardAuthHeader(req),
+    ...(session ? { [DELEGATION_SESSION_HEADER]: session } : {}),
+    ...(await issueOwnershipAttestation(provenAddress)),
+  };
+}
+
 async function mintPassportForUser(
   userAddress: string,
   countryCode: string,
@@ -775,6 +840,7 @@ async function handleSponsorshipAction(
     city?: string;
     country?: string;
   },
+  proofHeaders: Record<string, string> = {},
 ): Promise<SponsorshipActionResult> {
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
@@ -879,7 +945,7 @@ async function handleSponsorshipAction(
 
         const response = await fetch(`${baseUrl}/api/sponsorship/checkin`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...proofHeaders },
           body: JSON.stringify({
             sponsorshipId: sponsorship.id,
             guestAddress: userAddress,

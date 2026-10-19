@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
-import { authorizeUserAddress } from "@/lib/quick-auth";
+import { requireUserProof } from "@/lib/require-user-proof";
 import {
   getRightsStatus,
   storeRightsStatus,
@@ -35,9 +35,9 @@ const redis = new Redis({
 
 export async function POST(req: NextRequest) {
   try {
-    const { tokenId, isrc, userAddress } = await req.json();
+    const { tokenId, isrc, userAddress: claimedAddress } = await req.json();
 
-    if (!tokenId || !userAddress) {
+    if (!tokenId || !claimedAddress) {
       return NextResponse.json(
         { success: false, error: "tokenId and userAddress are required" },
         { status: 400 },
@@ -55,17 +55,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const auth = await authorizeUserAddress(
+    const proof = await requireUserProof(
       req,
-      userAddress,
+      claimedAddress,
       "rights-backfill-isrc",
     );
-    if (!auth.allowed) {
-      return NextResponse.json(
-        { success: false, error: "Not authorised for this wallet" },
-        { status: 401 },
-      );
-    }
+    if (!proof.ok) return proof.response;
+    const userAddress = proof.address;
 
     const status = await getRightsStatus(redis, String(tokenId));
     if (!status) {

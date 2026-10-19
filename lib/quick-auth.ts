@@ -134,6 +134,19 @@ async function resolveFidAddresses(fid: number): Promise<string[]> {
 }
 
 /**
+ * True only when `address` is the FID's custody address or one of its
+ * verified addresses. Fails closed (false) when the lookup is unavailable.
+ */
+export async function fidOwnsAddress(
+  fid: number,
+  address: string,
+): Promise<boolean> {
+  if (!Number.isSafeInteger(fid) || fid <= 0) return false;
+  const addrs = await resolveFidAddresses(fid);
+  return addrs.includes(address.toLowerCase());
+}
+
+/**
  * Verify the Quick Auth token on a request. Does NOT decide whether the
  * request is allowed — see authorizeUserAddress for that.
  */

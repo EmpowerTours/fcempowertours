@@ -93,29 +93,27 @@ export async function POST(req: NextRequest) {
     let attestationHeader: Record<string, string> = {};
     if (userAddress) {
       const authz = await authorizeUserAddress(req, userAddress, "bot-command");
-      if (!authz.allowed) {
-        return NextResponse.json(
-          { success: false, error: authz.reason || "Unauthorized" },
-          { status: 401 },
-        );
-      }
-      // A proven delegation stands in for the signature, exactly as it does in
-      // execute-delegated and register-user-safe. Without this the ownership
-      // prompt fired on EVERY mint: bot-command was the one route still
-      // demanding a fresh signature, so a music mint cost two wallet prompts —
-      // one to prove the address, one to approve the mint — where the passport
-      // costs one per day.
-      //
-      // No action name is passed. The delegation is being used as proof of
-      // IDENTITY here, not as a spending limit: the commands this route fans out
-      // to are in publicActions, where the permission list is bypassed anyway.
-      // A delegation only exists after ownership was proven once, so this
-      // asserts exactly what the signature asserted, and nothing more.
+      // Fail closed on proven ownership — never on `allowed` (which honours
+      // ENFORCE_QUICK_AUTH and would let anyone through while it is off).
       const sessionSecret = req.headers.get(DELEGATION_SESSION_HEADER);
       const provenByDelegation =
         !authz.ownsAddress &&
         (await delegationProvesOwnership(userAddress, undefined, sessionSecret));
 
+      if (!authz.ownsAddress && !provenByDelegation) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              authz.reason ||
+              "This action requires proof you own this address. Reopen the mini app to sign in with Farcaster, or connect your wallet and sign the prompt.",
+          },
+          { status: 401 },
+        );
+      }
+      // No action name is passed. The delegation is being used as proof of
+      // IDENTITY here, not as a spending limit: the commands this route fans out
+      // to are in publicActions, where the permission list is bypassed anyway.
       if (
         (authz.ownsAddress && authz.mode === "wallet") ||
         provenByDelegation

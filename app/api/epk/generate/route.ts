@@ -15,6 +15,7 @@ import {
 import { EPK_VERSION, DEFAULT_MINIMUM_DEPOSIT } from "@/lib/epk/constants";
 import type { EPKMetadata } from "@/lib/epk/types";
 import ERC20ABI from "@/lib/abis/ERC20.json";
+import { requireUserProof } from "@/lib/require-user-proof";
 
 const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
 const PLATFORM_SAFE = (process.env.NEXT_PUBLIC_SAFE_ACCOUNT ||
@@ -28,7 +29,11 @@ const EPK_GENERATION_FEE = "5"; // 5 WMON
  */
 export async function POST(req: NextRequest) {
   try {
-    const { userAddress, userFid } = await req.json();
+    const _epkBody = await req.json();
+    const userFid = _epkBody.userFid;
+    const proof = await requireUserProof(req, _epkBody.userAddress, "epk-generate");
+    if (!proof.ok) return proof.response;
+    const userAddress = proof.address;
 
     if (!userAddress) {
       return NextResponse.json(
