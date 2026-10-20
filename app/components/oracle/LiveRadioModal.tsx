@@ -694,10 +694,14 @@ export function LiveRadioModal({
         if (radioState?.currentSong && walletAddress) {
           try {
             // Report to server that song has ended
+            const songEndedToken = await ensureRadioSession();
             await fetch("/api/live-radio", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
+                ...(songEndedToken
+                  ? { "x-radio-session": songEndedToken }
+                  : {}),
                 ...(await authHeaders()),
               },
               body: JSON.stringify({
@@ -762,7 +766,7 @@ export function LiveRadioModal({
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
     };
-  }, [radioState?.currentSong, walletAddress]);
+  }, [radioState?.currentSong, walletAddress, ensureRadioSession]);
 
   useEffect(() => {
     if (!audioRef.current) return;
@@ -1009,7 +1013,7 @@ export function LiveRadioModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authHeaders()),
+          ...(await authFor("live-radio:queue_song")),
         },
         body: JSON.stringify({
           action: "queue_song",

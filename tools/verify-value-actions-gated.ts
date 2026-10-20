@@ -153,11 +153,38 @@ for (const critical of ["send_mon", "send_tours", "withdraw_to_user"]) {
 
 // The gate must read ownsAddress, not allowed — `allowed` honours ENFORCE_QUICK_AUTH.
 checks++;
-if (!/fundMovingActions\.has\(action\)\s*&&\s*!authz\.ownsAddress/.test(code)) {
+if (
+  !/needsOwnership\s*&&\s*!authz\.ownsAddress/.test(code) &&
+  !/fundMovingActions\.has\(action\)\s*&&\s*!authz\.ownsAddress/.test(code)
+) {
   failures.push(
-    "the fund-moving gate no longer checks `!authz.ownsAddress` — if it reads `allowed`,\n" +
+    "the ownership gate no longer checks `!authz.ownsAddress` — if it reads `allowed`,\n" +
       "     its protection depends on ENFORCE_QUICK_AUTH again, which is the bug it exists to avoid",
   );
+}
+
+// Safe-mutating publicActions must be in the ownership gate (session-friendly).
+const safeMutating = members("const safeMutatingActions = new Set(");
+checks++;
+if (safeMutating.size === 0) {
+  failures.push("could not read safeMutatingActions");
+}
+for (const must of [
+  "dao_wrap",
+  "wrap_mon",
+  "faucet_claim",
+  "claim_listener_wmon",
+  "beat_match_submit_guess",
+  "country_collector_complete",
+  "venue_register",
+  "approve_wmon_for_passport",
+]) {
+  checks++;
+  if (!safeMutating.has(must) && !gated.has(must)) {
+    failures.push(
+      `"${must}" must be in safeMutatingActions or fundMovingActions`,
+    );
+  }
 }
 
 console.log(`\n${checks} checks run`);

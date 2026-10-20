@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 
@@ -14,7 +15,12 @@ import { Redis } from '@upstash/redis';
  *
  * This webhook should be registered with Telegram Bot API:
  * POST https://api.telegram.org/bot<token>/setWebhook
- *   { "url": "https://yourdomain.com/api/telegram-radio/webhook" }
+ *   {
+ *     "url": "https://yourdomain.com/api/telegram-radio/webhook",
+ *     "secret_token": "<same value as TELEGRAM_WEBHOOK_SECRET>"
+ *   }
+ *
+ * Telegram then sends header x-telegram-bot-api-secret-token on every update.
  */
 
 const redis = new Redis({
@@ -23,6 +29,21 @@ const redis = new Redis({
 });
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+/** Set when registering the webhook with Telegram setWebhook(secret_token=...). */
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+
+function telegramSecretOk(header: string | null): boolean {
+  if (!TELEGRAM_WEBHOOK_SECRET) return false;
+  if (!header || header.length !== TELEGRAM_WEBHOOK_SECRET.length) return false;
+  try {
+    return timingSafeEqual(
+      Buffer.from(header, 'utf8'),
+      Buffer.from(TELEGRAM_WEBHOOK_SECRET, 'utf8'),
+    );
+  } catch {
+    return false;
+  }
+}
 const SUBSCRIBERS_KEY = 'telegram-radio:subscribers';
 const SUBSCRIBER_DATA_KEY = 'telegram-radio:subscriber-data';
 const RADIO_STATE_KEY = 'live-radio:state';
@@ -96,6 +117,17 @@ interface RadioState {
 
 export async function POST(req: NextRequest) {
   try {
+    // Telegram sends this header when the webhook was registered with secret_token.
+    // Fail closed when unset so a missing env var cannot leave the bot open.
+    const presented = req.headers.get('x-telegram-bot-api-secret-token');
+    if (!TELEGRAM_WEBHOOK_SECRET) {
+      console.error('[TelegramRadioWebhook] TELEGRAM_WEBHOOK_SECRET unset — denying');
+      return NextResponse.json({ ok: false, error: 'Webhook not configured' }, { status: 503 });
+    }
+    if (!telegramSecretOk(presented)) {
+      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const update: TelegramUpdate = await req.json();
 
     // Handle callback queries (inline keyboard button presses)

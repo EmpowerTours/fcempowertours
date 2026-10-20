@@ -43,9 +43,13 @@ import { PLAY_HISTORY_KEY, PLAY_HISTORY_TRIM_STOP } from "@/lib/play-ledger";
 import {
   requireInternalSecret,
   internalSecretHeaders,
+  presentedInternalSecret,
 } from "@/lib/internal-secret";
 import { requireUserProof, provenFidFor } from "@/lib/require-user-proof";
-import { consumeVoiceNoteReceipt } from "@/lib/voice-note-receipt";
+import {
+  consumeVoiceNoteReceipt,
+  consumeRadioPaymentReceipt,
+} from "@/lib/radio-payment-receipt";
 const PLAYBACK_PHASE_KEY = "live-radio:playback-phase"; // 'song' | 'voice_note'
 const SONG_DURATIONS_KEY = "live-radio:song-durations"; // tokenId -> real seconds, reported by clients
 
@@ -518,7 +522,11 @@ async function handleAdminAction(action: string) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, userAddress, userFid } = body;
+    const { action, userFid } = body;
+    // Proven paths reassign this to proof.address. Scheduler actions may leave
+    // it empty — those branches never read it as a spender identity.
+    let userAddress: string =
+      typeof body.userAddress === "string" ? body.userAddress : "";
 
     // Admin / ops only — fail closed on KEEPER_SECRET.
     if (action === "start_radio" || action === "stop_radio") {
@@ -578,8 +586,13 @@ export async function POST(req: NextRequest) {
 
     // The heartbeat is exempt: it takes its listener from the session rather
     // than the body, so it has no userAddress to supply and is authenticated
-    // by its own check below.
-    if (!userAddress && action !== "heartbeat") {
+    // by its own check below. Scheduler actions (next_song) use the internal
+    // secret and likewise need no caller address.
+    if (
+      !userAddress &&
+      action !== "heartbeat" &&
+      action !== "next_song"
+    ) {
       return NextResponse.json(
         { success: false, error: "User address required" },
         { status: 400 },
@@ -627,6 +640,33 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
+
+      // Proven caller + one-time payment receipt (written by execute-delegated
+      // after the on-chain queueSong / WMON payment). Prevents inventing a
+      // txHash to force a track on air.
+      const queueProof = await requireUserProof(
+        req,
+        userAddress,
+        "live-radio:queue_song",
+      );
+      if (!queueProof.ok) return queueProof.response;
+      if (
+        !(await consumeRadioPaymentReceipt(
+          txHash,
+          queueProof.address,
+          "queue",
+        ))
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Queue payment not found for this wallet. Pay via execute-delegated first, then submit.",
+          },
+          { status: 402 },
+        );
+      }
+      userAddress = queueProof.address;
 
       // Use provided duration or default to 600s (10 min fallback - client reports actual end)
       const songDuration =
@@ -942,8 +982,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Play next song (admin/automated)
+    // Play next song (admin/automated) — scheduler / ops only
     if (action === "next_song") {
+      const denied = requireInternalSecret(req, body.secret);
+      if (denied) return denied;
       // Pop next song from queue
       const nextSongJson = await redis.lpop(RADIO_QUEUE_KEY);
       if (!nextSongJson) {
@@ -985,9 +1027,30 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Report song ended (client tells server when audio actually finishes)
+    // Report song ended (client tells server when audio actually finishes).
+    // Bound to a live radio session (or the internal secret for scheduler hops)
+    // so strangers cannot force song transitions.
     if (action === "song_ended") {
       const { _songId, tokenId } = body;
+
+      const presentedSecret = presentedInternalSecret(req, body.secret);
+      const asInternal =
+        Boolean(presentedSecret) && !requireInternalSecret(req, body.secret);
+      if (!asInternal) {
+        const sessionAddress = await resolveRadioSession(
+          req.headers.get(RADIO_SESSION_HEADER),
+        );
+        if (!sessionAddress) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "A live radio session is required to report song end. Reopen the radio.",
+            },
+            { status: 401 },
+          );
+        }
+      }
 
       const state = await redis.get<RadioState>(RADIO_STATE_KEY);
       if (!state) {
@@ -1300,6 +1363,47 @@ export async function POST(req: NextRequest) {
     // Skip current song and play a new random one (called by execute-delegated after payment)
     if (action === "skip_to_random") {
       const { txHash } = body;
+
+      // Privileged hop from execute-delegated, or a proven caller with a
+      // one-time skip payment receipt.
+      const skipPresented = presentedInternalSecret(req, body.secret);
+      const skipInternal =
+        Boolean(skipPresented) && !requireInternalSecret(req, body.secret);
+      if (!skipInternal) {
+        if (!txHash) {
+          return NextResponse.json(
+            { success: false, error: "txHash required for paid skip" },
+            { status: 400 },
+          );
+        }
+        const skipProof = await requireUserProof(
+          req,
+          userAddress,
+          "live-radio:skip_to_random",
+        );
+        if (!skipProof.ok) return skipProof.response;
+        if (
+          !(await consumeRadioPaymentReceipt(
+            txHash,
+            skipProof.address,
+            "skip",
+          ))
+        ) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Skip payment not found for this wallet. Pay via execute-delegated first.",
+            },
+            { status: 402 },
+          );
+        }
+        userAddress = skipProof.address;
+      } else if (txHash && userAddress) {
+        // Internal hop: still burn the receipt so the same tx cannot be reused
+        // by a later public call.
+        await consumeRadioPaymentReceipt(txHash, userAddress, "skip");
+      }
 
       const state = await redis.get<RadioState>(RADIO_STATE_KEY);
       if (!state || !state.isLive) {
