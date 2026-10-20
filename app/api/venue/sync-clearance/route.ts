@@ -16,7 +16,15 @@ const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 export async function POST(req: NextRequest) {
   try {
     const { secret } = await req.json();
-    if (secret !== KEEPER_SECRET && KEEPER_SECRET) {
+    // Fail closed: an unset KEEPER_SECRET must not open sync-clearance.
+    if (!KEEPER_SECRET) {
+      console.error('[VenueSyncClearance] KEEPER_SECRET unset — denying');
+      return NextResponse.json(
+        { success: false, error: 'Server is not configured for this privileged action.' },
+        { status: 503 },
+      );
+    }
+    if (secret !== KEEPER_SECRET) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 

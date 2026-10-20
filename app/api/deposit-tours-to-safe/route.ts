@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JsonRpcProvider, Wallet, Contract, formatEther, parseEther } from 'ethers';
 import { getUserSafeAddress } from '@/lib/user-safe';
 import { Address } from 'viem';
+import { requireUserProof } from '@/lib/require-user-proof';
 
 const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN!;
 const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
@@ -112,14 +113,24 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { userAddress, amount } = await req.json();
+    const { userAddress: claimedAddress, amount } = await req.json();
 
-    if (!userAddress) {
+    if (!claimedAddress) {
       return NextResponse.json(
         { success: false, error: 'userAddress required' },
         { status: 400 }
       );
     }
+
+    // Pulls TOURS from the named wallet via deployer transferFrom — only the
+    // proven owner may trigger that (allowance alone must not be enough).
+    const proof = await requireUserProof(
+      req,
+      claimedAddress,
+      'deposit-tours-to-safe',
+    );
+    if (!proof.ok) return proof.response;
+    const userAddress = proof.address;
 
     if (!DEPLOYER_PRIVATE_KEY) {
       return NextResponse.json(
