@@ -174,8 +174,6 @@ for (const must of [
   "wrap_mon",
   "faucet_claim",
   "claim_listener_wmon",
-  "beat_match_submit_guess",
-  "country_collector_complete",
   "venue_register",
   "approve_wmon_for_passport",
 ]) {

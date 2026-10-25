@@ -68,8 +68,6 @@ ok(
     "approve_wmon_for_passport",
     "faucet_claim",
     "claim_listener_wmon",
-    "beat_match_submit_guess",
-    "country_collector_complete",
     "venue_register",
   ]) {
     ok(safe.has(a), `safeMutatingActions missing "${a}"`);

@@ -74,8 +74,6 @@ const DELEGATION_COVERED_CONTEXTS = [
   "execute-delegated:approve_wmon_for_passport",
   "execute-delegated:faucet_claim",
   "execute-delegated:claim_listener_wmon",
-  "execute-delegated:beat_match_submit_guess",
-  "execute-delegated:country_collector_complete",
   "execute-delegated:venue_register",
   "deposit-tours-to-safe",
   "epk-generate",

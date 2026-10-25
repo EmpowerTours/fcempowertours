@@ -240,8 +240,6 @@ export async function POST(req: NextRequest) {
       "approve_wmon_for_passport",
       "faucet_claim",
       "claim_listener_wmon",
-      "beat_match_submit_guess",
-      "country_collector_complete",
       "venue_register",
     ]);
 
@@ -2939,106 +2937,6 @@ ${enjoyText}
       // authority over one. Burning now runs from the wallet in
       // TrackSalesControls, where LicenseRegistry.burn's ownerOf check passes.
       // ==================== CREATE EXPERIENCE (ITINERARY NFT) ====================
-      // ==================== MUSIC BEAT MATCH (V2) ====================
-      case "beat_match_submit_guess": {
-        console.log("🎵 Action: beat_match_submit_guess");
-
-        if (!params?.challengeId || !params?.songTitle) {
-          return NextResponse.json(
-            { success: false, error: "Missing challenge params" },
-            { status: 400 },
-          );
-        }
-
-        const MUSIC_BEAT_MATCH_V2 = process.env
-          .NEXT_PUBLIC_MUSIC_BEAT_MATCH_V2 as Address;
-
-        const beatMatchCalls = [
-          {
-            to: MUSIC_BEAT_MATCH_V2,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function submitGuessFor(address beneficiary, uint256 challengeId, uint256 guessedArtistId, string guessedSongTitle, string guessedUsername) external",
-              ]),
-              functionName: "submitGuessFor",
-              args: [
-                userAddress as Address, // beneficiary
-                BigInt(params.challengeId),
-                BigInt(params.artistId || 0),
-                params.songTitle,
-                params.username || "", // Farcaster username guess
-              ],
-            }) as Hex,
-          },
-        ];
-
-        const beatMatchTxHash = await executeTransaction(
-          beatMatchCalls,
-          userAddress as Address,
-          0n,
-        );
-        await incrementTransactionCount(userAddress);
-
-        return NextResponse.json({
-          success: true,
-          txHash: beatMatchTxHash,
-          action,
-          userAddress,
-          message: "Guess submitted successfully!",
-        });
-
-        // ==================== COUNTRY COLLECTOR (V2) ====================
-      }
-      case "country_collector_complete": {
-        console.log("🌍 Action: country_collector_complete");
-
-        if (!params?.weekId || !params?.artistIndex || !params?.artistId) {
-          return NextResponse.json(
-            { success: false, error: "Missing parameters" },
-            { status: 400 },
-          );
-        }
-
-        const COUNTRY_COLLECTOR_V2 = process.env
-          .NEXT_PUBLIC_COUNTRY_COLLECTOR_V2 as Address;
-
-        const collectorCalls = [
-          {
-            to: COUNTRY_COLLECTOR_V2,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function completeArtistFor(address beneficiary, uint256 weekId, uint256 artistIndex, uint256 artistId) external",
-              ]),
-              functionName: "completeArtistFor",
-              args: [
-                userAddress as Address, // beneficiary
-                BigInt(params.weekId),
-                BigInt(params.artistIndex),
-                BigInt(params.artistId),
-              ],
-            }) as Hex,
-          },
-        ];
-
-        const collectorTxHash = await executeTransaction(
-          collectorCalls,
-          userAddress as Address,
-          0n,
-        );
-        await incrementTransactionCount(userAddress);
-
-        return NextResponse.json({
-          success: true,
-          txHash: collectorTxHash,
-          action,
-          userAddress,
-          message: "Artist completed!",
-        });
-
-        // ==================== MUSIC SUBSCRIPTION ====================
-      }
       case "music-subscribe": {
         console.log("🎵 Action: music-subscribe");
 
