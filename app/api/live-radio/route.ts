@@ -646,6 +646,25 @@ export async function POST(req: NextRequest) {
         "live-radio:queue_song",
       );
       if (!queueProof.ok) return queueProof.response;
+
+      // What plays is resolved server-side from the catalogue for the paid
+      // token, never taken from the request body. Resolved before the
+      // one-time receipt is consumed so a lookup failure stays retryable.
+      const { getResolvedTrack } = await import("@/lib/catalogue-resolved");
+      const paidTrack = await getResolvedTrack(String(tokenId)).catch(() => undefined);
+      if (paidTrack === undefined) {
+        return NextResponse.json(
+          { success: false, error: "Catalogue unavailable, retry shortly" },
+          { status: 503 },
+        );
+      }
+      if (!paidTrack || !paidTrack.audioUrl) {
+        return NextResponse.json(
+          { success: false, error: "Paid track not found in catalogue" },
+          { status: 404 },
+        );
+      }
+
       if (
         !(await consumeRadioPaymentReceipt(
           txHash,
@@ -664,17 +683,6 @@ export async function POST(req: NextRequest) {
         );
       }
       userAddress = queueProof.address;
-
-      // What plays is resolved server-side from the catalogue for the paid
-      // token, never taken from the request body.
-      const { getResolvedTrack } = await import("@/lib/catalogue-resolved");
-      const paidTrack = await getResolvedTrack(String(tokenId)).catch(() => null);
-      if (!paidTrack || !paidTrack.audioUrl) {
-        return NextResponse.json(
-          { success: false, error: "Paid track not found in catalogue" },
-          { status: 404 },
-        );
-      }
 
       // Use provided duration or default to 600s (10 min fallback - client reports actual end)
       const songDuration =
