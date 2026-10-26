@@ -131,7 +131,14 @@ export async function POST(req: NextRequest) {
       // Verify this is called internally (scheduler secret)
       const { secret, song } = body;
 
-      if (KEEPER_SECRET && secret !== KEEPER_SECRET) {
+      if (!KEEPER_SECRET) {
+        console.error('[TelegramRadio] KEEPER_SECRET unset — denying notify');
+        return NextResponse.json(
+          { success: false, error: 'Server is not configured for this privileged action.' },
+          { status: 503 }
+        );
+      }
+      if (secret !== KEEPER_SECRET) {
         return NextResponse.json(
           { success: false, error: 'Unauthorized' },
           { status: 401 }
@@ -260,7 +267,14 @@ export async function GET(req: NextRequest) {
     // ── List Subscribers (admin) ───────────────────────────────────────
     if (action === 'subscribers') {
       const secret = searchParams.get('secret');
-      if (KEEPER_SECRET && secret !== KEEPER_SECRET) {
+      if (!KEEPER_SECRET) {
+        console.error('[TelegramRadio] KEEPER_SECRET unset — denying subscribers list');
+        return NextResponse.json(
+          { success: false, error: 'Server is not configured for this privileged action.' },
+          { status: 503 }
+        );
+      }
+      if (secret !== KEEPER_SECRET) {
         return NextResponse.json(
           { success: false, error: 'Unauthorized' },
           { status: 401 }

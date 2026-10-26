@@ -60,6 +60,22 @@ const DELEGATION_COVERED_CONTEXTS = [
   // Submitting a paid voice note / ad right after its delegated payment.
   "live-radio:voice_note",
   "live-radio:voice_ad",
+  "live-radio:queue_song",
+  "live-radio:skip_to_random",
+  // Safe-mutating execute-delegated actions gated by ownership+session
+  // without each being listed in DELEGATION_PERMISSIONS.
+  "execute-delegated:dao_wrap",
+  "execute-delegated:dao_unwrap",
+  "execute-delegated:dao_delegate",
+  "execute-delegated:dao_create_burn_proposal",
+  "execute-delegated:dao_vote_proposal",
+  "execute-delegated:dao_queue_proposal",
+  "execute-delegated:dao_execute_proposal",
+  "execute-delegated:approve_wmon_for_passport",
+  "execute-delegated:faucet_claim",
+  "execute-delegated:claim_listener_wmon",
+  "execute-delegated:venue_register",
+  "deposit-tours-to-safe",
   "epk-generate",
   "mint-passport",
   "mint-mirror",

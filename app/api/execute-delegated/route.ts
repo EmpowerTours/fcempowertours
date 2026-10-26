@@ -222,6 +222,27 @@ export async function POST(req: NextRequest) {
       "dao_create_deployment_proposal", // 100 MON proposal fee, paid as msg.value
     ]);
 
+    // Safe-mutating publicActions that do not enrich an attacker but still act
+    // on a named Safe (DAO votes, wrap/approve, faucet/claim, beat-match,
+    // country-collector, venue register). Fail-closed like fund-moving, but a
+    // proven delegation + matching session is enough without listing each
+    // action in DELEGATION_PERMISSIONS — otherwise every DAO click would
+    // demand a fresh wallet prompt.
+    const safeMutatingActions = new Set([
+      "dao_wrap",
+      "dao_unwrap",
+      "dao_delegate",
+      "dao_create_burn_proposal",
+      "dao_vote_proposal",
+      "dao_queue_proposal",
+      "dao_execute_proposal",
+      "wrap_mon",
+      "approve_wmon_for_passport",
+      "faucet_claim",
+      "claim_listener_wmon",
+      "venue_register",
+    ]);
+
     if (!adminAuthActions.includes(action)) {
       const authz = await authorizeUserAddress(
         req,
@@ -234,18 +255,18 @@ export async function POST(req: NextRequest) {
       // action gave back exactly the friction the delegation exists to remove:
       // the user authorises once, then the platform acts for them.
       //
-      // This grants nothing the delegation did not already grant. It must be
-      // unexpired, it must list this action, it is consumed against
-      // maxTransactions, and ownershipProven is only ever set by a verified
-      // Quick Auth token or a verified wallet signature. A delegation created
-      // without proof (or predating the field) leaves it false and still
-      // requires the signature.
+      // Fund-moving still requires the action in the permission list.
+      // Safe-mutating omits the action check so a matching session authorises
+      // without expanding DELEGATION_PERMISSIONS (no extra prompts).
       let delegatedOwnership = false;
-      if (fundMovingActions.has(action) && !authz.ownsAddress) {
+      const needsOwnership =
+        fundMovingActions.has(action) || safeMutatingActions.has(action);
+      if (needsOwnership && !authz.ownsAddress) {
         const sessionSecret = req.headers.get(DELEGATION_SESSION_HEADER);
+        const permission = fundMovingActions.has(action) ? action : undefined;
         delegatedOwnership = await delegationProvesOwnership(
           userAddress,
-          action,
+          permission,
           sessionSecret,
         );
         if (delegatedOwnership) {
@@ -255,15 +276,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Fund-moving: hard fail-closed. Ignore `allowed` (which honors the
+      // Ownership-gated: hard fail-closed. Ignore `allowed` (which honors the
       // rollout flag) and require proven ownership of the address.
-      if (
-        fundMovingActions.has(action) &&
-        !authz.ownsAddress &&
-        !delegatedOwnership
-      ) {
+      if (needsOwnership && !authz.ownsAddress && !delegatedOwnership) {
         console.error(
-          `🚫 execute-delegated: fund-moving action '${action}' denied — ` +
+          `🚫 execute-delegated: ownership-gated action '${action}' denied — ` +
             `caller did not prove ownership of ${userAddress} (${authz.reason || authz.mode})`,
         );
         return NextResponse.json(
@@ -2920,106 +2937,6 @@ ${enjoyText}
       // authority over one. Burning now runs from the wallet in
       // TrackSalesControls, where LicenseRegistry.burn's ownerOf check passes.
       // ==================== CREATE EXPERIENCE (ITINERARY NFT) ====================
-      // ==================== MUSIC BEAT MATCH (V2) ====================
-      case "beat_match_submit_guess": {
-        console.log("🎵 Action: beat_match_submit_guess");
-
-        if (!params?.challengeId || !params?.songTitle) {
-          return NextResponse.json(
-            { success: false, error: "Missing challenge params" },
-            { status: 400 },
-          );
-        }
-
-        const MUSIC_BEAT_MATCH_V2 = process.env
-          .NEXT_PUBLIC_MUSIC_BEAT_MATCH_V2 as Address;
-
-        const beatMatchCalls = [
-          {
-            to: MUSIC_BEAT_MATCH_V2,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function submitGuessFor(address beneficiary, uint256 challengeId, uint256 guessedArtistId, string guessedSongTitle, string guessedUsername) external",
-              ]),
-              functionName: "submitGuessFor",
-              args: [
-                userAddress as Address, // beneficiary
-                BigInt(params.challengeId),
-                BigInt(params.artistId || 0),
-                params.songTitle,
-                params.username || "", // Farcaster username guess
-              ],
-            }) as Hex,
-          },
-        ];
-
-        const beatMatchTxHash = await executeTransaction(
-          beatMatchCalls,
-          userAddress as Address,
-          0n,
-        );
-        await incrementTransactionCount(userAddress);
-
-        return NextResponse.json({
-          success: true,
-          txHash: beatMatchTxHash,
-          action,
-          userAddress,
-          message: "Guess submitted successfully!",
-        });
-
-        // ==================== COUNTRY COLLECTOR (V2) ====================
-      }
-      case "country_collector_complete": {
-        console.log("🌍 Action: country_collector_complete");
-
-        if (!params?.weekId || !params?.artistIndex || !params?.artistId) {
-          return NextResponse.json(
-            { success: false, error: "Missing parameters" },
-            { status: 400 },
-          );
-        }
-
-        const COUNTRY_COLLECTOR_V2 = process.env
-          .NEXT_PUBLIC_COUNTRY_COLLECTOR_V2 as Address;
-
-        const collectorCalls = [
-          {
-            to: COUNTRY_COLLECTOR_V2,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function completeArtistFor(address beneficiary, uint256 weekId, uint256 artistIndex, uint256 artistId) external",
-              ]),
-              functionName: "completeArtistFor",
-              args: [
-                userAddress as Address, // beneficiary
-                BigInt(params.weekId),
-                BigInt(params.artistIndex),
-                BigInt(params.artistId),
-              ],
-            }) as Hex,
-          },
-        ];
-
-        const collectorTxHash = await executeTransaction(
-          collectorCalls,
-          userAddress as Address,
-          0n,
-        );
-        await incrementTransactionCount(userAddress);
-
-        return NextResponse.json({
-          success: true,
-          txHash: collectorTxHash,
-          action,
-          userAddress,
-          message: "Artist completed!",
-        });
-
-        // ==================== MUSIC SUBSCRIPTION ====================
-      }
       case "music-subscribe": {
         console.log("🎵 Action: music-subscribe");
 
@@ -4409,6 +4326,35 @@ ${enjoyText}
         );
         console.log("✅ Queue song on-chain TX:", radioQueueTxHash);
 
+        // Receipt the live-radio Redis queue submit must consume, so only a
+        // paid, proven submission flips what is on air.
+        try {
+          const { recordRadioPaymentReceipt } = await import(
+            "@/lib/radio-payment-receipt"
+          );
+          await recordRadioPaymentReceipt(
+            radioQueueTxHash,
+            userAddress,
+            "queue",
+            { tokenId: String(masterTokenId) },
+          );
+        } catch (err) {
+          // Paid on-chain but the receipt could not be stored: do not report
+          // success, or the client would submit and get a 402 with no recourse.
+          // Return the hash so support can finalize this exact payment.
+          console.error("📻 Could not record queue payment receipt:", err);
+          return NextResponse.json(
+            {
+              success: false,
+              paid: true,
+              txHash: radioQueueTxHash,
+              error:
+                "Payment confirmed on-chain, but the queue receipt could not be saved. Do not pay again; contact support with this txHash.",
+            },
+            { status: 503 },
+          );
+        }
+
         // Queuing is the most public thing on the radio -- somebody putting a
         // track in front of everyone listening -- and it was the one action
         // that posted nothing, for any account. Non-blocking and never fatal:
@@ -4565,14 +4511,28 @@ ${enjoyText}
         );
         console.log("✅ Skip payment TX:", skipTxHash);
 
+        try {
+          const { recordRadioPaymentReceipt } = await import(
+            "@/lib/radio-payment-receipt"
+          );
+          await recordRadioPaymentReceipt(skipTxHash, userAddress, "skip");
+        } catch (err) {
+          console.error("📻 Could not record skip payment receipt:", err);
+        }
+
         await incrementTransactionCount(userAddress);
 
-        // Tell the live-radio API to skip to a new random song from Envio
+        // Tell the live-radio API to skip to a new random song from Envio.
+        // Carry the internal secret so the hop is privileged; the receipt
+        // still binds the payment to this address if a client calls directly.
         let skipResult: any = null;
         try {
           const skipRes = await fetch(`${APP_URL}/api/live-radio`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...internalSecretHeaders(),
+            },
             body: JSON.stringify({
               action: "skip_to_random",
               userAddress,

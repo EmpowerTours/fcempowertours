@@ -45,7 +45,15 @@ const BATCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 export async function POST(req: NextRequest) {
   try {
     const { secret } = await req.json();
-    if (secret !== KEEPER_SECRET && KEEPER_SECRET) {
+    // Fail closed: an unset KEEPER_SECRET must not open the scheduler.
+    if (!KEEPER_SECRET) {
+      console.error('[VenueScheduler] KEEPER_SECRET unset — denying');
+      return NextResponse.json(
+        { success: false, error: 'Server is not configured for this privileged action.' },
+        { status: 503 },
+      );
+    }
+    if (secret !== KEEPER_SECRET) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -165,7 +165,10 @@ ok(
     /recordVoiceNoteReceipt\(/.test(strip(read("app/api/execute-delegated/route.ts"))),
     "execute-delegated must record a voice note payment receipt",
   );
-  const receipt = strip(read("lib/voice-note-receipt.ts"));
+  const receiptRel = existsSync(join(root, "lib/radio-payment-receipt.ts"))
+    ? "lib/radio-payment-receipt.ts"
+    : "lib/voice-note-receipt.ts";
+  const receipt = strip(read(receiptRel));
   ok(/\.getdel\b/.test(receipt), "voice note receipts must be consumed atomically (GETDEL)");
 }
 
@@ -226,8 +229,14 @@ ok(
 
 // Fund-moving gate must still ignore ENFORCE_QUICK_AUTH (no regression of PR #4)
 ok(
-  /fundMovingActions\.has\(action\)\s*&&\s*!authz\.ownsAddress/.test(exec),
-  "execute-delegated fund-moving gate must still check !authz.ownsAddress",
+  /needsOwnership\s*&&\s*!authz\.ownsAddress/.test(exec) ||
+    /fundMovingActions\.has\(action\)\s*&&\s*!authz\.ownsAddress/.test(exec),
+  "execute-delegated ownership gate must still check !authz.ownsAddress",
+);
+ok(
+  /safeMutatingActions/.test(exec) &&
+    /fundMovingActions\.has\(action\)\s*\|\|\s*safeMutatingActions\.has\(action\)/.test(exec),
+  "execute-delegated must ownership-gate Safe-mutating publicActions via safeMutatingActions",
 );
 ok(
   /delegationProvesOwnership\([^)]*sessionSecret/.test(exec),

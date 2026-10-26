@@ -45,10 +45,25 @@ if (!/\bownershipProven,/.test(create)) {
 //    the routes are checked only for calling it.
 const exec = strip(read("app/api/execute-delegated/route.ts"));
 checks++;
-if (!/delegationProvesOwnership\(\s*userAddress,\s*action/.test(exec)) {
+if (
+  !/delegationProvesOwnership\(\s*userAddress,\s*action/.test(exec) &&
+  !/delegationProvesOwnership\(\s*userAddress,\s*permission/.test(exec)
+) {
   failures.push(
     "execute-delegated does not accept a proven delegation for the action it " +
       "was asked to perform; every fund-moving action costs a wallet signature",
+  );
+}
+checks++;
+if (
+  !/fundMovingActions\.has\(action\)\s*\?\s*action\s*:\s*undefined/.test(exec) &&
+  !/permission = fundMovingActions\.has\(action\) \? action : undefined/.test(
+    exec,
+  )
+) {
+  failures.push(
+    "execute-delegated must still pass the action name for fund-moving " +
+      "delegations (safe-mutating may omit it)",
   );
 }
 
