@@ -4336,9 +4336,23 @@ ${enjoyText}
             radioQueueTxHash,
             userAddress,
             "queue",
+            { tokenId: String(masterTokenId) },
           );
         } catch (err) {
+          // Paid on-chain but the receipt could not be stored: do not report
+          // success, or the client would submit and get a 402 with no recourse.
+          // Return the hash so support can finalize this exact payment.
           console.error("📻 Could not record queue payment receipt:", err);
+          return NextResponse.json(
+            {
+              success: false,
+              paid: true,
+              txHash: radioQueueTxHash,
+              error:
+                "Payment confirmed on-chain, but the queue receipt could not be saved. Do not pay again; contact support with this txHash.",
+            },
+            { status: 503 },
+          );
         }
 
         // Queuing is the most public thing on the radio -- somebody putting a

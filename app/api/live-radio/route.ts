@@ -603,11 +603,7 @@ export async function POST(req: NextRequest) {
     if (action === "queue_song") {
       const {
         tokenId,
-        name,
-        artist,
-        artistAddress,
         audioUrl,
-        imageUrl,
         txHash,
         duration,
       } = body;
@@ -655,6 +651,7 @@ export async function POST(req: NextRequest) {
           txHash,
           queueProof.address,
           "queue",
+          { tokenId: String(tokenId) },
         ))
       ) {
         return NextResponse.json(
@@ -667,6 +664,17 @@ export async function POST(req: NextRequest) {
         );
       }
       userAddress = queueProof.address;
+
+      // What plays is resolved server-side from the catalogue for the paid
+      // token, never taken from the request body.
+      const { getResolvedTrack } = await import("@/lib/catalogue-resolved");
+      const paidTrack = await getResolvedTrack(String(tokenId)).catch(() => null);
+      if (!paidTrack || !paidTrack.audioUrl) {
+        return NextResponse.json(
+          { success: false, error: "Paid track not found in catalogue" },
+          { status: 404 },
+        );
+      }
 
       // Use provided duration or default to 600s (10 min fallback - client reports actual end)
       const songDuration =
@@ -682,11 +690,11 @@ export async function POST(req: NextRequest) {
       const queuedSong: QueuedSong = {
         id: `${userAddress}-${tokenId}-${Date.now()}`,
         tokenId,
-        name: name || `Song #${tokenId}`,
-        artist: artist || "Unknown Artist",
-        artistAddress: artistAddress || artist || "",
-        audioUrl,
-        imageUrl: imageUrl || "",
+        name: paidTrack.name || `Song #${tokenId}`,
+        artist: paidTrack.artistName || paidTrack.artist || "Unknown Artist",
+        artistAddress: paidTrack.artist || "",
+        audioUrl: paidTrack.audioUrl,
+        imageUrl: paidTrack.imageUrl || "",
         queuedBy: userAddress,
         queuedByFid: userFid || 0,
         queuedAt: Date.now(),
@@ -694,7 +702,7 @@ export async function POST(req: NextRequest) {
         duration: songDuration,
       };
 
-      console.log("[LiveRadio] Song queued:", name, "by", userAddress);
+      console.log("[LiveRadio] Song queued:", paidTrack.name, "by", userAddress);
 
       // Immediately start playing the queued song (interrupts current)
       const state = (await redis.get<RadioState>(RADIO_STATE_KEY)) || {
@@ -742,7 +750,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: `Now playing: ${name}`,
+        message: `Now playing: ${queuedSong.name}`,
         song: queuedSong,
         nowPlaying: true,
       });

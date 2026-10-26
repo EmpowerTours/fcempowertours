@@ -42,7 +42,11 @@ ok(
 );
 {
   const receipt = strip(read("lib/radio-payment-receipt.ts"));
-  ok(/\.getdel\b/.test(receipt), "radio receipts must be consumed atomically (GETDEL)");
+  ok(
+    /\.eval\b/.test(receipt) && /redis\.call\('DEL'/.test(read("lib/radio-payment-receipt.ts")),
+    "radio receipts must be consumed by atomic compare-and-delete",
+  );
+  ok(!/\.getdel\b/.test(receipt), "radio receipts must not be deleted before the owner check");
   for (const kind of ["queue", "skip", "shoutout", "ad"]) {
     ok(
       receipt.includes(`"${kind}"`) || receipt.includes(`'${kind}'`),

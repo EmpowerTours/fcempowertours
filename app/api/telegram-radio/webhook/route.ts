@@ -20,6 +20,9 @@ import { Redis } from '@upstash/redis';
  *     "secret_token": "<same value as TELEGRAM_WEBHOOK_SECRET>"
  *   }
  *
+ * secret_token must be 1-256 chars from A-Z, a-z, 0-9, "_" and "-" (Telegram
+ * rejects base64 "+", "/", "="). Generate with: openssl rand -hex 32
+ *
  * Telegram then sends header x-telegram-bot-api-secret-token on every update.
  */
 
