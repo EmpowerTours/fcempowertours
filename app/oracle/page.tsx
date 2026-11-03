@@ -16,7 +16,9 @@ import {
   Plus,
   Sun,
   Moon,
+  MapPin,
 } from "lucide-react";
+import sdk from "@farcaster/miniapp-sdk";
 import { CrystalBall, OracleState } from "@/app/components/oracle/CrystalBall";
 import { CreateNFTModal } from "@/app/components/oracle/CreateNFTModal";
 import { PassportMintModal } from "@/app/components/oracle/PassportMintModal";
@@ -51,6 +53,8 @@ interface Message {
   txHash?: string;
   explorerUrl?: string;
 }
+
+const HUNT_URL = "https://hunt.empowertours.xyz";
 
 export default function OraclePage() {
   const router = useRouter();
@@ -875,6 +879,30 @@ export default function OraclePage() {
                 Create NFT
               </button>
             </div>
+
+            {/* Hunt opens OUTSIDE Farcaster on purpose. Its wallet is a passkey
+                bound to hunt's domain, and a passkey does not work inside
+                Farcaster's webview, so loading Hunt in here would leave the
+                player with no wallet. openUrl hands it to the system browser,
+                where the passkey (and GPS) work as they do today. Own row,
+                because the pills above already fill a phone's width. */}
+            <a
+              href={HUNT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                if (!isFarcaster) return; // plain browser: the link does it
+                e.preventDefault();
+                sdk.actions.openUrl(HUNT_URL).catch(() => {
+                  window.open(HUNT_URL, "_blank", "noopener,noreferrer");
+                });
+              }}
+              className={`mt-3 mx-auto w-fit flex items-center gap-1 sm:gap-1.5 whitespace-nowrap px-2.5 sm:px-4 py-2 rounded-full text-xs font-medium transition-all hover:scale-105 ${isDarkMode ? "text-gray-400 hover:text-amber-400 hover:bg-amber-500/10" : "text-gray-500 hover:text-amber-600 hover:bg-amber-50"}`}
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              Play Hunt
+              <ExternalLink className="w-3 h-3 opacity-60" />
+            </a>
           </div>
 
           {/* NFT List - Easy access to all NFTs */}
