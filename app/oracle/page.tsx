@@ -4,7 +4,6 @@ import { useActionAuth } from "@/app/hooks/useActionAuth";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
-  Send,
   Sparkles,
   X,
   Globe,
@@ -19,6 +18,7 @@ import {
   MapPin,
 } from "lucide-react";
 import sdk from "@farcaster/miniapp-sdk";
+import { ensureDelegationCovers } from "@/lib/ensure-delegation-covers";
 import { CrystalBall, OracleState } from "@/app/components/oracle/CrystalBall";
 import { CreateNFTModal } from "@/app/components/oracle/CreateNFTModal";
 import { PassportMintModal } from "@/app/components/oracle/PassportMintModal";
@@ -30,7 +30,7 @@ import { LiveRadioModal } from "@/app/components/oracle/LiveRadioModal";
 import { EPKModal } from "@/app/components/oracle/EPKModal";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 import { useGeolocation } from "@/lib/useGeolocation";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import ConnectWalletButton from "@/app/components/ConnectWalletButton";
 
 interface NFTObject {
@@ -57,14 +57,12 @@ interface Message {
 const HUNT_URL = "https://hunt.empowertours.xyz";
 
 export default function OraclePage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { user, walletAddress, isFarcaster, isConnected, fid } =
     useWalletContext();
   const authFor = useActionAuth();
   const { location: geoLocation, loading: geoLoading } = useGeolocation();
 
-  const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [oracleState, setOracleState] = useState<OracleState>(OracleState.IDLE);
   const [isThinking, setIsThinking] = useState(false);
@@ -296,210 +294,65 @@ export default function OraclePage() {
     }
   }, [isThinking, messages]);
 
-  const handleConsult = async (directMessage?: string) => {
-    console.log("[Oracle] handleConsult START");
-    const messageToSend = directMessage || input.trim();
-    if (!messageToSend || isThinking) return;
+  // Buying used to go through /api/oracle/chat: the button sent "Buy MUSIC NFT #5" as
+  // text, Gemini turned it back into buy_music(5), and that route called execute-delegated.
+  // When the Gemini credits ran out (2026-11) every Buy button on this page failed, for a
+  // tokenId the button already knew. So the button calls execute-delegated itself.
+  // buy_music serves art too: the route reads the NFT's type from the contract.
+  const handleBuy = async (nftType: string, tokenId: string) => {
+    if (isThinking) return;
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: `Buy ${nftType} NFT #${tokenId}` },
+    ]);
+    if (!walletAddress) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "oracle", content: "Connect your wallet to buy." },
+      ]);
+      return;
+    }
 
-    const userMessage = messageToSend;
-    console.log("[Oracle] User message:", userMessage);
-    setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
-
-    // Trigger PROCESSING state (fast spin)
     setIsThinking(true);
-
     try {
-      console.log("[Oracle] Sending API request...");
-      const response = await fetch("/api/oracle/chat", {
+      // buy_music is delegation-covered, so no wallet prompt is shown; a delegation
+      // issued before it was covered would 403 silently. Repair it first.
+      await ensureDelegationCovers(walletAddress, "buy_music", authFor, fid);
+      const response = await fetch("/api/execute-delegated", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await authFor("oracle-chat", walletAddress)),
+          ...(await authFor("execute-delegated:buy_music", walletAddress)),
         },
         body: JSON.stringify({
-          message: userMessage,
+          action: "buy_music",
           userAddress: walletAddress,
-          userFid: fid,
-          userLocation: geoLocation
-            ? {
-                latitude: geoLocation.latitude,
-                longitude: geoLocation.longitude,
-                city: geoLocation.city,
-                country: geoLocation.country,
-              }
-            : null,
+          fid: fid || 0,
+          params: { tokenId },
         }),
       });
-
-      console.log("[Oracle] API response received");
       const data = await response.json();
-      console.log(
-        "[Oracle] Full API response data:",
-        JSON.stringify(data, null, 2),
-      );
-
-      if (data.success) {
-        const { action, txHash, explorer, _requestId } = data;
-        console.log("[Oracle] Action type:", action.type);
-        console.log(
-          "[Oracle] Full action object:",
-          JSON.stringify(action, null, 2),
-        );
-
-        // Handle different action types
-        switch (action.type) {
-          case "navigate":
-            console.log("[Oracle] NAVIGATE case triggered");
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "oracle",
-                content: `${action.message}\n\nNavigating to ${action.destination}...`,
-                action,
-              },
-            ]);
-            setTimeout(() => router.push(action.destination), 1500);
-            break;
-
-          case "create_nft":
-            console.log("[Oracle] CREATE_NFT case triggered");
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "oracle",
-                content: `${action.message}\n\nOpening NFT creation studio...`,
-                action,
-              },
-            ]);
-            setTimeout(() => {
-              console.log("[Oracle] Setting showCreateNFTModal to true");
-              setShowCreateNFTModal(true);
-            }, 500);
-            break;
-
-          case "mint_passport":
-            if (txHash) {
-              // Backend already minted successfully
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "oracle",
-                  content: `${action.message}`,
-                  action,
-                  txHash,
-                },
-              ]);
-            } else {
-              // No txHash means we need the modal for manual mint
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "oracle",
-                  content: `${action.message}\n\nOpening passport minting...`,
-                  action,
-                },
-              ]);
-              setTimeout(() => {
-                setShowPassportMintModal(true);
-              }, 500);
-            }
-            break;
-
-          case "withdraw": {
-            console.log("[Oracle] WITHDRAW case triggered");
-            let withdrawMessage = action.message;
-            if (txHash) {
-              withdrawMessage += `\n\n✅ Withdrawal complete!`;
-            }
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "oracle",
-                content: withdrawMessage,
-                action,
-                txHash,
-                explorerUrl: explorer,
-              },
-            ]);
-            break;
-          }
-
-          case "execute": {
-            console.log("[Oracle] EXECUTE case triggered");
-            let executeMessage = action.message;
-            if (txHash) {
-              // Don't include full URL - just indicate success
-              executeMessage += `\n\n✅ Transaction executed!`;
-            }
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "oracle",
-                content: executeMessage,
-                action,
-                txHash,
-                explorerUrl: explorer,
-              },
-            ]);
-            break;
-          }
-
-          case "create_epk":
-            console.log("[Oracle] CREATE_EPK case triggered");
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "oracle",
-                content: `${action.message}\n\nOpening EPK creation wizard...`,
-                action,
-              },
-            ]);
-            setTimeout(() => {
-              setShowEPKModal(true);
-            }, 500);
-            break;
-
-          case "manage_epk":
-            console.log("[Oracle] MANAGE_EPK case triggered");
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "oracle",
-                content: action.message,
-                action,
-              },
-            ]);
-            break;
-
-          case "chat":
-          default:
-            console.log("[Oracle] CHAT/DEFAULT case triggered");
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "oracle",
-                content: action.message,
-                action,
-              },
-            ]);
-            break;
-        }
-      } else {
-        console.error("[Oracle] API returned success: false", data);
-        throw new Error(data.error);
-      }
-    } catch (error: any) {
-      console.error("[Oracle] Error in handleConsult:", error);
+      if (!data.success) throw new Error(data.error || "Purchase failed");
       setMessages((prev) => [
         ...prev,
         {
           role: "oracle",
-          content: `❌ Error: ${error.message}`,
+          content:
+            data.message ||
+            `Purchased ${nftType} NFT #${tokenId}!\n\n✅ Transaction executed!`,
+          txHash: data.txHash,
+          explorerUrl: data.txHash
+            ? `https://monadscan.com/tx/${data.txHash}`
+            : undefined,
         },
       ]);
+    } catch (error: any) {
+      console.error("[Oracle] Purchase failed:", error);
+      setMessages((prev) => [
+        ...prev,
+        { role: "oracle", content: `❌ Purchase failed: ${error.message}` },
+      ]);
     } finally {
-      // Turn off PROCESSING state (slow spin with response)
       setIsThinking(false);
     }
   };
@@ -804,41 +657,9 @@ export default function OraclePage() {
             </div>
           )}
 
-          {/* Input Field - Sleek floating design */}
+          {/* The free-text "Ask the Oracle" box was removed 2026-11: nobody typed in it,
+              and every button below does its job directly without a paid LLM call. */}
           <div className="w-full max-w-xl px-6 mt-8">
-            <div
-              className={`relative rounded-full p-px ${isDarkMode ? "bg-rule" : "bg-gray-300"}`}
-            >
-              <div
-                className={`flex items-center gap-2 rounded-full px-4 py-2 ${isDarkMode ? "bg-black/80" : "bg-white/90"}`}
-              >
-                <Sparkles
-                  className={`w-4 h-4 ${isDarkMode ? "text-foil-dim" : "text-gray-500"}`}
-                />
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && handleConsult()}
-                  placeholder="Ask the Oracle..."
-                  className={`flex-1 bg-transparent outline-none text-sm ${isDarkMode ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400"}`}
-                  style={{ color: isDarkMode ? "#ffffff" : "#111827" }}
-                  disabled={isThinking}
-                />
-                <button
-                  onClick={() => handleConsult()}
-                  disabled={isThinking || !input.trim()}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                    isThinking || !input.trim()
-                      ? "bg-gray-600 cursor-not-allowed"
-                      : "bg-foil hover:bg-foil-bright text-ink"
-                  }`}
-                >
-                  <Send className="w-4 h-4 text-white" />
-                </button>
-              </div>
-            </div>
-
             {/* Quick Actions - Minimal floating pills */}
             {/* One line, always. Four pills at px-4/gap-3 measure ~430px, which
                 is exactly a phone's width, so "Create NFT" wrapped to its own
@@ -1000,9 +821,7 @@ export default function OraclePage() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleConsult(
-                                    `Buy ${nft.type} NFT #${nft.tokenId}`,
-                                  );
+                                  handleBuy(nft.type, nft.tokenId);
                                 }}
                                 className="px-2.5 py-1 bg-foil hover:bg-foil-bright text-ink text-[10px] font-semibold tracking-wide transition-colors"
                               >
@@ -1106,7 +925,7 @@ export default function OraclePage() {
                         className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all shadow-lg whitespace-nowrap"
                         onClick={() => {
                           closeNFTModal();
-                          handleConsult(`Buy ART NFT #${selectedNFT.tokenId}`);
+                          handleBuy("ART", selectedNFT.tokenId);
                         }}
                       >
                         Buy Now
@@ -1198,9 +1017,7 @@ export default function OraclePage() {
                       className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-bold hover:from-cyan-400 hover:to-purple-500 transition-all"
                       onClick={() => {
                         closeNFTModal();
-                        handleConsult(
-                          `Buy ${selectedNFT.type} NFT #${selectedNFT.tokenId}`,
-                        );
+                        handleBuy(selectedNFT.type, selectedNFT.tokenId);
                       }}
                     >
                       Buy Now
