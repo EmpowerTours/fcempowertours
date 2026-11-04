@@ -337,9 +337,9 @@ export default function OraclePage() {
         ...prev,
         {
           role: "oracle",
-          content:
-            data.message ||
-            `Purchased ${nftType} NFT #${tokenId}!\n\n✅ Transaction executed!`,
+          // Not data.message: the route's text is "NFT purchased for 0x<40 hex>", which
+          // says nothing the user didn't know and overflowed the bubble on a phone.
+          content: `✅ Purchased ${nftType} NFT #${tokenId}`,
           txHash: data.txHash,
           explorerUrl: data.txHash
             ? `https://monadscan.com/tx/${data.txHash}`
@@ -597,7 +597,7 @@ export default function OraclePage() {
                         </span>
                       </div>
                     )}
-                    <div className="text-sm whitespace-pre-wrap">
+                    <div className="text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
                       {msg.content}
                     </div>
 
