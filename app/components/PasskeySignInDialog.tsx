@@ -26,6 +26,7 @@ import {
   type PasskeyConnectIntent,
 } from "@/lib/passkey/connector";
 import { configuredPasskeyRpId, hostCanUseRpId } from "@/lib/passkey/rp-id";
+import { storedCredentialHint } from "@/lib/passkey/credential-hint";
 
 const OPEN_EVENT = "empowertours:open-sign-in";
 let mounted = false;
@@ -62,6 +63,11 @@ const COPY = {
     unsupported:
       "Passkeys aren’t available in this browser. Use another wallet, or open the app in Safari or Chrome.",
     failed: "Couldn’t open your passkey. Try again on the device that holds it.",
+    alreadyHave:
+      "This device already has an EmpowerTours wallet. Creating another one gives you a second, separate, empty wallet — your NFTs and balance stay in the first.",
+    openExisting: "Open my existing wallet",
+    createAnyway: "Create a second wallet anyway",
+    chunk: "Part of the page didn’t load (connection dropped or the app just updated). Reload the page and try again.",
     lang: "Español",
   },
   es: {
@@ -83,6 +89,11 @@ const COPY = {
     unsupported:
       "Las passkeys no están disponibles en este navegador. Usa otra billetera, o abre la app en Safari o Chrome.",
     failed: "No se pudo abrir tu passkey. Inténtalo de nuevo en el dispositivo que la tiene.",
+    alreadyHave:
+      "Este dispositivo ya tiene una billetera de EmpowerTours. Crear otra te da una segunda billetera, separada y vacía — tus NFTs y saldo siguen en la primera.",
+    openExisting: "Abrir mi billetera existente",
+    createAnyway: "Crear una segunda billetera de todos modos",
+    chunk: "Una parte de la página no cargó (se cortó la conexión o la app se acaba de actualizar). Recarga la página e inténtalo de nuevo.",
     lang: "English",
   },
 } as const;
@@ -131,6 +142,10 @@ export default function PasskeySignInDialog() {
   const [busy, setBusy] = useState<PasskeyConnectIntent["mode"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [offerAnother, setOfferAnother] = useState(false);
+  // Set when "Create my wallet" is pressed on a device that already holds an EmpowerTours
+  // passkey. Each create is a NEW passkey and therefore a NEW address, so a returning person who
+  // could not open their wallet would otherwise walk away with a second, empty one.
+  const [confirmCreate, setConfirmCreate] = useState(false);
   const { connectAsync, connectors } = useConnect();
   const { openConnectModal } = useConnectModal();
   const t = COPY[lang];
@@ -140,6 +155,7 @@ export default function PasskeySignInDialog() {
     const onOpen = () => {
       setError(null);
       setOfferAnother(false);
+      setConfirmCreate(false);
       setOpen(true);
     };
     window.addEventListener(OPEN_EVENT, onOpen);
@@ -168,6 +184,7 @@ export default function PasskeySignInDialog() {
       setBusy(intent.mode);
       setError(null);
       setOfferAnother(false);
+      setConfirmCreate(false);
       try {
         // wagmi passes every parameter except `connector` through to the connector's connect().
         await connectAsync({ connector, passkey: intent } as never);
@@ -182,6 +199,13 @@ export default function PasskeySignInDialog() {
         } else if (code === "PASSKEY_OPERATION_FAILED" || name === "NotAllowedError") {
           setError(intent.mode === "open" ? t.failed : t.cancelled);
           if (intent.mode === "open") setOfferAnother(true);
+        } else if (
+          name === "ChunkLoadError" ||
+          /Loading chunk [\w-]+ failed/i.test(e instanceof Error ? e.message : "")
+        ) {
+          // The passkey library is loaded on demand; a dropped connection or a deploy between
+          // page load and this tap surfaces here. A webpack message means nothing to a person.
+          setError(t.chunk);
         } else {
           setError(e instanceof Error ? e.message : t.failed);
         }
@@ -244,7 +268,20 @@ export default function PasskeySignInDialog() {
             <button
               type="button"
               disabled={!!busy || support === "checking"}
-              onClick={() => void run({ mode: "create", label: "EmpowerTours wallet" })}
+              onClick={() => {
+                let existing = false;
+                try {
+                  existing = !!storedCredentialHint(rpId);
+                } catch {
+                  // Storage unreadable: nothing to warn about, create as asked.
+                }
+                if (existing) {
+                  setError(null);
+                  setConfirmCreate(true);
+                  return;
+                }
+                void run({ mode: "create", label: "EmpowerTours wallet" });
+              }}
               className="flex items-center justify-center gap-2 bg-foil px-4 py-2.5 text-sm font-semibold text-ink hover:bg-foil-bright disabled:opacity-50"
             >
               <KeyRound className="h-4 w-4" />
@@ -259,6 +296,27 @@ export default function PasskeySignInDialog() {
               <KeyRound className="h-4 w-4" />
               {busy === "open" ? t.waiting : t.open}
             </button>
+            {confirmCreate && (
+              <div role="alert" className="flex flex-col gap-2 border border-foil-dim p-3">
+                <p className="text-xs opacity-90">{t.alreadyHave}</p>
+                <button
+                  type="button"
+                  disabled={!!busy}
+                  onClick={() => void run({ mode: "open" })}
+                  className="bg-foil px-3 py-2 text-xs font-semibold text-ink hover:bg-foil-bright disabled:opacity-50"
+                >
+                  {t.openExisting}
+                </button>
+                <button
+                  type="button"
+                  disabled={!!busy}
+                  onClick={() => void run({ mode: "create", label: "EmpowerTours wallet" })}
+                  className="text-xs underline opacity-70 hover:opacity-100 disabled:opacity-40"
+                >
+                  {t.createAnyway}
+                </button>
+              </div>
+            )}
             {offerAnother && (
               <button
                 type="button"
