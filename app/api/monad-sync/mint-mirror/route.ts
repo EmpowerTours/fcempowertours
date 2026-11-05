@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUserProof } from '@/lib/require-user-proof';
 import { sendUserSafeTransaction, getUserSafeAddress } from '@/lib/user-safe';
-import { encodeFunctionData, parseEther, Address, Hex, parseAbi, createPublicClient, http } from 'viem';
-import { activeChain } from '@/app/chains';
+import { encodeFunctionData, parseEther, Address, Hex, parseAbi, createPublicClient } from 'viem';
+import { activeChain, monadTransport } from '@/app/chains';
 
 const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
 const MONAD_MIRROR_NFT = process.env.NEXT_PUBLIC_MONAD_MIRROR_NFT as Address;
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     try {
       const client = createPublicClient({
         chain: activeChain,
-        transport: http(),
+        transport: monadTransport(),
       });
 
       const userSafe = await getUserSafeAddress(userAddress as Address);

@@ -9,7 +9,7 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 
 /**
  * Monthly Distribution Keeper
@@ -134,7 +134,7 @@ async function handle(req: NextRequest) {
   try {
     const publicClient = createPublicClient({
       chain: activeChain,
-      transport: http(RPC),
+      transport: monadTransport(),
     });
     const account = privateKeyToAccount(
       (OWNER_KEY.startsWith("0x") ? OWNER_KEY : `0x${OWNER_KEY}`) as Hex,

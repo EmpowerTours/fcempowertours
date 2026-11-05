@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   createPublicClient,
-  http,
   type Address,
   type PublicClient,
 } from "viem";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 import { getAllCountryCodes } from "@/lib/passport/countries";
 import { findAllPassports, getPassportDetails } from "@/lib/passport-lookup";
 import { getOwnedLicenses } from "@/lib/user-holdings";
@@ -97,7 +96,7 @@ export async function GET(req: NextRequest) {
 
   const client = createPublicClient({
     chain: activeChain,
-    transport: http(),
+    transport: monadTransport(),
   }) as PublicClient;
 
   const errors: string[] = [];

@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import {
   createPublicClient,
-  http,
   type Address,
   type PublicClient,
 } from "viem";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 import { getResolvedCatalogue } from "@/lib/catalogue-resolved";
 import { getCatalogueTotals, getRecentLicenses } from "@/lib/user-holdings";
 import { getRecentPassports } from "@/lib/passport-lookup";
@@ -80,7 +79,7 @@ interface FeedNft {
 export async function GET() {
   const client = createPublicClient({
     chain: activeChain,
-    transport: http(),
+    transport: monadTransport(),
   }) as PublicClient;
 
   const registry = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address | undefined;

@@ -19,7 +19,7 @@ import {
   parseAbi,
   encodeFunctionData,
 } from "viem";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { toSafeSmartAccount } from "permissionless/accounts";
 import { env } from "@/lib/env";
@@ -31,7 +31,7 @@ const ENTRYPOINT_ADDRESS = env.ENTRYPOINT_ADDRESS as Address;
 // Public client for Monad
 export const publicClient = createPublicClient({
   chain: activeChain,
-  transport: http(env.MONAD_RPC),
+  transport: monadTransport(),
 });
 
 // Bot's signer account - this is the OWNER of all user Safes

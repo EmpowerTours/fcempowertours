@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http } from "viem";
-import { activeChain } from "@/app/chains";
+import { createPublicClient } from "viem";
+import { activeChain, monadTransport } from "@/app/chains";
 import { getLicenceHoldings, getCatalogueTotals } from "@/lib/user-holdings";
 
 /**
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   try {
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
     });
 
     const [holdings, totals] = await Promise.all([

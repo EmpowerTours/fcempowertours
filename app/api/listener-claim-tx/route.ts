@@ -3,7 +3,6 @@ import { Redis } from "@upstash/redis";
 import {
   createPublicClient,
   decodeEventLog,
-  http,
   parseAbi,
   type Address,
   type Hex,
@@ -33,7 +32,6 @@ const redis = new Redis({
 
 const LISTENER_REWARD_POOL = process.env
   .NEXT_PUBLIC_LISTENER_REWARD_POOL as Address;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz";
 
 const CLAIMED_EVENT = parseAbi([
   "event ListenerClaimed(uint256 indexed monthId, address indexed listener, uint256 amount)",
@@ -43,8 +41,8 @@ const CLAIMED_EVENT = parseAbi([
 const key = (address: string) => `listener-claim-tx:${address.toLowerCase()}`;
 
 async function client() {
-  const { activeChain } = await import("@/app/chains");
-  return createPublicClient({ chain: activeChain, transport: http(MONAD_RPC) });
+  const { activeChain, monadTransport } = await import("@/app/chains");
+  return createPublicClient({ chain: activeChain, transport: monadTransport() });
 }
 
 export async function GET(req: NextRequest) {

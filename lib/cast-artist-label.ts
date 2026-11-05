@@ -23,12 +23,12 @@ export async function castArtistLabel(
     const { resolveArtistName, profileLookup } = await import(
       "@/lib/artist-name"
     );
-    const { createPublicClient, http } = await import("viem");
-    const { activeChain } = await import("@/app/chains");
+    const { createPublicClient } = await import("viem");
+    const { activeChain, monadTransport } = await import("@/app/chains");
 
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
     });
     const resolved = await resolveArtistName(address, {
       fid: fid ? Number(fid) : undefined,

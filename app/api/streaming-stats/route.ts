@@ -116,12 +116,12 @@ export async function GET(req: NextRequest) {
     try {
       const { getRecentLicenses } = await import("@/lib/user-holdings");
       const { getResolvedCatalogue } = await import("@/lib/catalogue-resolved");
-      const { activeChain } = await import("@/app/chains");
-      const { createPublicClient, http } = await import("viem");
+      const { activeChain, monadTransport } = await import("@/app/chains");
+      const { createPublicClient } = await import("viem");
 
       const client = createPublicClient({
         chain: activeChain,
-        transport: http(),
+        transport: monadTransport(),
       }) as any;
 
       const [recentLicences, catalogue] = await Promise.all([

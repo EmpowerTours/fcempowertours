@@ -3,16 +3,15 @@ import {
   subscriptionInfoAbi,
   decodeSubscriptionInfo,
 } from "@/lib/contract-generation";
-import { createPublicClient, http } from "viem";
-import { activeChain } from "@/app/chains";
+import { createPublicClient } from "viem";
+import { activeChain, monadTransport } from "@/app/chains";
 
 const MUSIC_SUBSCRIPTION_ADDRESS = process.env
   .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as `0x${string}`;
-const RPC_URL = process.env.NEXT_PUBLIC_MONAD_RPC!;
 
 const publicClient = createPublicClient({
   chain: activeChain,
-  transport: http(RPC_URL),
+  transport: monadTransport(),
 });
 
 const SUBSCRIPTION_ABI = [

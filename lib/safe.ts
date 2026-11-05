@@ -1,6 +1,6 @@
-import { createPublicClient, http, Address } from 'viem';
+import { createPublicClient, Address } from 'viem';
 
-import { monadTestnet } from '@/app/chains';
+import { monadTestnet, monadTransport } from '@/app/chains';
 import { env } from '@/lib/env';
 
 const _PIMLICO_BUNDLER_URL = env.PIMLICO_BUNDLER_URL;
@@ -8,7 +8,7 @@ const SAFE_ACCOUNT = env.SAFE_ACCOUNT as Address;
 
 export const publicClient = createPublicClient({
   chain: monadTestnet,
-  transport: http(env.MONAD_RPC),
+  transport: monadTransport(),
 });
 
 // Check Safe account balance

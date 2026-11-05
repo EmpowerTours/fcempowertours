@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, formatEther, Address } from 'viem';
-import { activeChain } from '@/app/chains';
+import { createPublicClient, formatEther, Address } from 'viem';
+import { activeChain, monadTransport } from '@/app/chains';
 import { getPassportCount } from '@/lib/passport-lookup';
 import { readCatalogueFromChain } from '@/lib/catalogue-source';
 
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     const publicClient = createPublicClient({
       chain: activeChain,
-      transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz'),
+      transport: monadTransport(),
     });
 
     // =============================================
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
     try {
       const nftClient = createPublicClient({
         chain: activeChain,
-        transport: http(),
+        transport: monadTransport(),
       });
       const passportAddress = process.env.NEXT_PUBLIC_PASSPORT_NFT as
         | Address

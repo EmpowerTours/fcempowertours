@@ -162,12 +162,12 @@ export async function getResolvedCatalogue(opts?: {
   const { resolveArtistNames, profileLookup } = await import(
     "@/lib/artist-name"
   );
-  const { createPublicClient, http } = await import("viem");
-  const { activeChain } = await import("@/app/chains");
+  const { createPublicClient } = await import("viem");
+  const { activeChain, monadTransport } = await import("@/app/chains");
 
   const client =
     opts?.client ??
-    createPublicClient({ chain: activeChain, transport: http() });
+    createPublicClient({ chain: activeChain, transport: monadTransport() });
   const names = await resolveArtistNames(
     // Address AND the fid the contract recorded. Passing bare addresses is what left every
     // master showing `0x8df6…8ec1`: the deployer key has no Farcaster account, so the by-address

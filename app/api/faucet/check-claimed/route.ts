@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, Address, parseAbi } from 'viem';
-import { activeChain } from '@/app/chains';
+import { createPublicClient, Address, parseAbi } from 'viem';
+import { activeChain, monadTransport } from '@/app/chains';
 
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC;
 const FAUCET_ADDRESS = process.env.NEXT_PUBLIC_WMON_FAUCET as Address;
 
 const publicClient = createPublicClient({
   chain: activeChain,
-  transport: http(MONAD_RPC),
+  transport: monadTransport(),
 });
 
 const faucetAbi = parseAbi([

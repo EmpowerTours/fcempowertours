@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserProof } from "@/lib/require-user-proof";
 import { redis } from "@/lib/redis";
-import { createPublicClient, http, Address, parseAbi } from "viem";
-import { activeChain } from "@/app/chains";
+import { createPublicClient, Address, parseAbi } from "viem";
+import { activeChain, monadTransport } from "@/app/chains";
 
 /**
  * Music NFT Resale Listing API
@@ -37,7 +37,7 @@ interface ResaleListing {
 
 const publicClient = createPublicClient({
   chain: activeChain,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC),
+  transport: monadTransport(),
 });
 
 const nftAbi = parseAbi([

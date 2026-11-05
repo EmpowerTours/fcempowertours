@@ -11,7 +11,6 @@ import {
 } from "@/lib/listener-points";
 import {
   createPublicClient,
-  http,
   parseAbi,
   formatEther,
   type Address,
@@ -48,7 +47,6 @@ const LISTENER_REWARD_POOL = process.env
   .NEXT_PUBLIC_LISTENER_REWARD_POOL as Address;
 const MUSIC_SUBSCRIPTION = process.env
   .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as Address;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz";
 
 const POOL_ABI = parseAbi([
   "function getListenerReward(uint256 monthId, address listener) external view returns (uint256 points, uint256 estimatedPayout, bool claimed)",
@@ -136,10 +134,10 @@ export async function GET(req: NextRequest) {
       }[],
     };
 
-    const { activeChain } = await import("@/app/chains");
+    const { activeChain, monadTransport } = await import("@/app/chains");
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(MONAD_RPC),
+      transport: monadTransport(),
     });
 
     // Get reserve balance from MusicSubscriptionV5

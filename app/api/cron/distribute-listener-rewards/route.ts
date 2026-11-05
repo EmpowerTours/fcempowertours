@@ -7,7 +7,7 @@ import {
 } from "@/lib/listener-points";
 import { createWalletClient, createPublicClient, http, parseAbi, formatEther, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 
 /**
  * Monthly Listener WMON Distribution Cron
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
 
     const publicClient = createPublicClient({
       chain: activeChain,
-      transport: http(MONAD_RPC),
+      transport: monadTransport(),
     });
 
     const walletClient = createWalletClient({

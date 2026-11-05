@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, parseAbi, Address } from "viem";
-import { monadMainnet } from "@/app/chains";
+import { createPublicClient, parseAbi, Address } from "viem";
+import { monadMainnet, monadTransport } from "@/app/chains";
 import {
   isV3Contracts,
   readCollectorTokenUri,
@@ -19,7 +19,7 @@ const masterTokensAbi = parseAbi([
 
 const client = createPublicClient({
   chain: monadMainnet,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz"),
+  transport: monadTransport(),
 });
 
 // In-memory cache with 5min TTL

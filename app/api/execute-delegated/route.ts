@@ -37,7 +37,7 @@ import {
 } from "viem";
 import { createShortUrl } from "@/lib/url-shortener";
 // Switchboard removed - using Pyth Entropy for randomness
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 import { checkRateLimit, getClientIP, RateLimiters } from "@/lib/rate-limit";
 import { validateCountryCode, authenticateAdminAction } from "@/lib/auth";
 import {
@@ -432,11 +432,11 @@ export async function POST(req: NextRequest) {
 
         // ✅ VALIDATION: Check if contracts are deployed
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const client = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           console.log("🔍 Validating contract deployments...");
@@ -482,11 +482,11 @@ export async function POST(req: NextRequest) {
         const MINT_PRICE_CHECK = parseEther("150");
 
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const client = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           const mintSafeAddress = USE_USER_SAFES
@@ -547,11 +547,11 @@ export async function POST(req: NextRequest) {
 
         // ✅ PRE-CHECK: Verify user doesn't already have passport for this country
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const checkClient = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           const countryCode = params?.countryCode || "US";
@@ -613,11 +613,11 @@ export async function POST(req: NextRequest) {
           : SAFE_ACCOUNT;
 
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const checkClient = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           // Check WMON balance
@@ -781,13 +781,11 @@ export async function POST(req: NextRequest) {
         // Parse tokenId from mint receipt Transfer event (ALWAYS, not just for casts)
         let mintedTokenId = 0;
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const receiptClient = createPublicClient({
             chain: activeChain,
-            transport: http(
-              process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz",
-            ),
+            transport: monadTransport(),
           });
           const receipt = await receiptClient.getTransactionReceipt({
             hash: mintTxHash as `0x${string}`,
@@ -898,11 +896,11 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         });
 
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const checkClient = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           const songExists = await checkClient.readContract({
@@ -1045,11 +1043,11 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         // ✅ EXTRACT TOKEN ID FROM TX RECEIPT
         let extractedTokenId = "0";
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const client = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           const receipt = await client.getTransactionReceipt({
@@ -1323,11 +1321,11 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         // can actually answer — the check survives the generation change, it just changes what
         // it compares.
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const checkCollectorClient = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           const duplicate = await findDuplicateMaster(checkCollectorClient, {
@@ -1561,11 +1559,11 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         // Extract token ID from receipt
         let collectorTokenId = "0";
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const receiptClient = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           const collectorReceipt = await receiptClient.getTransactionReceipt({
@@ -1754,11 +1752,11 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
               );
 
               // Now check Safe's WMON balance (using WMON for payments, not TOURS)
-              const { createPublicClient, http } = await import("viem");
+              const { createPublicClient } = await import("viem");
               const { activeChain } = await import("@/app/chains");
               const client = createPublicClient({
                 chain: activeChain,
-                transport: http(),
+                transport: monadTransport(),
               });
 
               // Use correct Safe address based on mode
@@ -1906,11 +1904,11 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
          */
         let approvalAmount = parseEther("100"); // fallback: previous behaviour
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const priceClient = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
           // Under v3 the registry still answers `masterTokens`, but it is a compatibility view
           // for LiveRadioV3 and every price field in it is hardcoded 0 — pricing moved to
@@ -2489,11 +2487,11 @@ ${enjoyText}
 
         // Check Safe has enough MON
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const client = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           // Use correct Safe address based on mode
@@ -2574,11 +2572,11 @@ ${enjoyText}
         let toursBalanceBefore = 0n;
         let toursBalanceAfter = 0n;
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const swapClient = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           const swapSafeToCheck = USE_USER_SAFES
@@ -2630,11 +2628,11 @@ ${enjoyText}
 
         // ✅ Check TOURS balance AFTER swap
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const swapClient = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           const swapSafeToCheck = USE_USER_SAFES
@@ -2705,11 +2703,11 @@ ${enjoyText}
 
         // ✅ Check Safe has enough MON before wrap
         try {
-          const { createPublicClient, http } = await import("viem");
+          const { createPublicClient } = await import("viem");
           const { activeChain } = await import("@/app/chains");
           const client = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           });
 
           // Use correct Safe address based on mode
@@ -4652,10 +4650,10 @@ ${enjoyText}
         });
 
         // Check if user Safe has enough WMON
-        const { createPublicClient, http } = await import("viem");
+        const { createPublicClient } = await import("viem");
         const purchaseClient = createPublicClient({
           chain: activeChain,
-          transport: http(activeChain.rpcUrls.default.http[0]),
+          transport: monadTransport(),
         });
 
         const userSafeForPurchase = await getUserSafeAddress(userAddress);
@@ -4788,10 +4786,10 @@ ${enjoyText}
         });
 
         // Check if user Safe has enough WMON, or needs to wrap MON
-        const { createPublicClient, http } = await import("viem");
+        const { createPublicClient } = await import("viem");
         const climbClient = createPublicClient({
           chain: activeChain,
-          transport: http(activeChain.rpcUrls.default.http[0]),
+          transport: monadTransport(),
         });
 
         // Get user Safe address
@@ -5211,10 +5209,10 @@ ${enjoyText}
         );
 
         // Read price from contract
-        const { createPublicClient, http } = await import("viem");
+        const { createPublicClient } = await import("viem");
         const studioClient = createPublicClient({
           chain: activeChain,
-          transport: http(activeChain.rpcUrls.default.http[0]),
+          transport: monadTransport(),
         });
 
         const priceWei = await studioClient.readContract({
@@ -5326,10 +5324,10 @@ ${enjoyText}
           `🎵 Minting remix NFT: original=#${originalTokenId}, price=${priceMon} WMON`,
         );
 
-        const { createPublicClient, http } = await import("viem");
+        const { createPublicClient } = await import("viem");
         const mintClient = createPublicClient({
           chain: activeChain,
-          transport: http(activeChain.rpcUrls.default.http[0]),
+          transport: monadTransport(),
         });
 
         // Check user Safe WMON balance

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http } from "viem";
-import { activeChain } from "@/app/chains";
+import { createPublicClient } from "viem";
+import { activeChain, monadTransport } from "@/app/chains";
 import { resolveArtistNames, profileLookup } from "@/lib/artist-name";
 
 /**
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const client = createPublicClient({ chain: activeChain, transport: http() });
+    const client = createPublicClient({ chain: activeChain, transport: monadTransport() });
     const names = await resolveArtistNames(
       requested,
       profileLookup(

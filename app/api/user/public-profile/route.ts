@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { createPublicClient, http, parseAbi, type Address, type PublicClient } from 'viem';
-import { activeChain } from '@/app/chains';
+import { createPublicClient, parseAbi, type Address, type PublicClient } from 'viem';
+import { activeChain, monadTransport } from '@/app/chains';
 import { getAllCountryCodes } from '@/lib/passport/countries';
 import { findAllPassports, getPassportDetails } from '@/lib/passport-lookup';
 import { getOwnedLicenses } from '@/lib/user-holdings';
@@ -91,7 +91,7 @@ async function lookupRegisteredName(name: string) {
     | undefined;
   if (!registry) return null;
   try {
-    const client = createPublicClient({ chain: activeChain, transport: http() });
+    const client = createPublicClient({ chain: activeChain, transport: monadTransport() });
     const owner = (await client.readContract({
       address: registry,
       abi: parseAbi(['function ownerOfName(string displayName) view returns (address)']),
@@ -253,7 +253,7 @@ async function getBlockchainStats(walletAddress: string): Promise<any> {
   try {
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
     }) as PublicClient;
 
     const [catalogue, licenses, passportRefs] = await Promise.all([

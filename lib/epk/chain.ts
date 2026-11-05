@@ -261,8 +261,8 @@ export async function getArtistStreamingStats(
   artist: string,
   client?: PublicClient,
 ): Promise<StreamingStatsResult> {
-  const { createPublicClient, http } = await import("viem");
-  const { activeChain } = await import("@/app/chains");
+  const { createPublicClient } = await import("viem");
+  const { activeChain, monadTransport } = await import("@/app/chains");
   const { getResolvedCatalogue } = await import("@/lib/catalogue-resolved");
   const { getRecentLicenses } = await import("@/lib/user-holdings");
 
@@ -270,7 +270,7 @@ export async function getArtistStreamingStats(
     client ??
     (createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
     }) as PublicClient);
 
   const [catalogue, licences, ledger] = await Promise.all([

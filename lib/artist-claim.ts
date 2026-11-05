@@ -1,18 +1,16 @@
 import {
   createPublicClient,
   encodeFunctionData,
-  http,
   parseAbi,
   type Address,
   type Hex,
 } from "viem";
-import { monadMainnet } from "@/app/chains";
+import { monadMainnet, monadTransport } from "@/app/chains";
 
 /**
  * Reads go to the keyless public endpoint on purpose. This module runs in the
  * browser, so referencing the private RPC would ship its key in the bundle.
  */
-const MONAD_PUBLIC_RPC = "https://rpc.monad.xyz";
 
 let cachedPublicClient: ReturnType<typeof createPublicClient> | null = null;
 
@@ -20,7 +18,7 @@ function getPublicClient() {
   if (!cachedPublicClient) {
     cachedPublicClient = createPublicClient({
       chain: monadMainnet,
-      transport: http(MONAD_PUBLIC_RPC),
+      transport: monadTransport(),
     });
   }
   return cachedPublicClient;

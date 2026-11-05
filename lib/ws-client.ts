@@ -1,6 +1,7 @@
-import { createPublicClient, webSocket, http, type PublicClient } from 'viem';
+import { createPublicClient, webSocket, type PublicClient } from 'viem';
 import { activeChain } from './pimlico/config';
 import { env } from './env';
+import { monadTransport } from "@/app/chains";
 
 /**
  * Singleton WebSocket viem PublicClient for real-time event subscriptions.
@@ -120,6 +121,6 @@ export function resetWsClient(): void {
 export function getHttpClient(): PublicClient {
   return createPublicClient({
     chain: activeChain,
-    transport: http(env.MONAD_RPC),
+    transport: monadTransport(),
   });
 }

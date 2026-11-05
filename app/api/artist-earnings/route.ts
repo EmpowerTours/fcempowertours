@@ -7,7 +7,6 @@ import {
 } from "@/lib/play-ledger";
 import {
   createPublicClient,
-  http,
   parseAbi,
   formatEther,
   type Address,
@@ -15,7 +14,6 @@ import {
 
 const MUSIC_SUBSCRIPTION = process.env
   .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as Address;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz";
 
 interface SongBreakdown {
   tokenId: string;
@@ -67,10 +65,10 @@ export async function GET(req: NextRequest) {
     const unavailable: string[] = [];
 
     const { getResolvedCatalogue } = await import("@/lib/catalogue-resolved");
-    const { activeChain: chainForReads } = await import("@/app/chains");
+    const { activeChain: chainForReads, monadTransport } = await import("@/app/chains");
     const readClient = createPublicClient({
       chain: chainForReads,
-      transport: http(MONAD_RPC),
+      transport: monadTransport(),
     });
 
     const catalogue = await getResolvedCatalogue({ limit: 1000 }).catch(
@@ -206,7 +204,7 @@ export async function GET(req: NextRequest) {
         const { activeChain } = await import("@/app/chains");
         const client = createPublicClient({
           chain: activeChain,
-          transport: http(MONAD_RPC),
+          transport: monadTransport(),
         });
         const subAbi = parseAbi([
           "function getCurrentMonthStats() view returns (uint256 monthId, uint256 totalRevenue, uint256 totalPlays, bool finalized)",
