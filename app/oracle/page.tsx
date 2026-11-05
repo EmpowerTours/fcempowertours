@@ -16,6 +16,7 @@ import {
   Sun,
   Moon,
   MapPin,
+  LogOut,
 } from "lucide-react";
 import sdk from "@farcaster/miniapp-sdk";
 import { ensureDelegationCovers } from "@/lib/ensure-delegation-covers";
@@ -58,8 +59,11 @@ const HUNT_URL = "https://hunt.empowertours.xyz";
 
 export default function OraclePage() {
   const searchParams = useSearchParams();
-  const { user, walletAddress, isFarcaster, isConnected, fid } =
+  const { user, walletAddress, isFarcaster, isConnected, fid, disconnect } =
     useWalletContext();
+  // The connected-address pill opens a small menu whose only item is Sign out. Before this the
+  // pill was a plain label and the page had no way to disconnect at all.
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
   const authFor = useActionAuth();
   const { location: geoLocation, loading: geoLoading } = useGeolocation();
 
@@ -518,25 +522,50 @@ export default function OraclePage() {
 
             {/* Standalone: wallet address display */}
             {!isFarcaster && isConnected && walletAddress && (
-              <div
-                className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? "bg-gray-800/80" : "bg-gray-100/80 border border-gray-200"}`}
-              >
-                <div
-                  className="rounded-full bg-ink-raised border border-foil-dim flex items-center justify-center text-foil-bright text-[10px] doc-mono"
-                  style={{
-                    width: "24px",
-                    height: "24px",
-                    minWidth: "24px",
-                    maxWidth: "24px",
-                  }}
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={walletMenuOpen}
+                  onClick={() => setWalletMenuOpen((o) => !o)}
+                  className={`flex items-center gap-2 rounded-full px-2 py-1 ${isDarkMode ? "bg-gray-800/80 hover:bg-gray-700/80" : "bg-gray-100/80 hover:bg-gray-200/80 border border-gray-200"}`}
                 >
-                  {walletAddress.slice(2, 4).toUpperCase()}
-                </div>
-                <div
-                  className={`text-[10px] font-mono ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
-                >
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                </div>
+                  <div
+                    className="rounded-full bg-ink-raised border border-foil-dim flex items-center justify-center text-foil-bright text-[10px] doc-mono"
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      minWidth: "24px",
+                      maxWidth: "24px",
+                    }}
+                  >
+                    {walletAddress.slice(2, 4).toUpperCase()}
+                  </div>
+                  <div
+                    className={`text-[10px] font-mono ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                  </div>
+                </button>
+                {walletMenuOpen && (
+                  <div
+                    role="menu"
+                    className={`absolute right-0 mt-2 min-w-[140px] border shadow-lg ${isDarkMode ? "bg-ink-raised border-rule" : "bg-white border-gray-200"}`}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setWalletMenuOpen(false);
+                        disconnect();
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-xs ${isDarkMode ? "text-gray-300 hover:bg-gray-800" : "text-gray-700 hover:bg-gray-100"}`}
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      Sign out
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
