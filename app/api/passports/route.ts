@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, type Address } from "viem";
-import { activeChain } from "@/app/chains";
+import { createPublicClient, type Address } from "viem";
+import { activeChain, monadTransport } from "@/app/chains";
 import { getAllCountryCodes } from "@/lib/passport/countries";
 import {
   findAllPassports,
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
   try {
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
     });
 
     // The global feed and the single-token read are different questions from "what does this

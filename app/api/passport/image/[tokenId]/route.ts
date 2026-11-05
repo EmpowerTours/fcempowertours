@@ -5,8 +5,8 @@ import {
 } from "@/lib/passport/generatePassportSVG";
 import { getCountryByCode } from "@/lib/passport/countries";
 import { getStampImages } from "@/lib/stamp-images";
-import { createPublicClient, http } from "viem";
-import { activeChain } from "@/app/chains";
+import { createPublicClient } from "viem";
+import { activeChain, monadTransport } from "@/app/chains";
 import {
   getPassportDetails,
   getItineraryStamps,
@@ -48,7 +48,7 @@ export async function GET(
     try {
       const publicClient = createPublicClient({
         chain: activeChain,
-        transport: http(),
+        transport: monadTransport(),
       });
 
       const [passport] = await getPassportDetails(

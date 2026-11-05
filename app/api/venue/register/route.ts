@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { createPublicClient, http } from 'viem';
-import { activeChain } from '@/app/chains';
+import { createPublicClient } from 'viem';
+import { activeChain, monadTransport } from '@/app/chains';
 import {
   authenticateRequest,
   buildActionMessage,
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       try {
         const publicClient = createPublicClient({
           chain: activeChain,
-          transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz'),
+          transport: monadTransport(),
         });
 
         const hasSubscription = await publicClient.readContract({

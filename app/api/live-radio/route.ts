@@ -5,7 +5,7 @@ import { hasRightsClearance } from "@/lib/rights-declaration";
 import { RADIO_SESSION_HEADER, resolveRadioSession } from "@/lib/radio-session";
 import { createWalletClient, createPublicClient, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 
 /**
  * Live Radio API
@@ -432,7 +432,7 @@ async function handleAdminAction(action: string) {
         });
         const publicClient = createPublicClient({
           chain: activeChain,
-          transport: http(rpcUrl),
+          transport: monadTransport(),
         });
 
         const txHash = await walletClient.writeContract({
@@ -481,7 +481,7 @@ async function handleAdminAction(action: string) {
         });
         const publicClient = createPublicClient({
           chain: activeChain,
-          transport: http(rpcUrl),
+          transport: monadTransport(),
         });
 
         const txHash = await walletClient.writeContract({

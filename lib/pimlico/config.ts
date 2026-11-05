@@ -1,6 +1,7 @@
 import { createPublicClient, http, type Chain } from 'viem';
 import { createPimlicoClient } from 'permissionless/clients/pimlico';
 import { entryPoint07Address } from 'viem/account-abstraction';
+import { monadTransport } from "@/app/chains";
 
 // Monad Mainnet (Chain ID: 143)
 export const monadMainnet: Chain = {
@@ -32,12 +33,11 @@ export const activeChain = monadMainnet;
 export const monadTestnet = monadMainnet;
 
 // Default RPC URL for the active chain
-const defaultRpcUrl = 'https://rpc.monad.xyz';
 
 // Public client for reading blockchain
 export const publicClient = createPublicClient({
   chain: activeChain,
-  transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || defaultRpcUrl),
+  transport: monadTransport(),
 });
 
 // Get explorer URL for a transaction

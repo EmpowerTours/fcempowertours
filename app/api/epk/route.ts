@@ -168,11 +168,11 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const { createPublicClient, http } = await import("viem");
-    const { activeChain } = await import("@/app/chains");
+    const { createPublicClient } = await import("viem");
+    const { activeChain, monadTransport } = await import("@/app/chains");
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
     });
 
     const onChain = (await client.readContract({

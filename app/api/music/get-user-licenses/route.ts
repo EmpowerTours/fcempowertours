@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, parseAbi, type Address } from "viem";
-import { activeChain } from "@/app/chains";
+import { createPublicClient, parseAbi, type Address } from "viem";
+import { activeChain, monadTransport } from "@/app/chains";
 import { getResolvedCatalogue } from "@/lib/catalogue-resolved";
 import { getLicenceHoldings } from "@/lib/user-holdings";
 
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     const owner = address.toLowerCase();
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
     });
     const registry = process.env.NEXT_PUBLIC_NFT_CONTRACT as
       | Address

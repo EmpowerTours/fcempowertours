@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createPublicClient, http, parseAbi, type Address } from "viem";
-import { activeChain } from "@/app/chains";
+import { createPublicClient, parseAbi, type Address } from "viem";
+import { activeChain, monadTransport } from "@/app/chains";
 import { isQuickAuthEnforced } from "@/lib/quick-auth";
 
 /**
@@ -24,7 +24,6 @@ import { isQuickAuthEnforced } from "@/lib/quick-auth";
  * are public on-chain anyway, and no secrets.
  */
 
-const RPC = process.env.NEXT_PUBLIC_MONAD_RPC || "https://rpc.monad.xyz";
 
 const ORACLE_ABI = parseAbi([
   "function musicSubscription() view returns (address)",
@@ -137,7 +136,7 @@ export async function GET() {
   try {
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(RPC),
+      transport: monadTransport(),
     });
 
     // --- play recording path -------------------------------------------------

@@ -12,11 +12,10 @@ import {
 } from "@/lib/catalogue-resolved";
 import {
   createPublicClient,
-  http,
   type Address,
   type PublicClient,
 } from "viem";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 import { findAllPassports } from "@/lib/passport-lookup";
 import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
 
@@ -895,7 +894,7 @@ Click below to open the transaction page and connect your Farcaster wallet with 
 
           const passportClient = createPublicClient({
             chain: activeChain,
-            transport: http(),
+            transport: monadTransport(),
           }) as PublicClient;
 
           const existing = await findAllPassports(passportClient, {

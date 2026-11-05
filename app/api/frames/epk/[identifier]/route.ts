@@ -6,11 +6,10 @@ import { fetchEPKFromIPFS } from "@/lib/epk/utils";
 import { readEPKFromChain } from "@/lib/epk/chain";
 import {
   createPublicClient,
-  http,
   type Address,
   type PublicClient,
 } from "viem";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 
 const redis = Redis.fromEnv();
 const EPK_REGISTRY = process.env.NEXT_PUBLIC_EPK_REGISTRY as
@@ -50,7 +49,7 @@ export async function GET(
     if (artistAddress && EPK_REGISTRY) {
       const client = createPublicClient({
         chain: activeChain,
-        transport: http(),
+        transport: monadTransport(),
       }) as PublicClient;
       // `verified` below now means "has a LIVE EPK": readEPKFromChain returns null for a
       // deactivated one, where the EPKCreated event this used to read stayed true forever.

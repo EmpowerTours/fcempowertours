@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, parseAbi } from 'viem';
-import { activeChain } from '@/app/chains';
+import { createPublicClient, parseAbi } from 'viem';
+import { activeChain, monadTransport } from '@/app/chains';
 
 /**
  * Resolve an EmpowerTours display name to its owner.
@@ -21,7 +21,7 @@ async function lookupRegisteredName(name: string) {
     | undefined;
   if (!registry) return null;
   try {
-    const client = createPublicClient({ chain: activeChain, transport: http() });
+    const client = createPublicClient({ chain: activeChain, transport: monadTransport() });
     const owner = (await client.readContract({
       address: registry,
       abi: parseAbi([

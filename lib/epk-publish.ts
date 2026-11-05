@@ -23,12 +23,11 @@
 
 import {
   createPublicClient,
-  http,
   type Address,
   type Hex,
   parseAbi,
 } from "viem";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 import { resolveWalletProvider } from "@/lib/wallet-provider";
 
 /** Monad mainnet, 143. The chain every call in this file is for. */
@@ -54,7 +53,7 @@ export interface PublishResult {
 }
 
 function publicClient() {
-  return createPublicClient({ chain: activeChain, transport: http() });
+  return createPublicClient({ chain: activeChain, transport: monadTransport() });
 }
 
 async function getProvider(): Promise<Eip1193Provider> {

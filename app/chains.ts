@@ -53,7 +53,9 @@ export const activeChain = monadMainnet;
  */
 export function monadTransport(): Transport {
   return fallback([
-    http(activeChain.rpcUrls.default.http[0], { retryCount: 0 }),
+    http(process.env.NEXT_PUBLIC_MONAD_RPC || activeChain.rpcUrls.default.http[0], {
+      retryCount: 0,
+    }),
     http('https://rpc2.monad.xyz'),
   ]);
 }

@@ -189,11 +189,11 @@ export async function mayRecordPlay(
  * same shape `lib/epk/chain.ts` documents.
  */
 async function defaultClient(): Promise<PublicClient> {
-  const { createPublicClient, http } = await import("viem");
-  const { activeChain } = await import("@/app/chains");
+  const { createPublicClient } = await import("viem");
+  const { activeChain, monadTransport } = await import("@/app/chains");
   return createPublicClient({
     chain: activeChain,
-    transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || undefined),
+    transport: monadTransport(),
   }) as PublicClient;
 }
 

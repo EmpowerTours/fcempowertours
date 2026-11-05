@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, parseAbi } from 'viem';
-import { activeChain } from '@/app/chains';
+import { createPublicClient, parseAbi } from 'viem';
+import { activeChain, monadTransport } from '@/app/chains';
 import { getCountryByCode } from '@/lib/passport/countries';
 
 const PASSPORT_NFT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as `0x${string}`;
@@ -8,7 +8,7 @@ const APP_URL = process.env.NEXT_PUBLIC_URL || 'https://fcempowertours-productio
 
 const publicClient = createPublicClient({
   chain: activeChain,
-  transport: http(),
+  transport: monadTransport(),
 });
 
 const PASSPORT_ABI = parseAbi([

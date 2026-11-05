@@ -6,11 +6,10 @@ import { generateEPKPDF, type NFTTrack } from "@/lib/epk/pdf";
 import { readEPKFromChain } from "@/lib/epk/chain";
 import {
   createPublicClient,
-  http,
   type Address,
   type PublicClient,
 } from "viem";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 import type { EPKMetadata } from "@/lib/epk/types";
 
 const redis = Redis.fromEnv();
@@ -114,7 +113,7 @@ export async function GET(
     if (EPK_REGISTRY) {
       const client = createPublicClient({
         chain: activeChain,
-        transport: http(),
+        transport: monadTransport(),
       }) as PublicClient;
       const onChainData = await readEPKFromChain(
         client,

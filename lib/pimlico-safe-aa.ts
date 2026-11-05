@@ -11,7 +11,7 @@ import {
   encodePacked,
 } from "viem";
 import { entryPoint07Address } from "viem/account-abstraction";
-import { monadMainnet } from "@/app/chains";
+import { monadMainnet, monadTransport } from "@/app/chains";
 import { privateKeyToAccount, sign } from "viem/accounts";
 import { toSafeSmartAccount } from "permissionless/accounts";
 import { env } from "@/lib/env";
@@ -37,7 +37,7 @@ export const safeAddress = SAFE_ACCOUNT;
 // Public client for Monad (mainnet or testnet based on CHAIN_ID)
 export const publicClient = createPublicClient({
   chain: currentChain,
-  transport: http(env.MONAD_RPC),
+  transport: monadTransport(),
 });
 
 // Lazy initialization for Safe owner account (only when actually needed at runtime)

@@ -1,5 +1,5 @@
-import { createPublicClient, http, parseAbi } from "viem";
-import { activeChain } from "@/app/chains";
+import { createPublicClient, parseAbi } from "viem";
+import { activeChain, monadTransport } from "@/app/chains";
 
 /**
  * What an artist actually receives from a sale, per SalesController.
@@ -30,7 +30,7 @@ export async function getTreasuryFeeBps(): Promise<bigint> {
   try {
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
     });
     const bps = (await client.readContract({
       address: salesController,

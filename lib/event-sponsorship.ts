@@ -1,6 +1,6 @@
 import { createPublicClient, createWalletClient, http, parseAbi, Address, formatEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { activeChain } from '@/app/chains';
+import { activeChain, monadTransport } from '@/app/chains';
 
 /**
  * EventSponsorship Contract Integration
@@ -18,7 +18,7 @@ export { activeChain as monadTestnet };
 
 export const publicClient = createPublicClient({
   chain: activeChain,
-  transport: http(MONAD_RPC),
+  transport: monadTransport(),
 });
 
 export function getOracleWalletClient() {

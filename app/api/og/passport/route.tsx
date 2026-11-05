@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
-import { createPublicClient, http, type Address } from 'viem';
-import { activeChain } from '@/app/chains';
+import { createPublicClient, type Address } from 'viem';
+import { activeChain, monadTransport } from '@/app/chains';
 import { getPassportDetails } from '@/lib/passport-lookup';
 
 export const runtime = 'edge';
@@ -47,7 +47,7 @@ async function getPassportData(tokenId: string): Promise<PassportData | null> {
     // `PassportNFTV2`, points at an address its own comment calls V3, and the live contract is
     // V4 — two generations behind, so it never saw the passports that matter here. The contract
     // answers this exact question with one call.
-    const client = createPublicClient({ chain: activeChain, transport: http() });
+    const client = createPublicClient({ chain: activeChain, transport: monadTransport() });
     const [passport] = await getPassportDetails(client, PASSPORT_ADDRESS, [
       { tokenId, countryCode: '' },
     ]);

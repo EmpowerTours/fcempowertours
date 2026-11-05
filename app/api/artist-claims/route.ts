@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, parseAbi, formatEther, type Address } from 'viem';
+import { createPublicClient, parseAbi, formatEther, type Address } from 'viem';
 
 const MUSIC_SUBSCRIPTION = process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION as Address;
-const MONAD_RPC = process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz';
 
 const SUBSCRIPTION_ABI = parseAbi([
   'function getCurrentMonthStats() external view returns (uint256 monthId, uint256 totalRevenue, uint256 totalPlays, bool finalized)',
@@ -25,10 +24,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Music subscription contract not configured' }, { status: 500 });
     }
 
-    const { activeChain } = await import('@/app/chains');
+    const { activeChain, monadTransport } = await import('@/app/chains');
     const client = createPublicClient({
       chain: activeChain,
-      transport: http(MONAD_RPC),
+      transport: monadTransport(),
     });
 
     const artistAddress = address.toLowerCase() as Address;

@@ -1,4 +1,4 @@
-import { verifyMessage, recoverMessageAddress, createPublicClient, http, Address, Hex } from "viem";
+import { verifyMessage, recoverMessageAddress, createPublicClient, Address, Hex } from "viem";
 import { Redis } from "@upstash/redis";
 
 import { randomBytes } from "crypto";
@@ -242,10 +242,10 @@ let _verifyClient: ReturnType<typeof createPublicClient> | null = null;
 
 async function getVerifyClient() {
   if (!_verifyClient) {
-    const { activeChain } = await import("@/app/chains");
+    const { activeChain, monadTransport } = await import("@/app/chains");
     _verifyClient = createPublicClient({
       chain: activeChain,
-      transport: http(process.env.NEXT_PUBLIC_MONAD_RPC || undefined),
+      transport: monadTransport(),
     });
   }
   return _verifyClient;
