@@ -26,12 +26,11 @@
 
 import {
   createPublicClient,
-  http,
   parseAbi,
   type Address,
   type PublicClient,
 } from "viem";
-import { activeChain } from "@/app/chains";
+import { activeChain, monadTransport } from "@/app/chains";
 import { isV3Contracts, readMasterPrice } from "@/lib/contract-generation";
 // --------------------------------------------------------------- chain fallback
 
@@ -108,7 +107,12 @@ export async function readCatalogueFromChain(opts: {
     opts.client ??
     (createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
+      // The per-master price reads below are plain readContract calls, two per master. Without
+      // this they go out as ~28 separate eth_calls per catalogue read, and a handful of visitors
+      // at once is enough to get 429s from every public endpoint. With it they are coalesced
+      // into one Multicall3 request.
+      batch: { multicall: true },
     }) as PublicClient);
 
   const nft = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address | undefined;
@@ -364,6 +368,27 @@ async function filterModerated(
  * and because a constant "chain" is a cheaper thing for a reader to verify than a field that
  * disappeared. They are no longer a signal about anything.
  */
+/**
+ * One shared read for everyone who asks within a few seconds.
+ *
+ * The home page alone requests /api/nfts twice per visit (the page and the globe), and each
+ * request used to run its own full chain read. Concurrent callers now await the same promise,
+ * and a NON-EMPTY raw chain read is reused for CATALOGUE_TTL_MS (moderation is re-checked every call). An empty result is never cached: it is
+ * far more likely to be a failed read than a real empty catalogue, and caching it would pin the
+ * blank home page in place. Only the default client is cached — a caller passing its own client
+ * gets a fresh read.
+ */
+const CATALOGUE_TTL_MS = 15_000;
+const catalogueCache = new Map<
+  number,
+  { at: number; promise: Promise<CatalogueRow[]> }
+>();
+
+/** Test hook. */
+export function _resetCatalogueCache(): void {
+  catalogueCache.clear();
+}
+
 export async function getCatalogue(opts?: {
   limit?: number;
   client?: PublicClient;
@@ -377,13 +402,41 @@ export async function getCatalogue(opts?: {
     opts?.client ??
     (createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: monadTransport(),
+      // The per-master price reads below are plain readContract calls, two per master. Without
+      // this they go out as ~28 separate eth_calls per catalogue read, and a handful of visitors
+      // at once is enough to get 429s from every public endpoint. With it they are coalesced
+      // into one Multicall3 request.
+      batch: { multicall: true },
     }) as PublicClient);
 
-  const rows = await readCatalogueFromChain({
-    limit: opts?.limit,
-    client: opts?.client,
-  });
+  const read = () =>
+    readCatalogueFromChain({ limit: opts?.limit, client: resolved });
+
+  // The RAW chain read is what gets shared; the moderation filter below runs on every call, so a
+  // takedown applies at once rather than after the cache expires.
+  let rows: CatalogueRow[];
+  if (opts?.client) {
+    rows = await read();
+  } else {
+    const key = opts?.limit ?? 15;
+    const hit = catalogueCache.get(key);
+    if (hit && Date.now() - hit.at < CATALOGUE_TTL_MS) {
+      rows = await hit.promise;
+    } else {
+      const promise = read();
+      catalogueCache.set(key, { at: Date.now(), promise });
+      try {
+        rows = await promise;
+      } catch (err) {
+        catalogueCache.delete(key);
+        throw err;
+      }
+      if (rows.length === 0 && catalogueCache.get(key)?.promise === promise) {
+        catalogueCache.delete(key);
+      }
+    }
+  }
 
   // Still filtered. This is the one thing that must not be lost with the indexer: the filter was
   // moved out of the chain reader precisely because a suspended track would have reappeared the

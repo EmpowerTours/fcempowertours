@@ -1,4 +1,4 @@
-import { defineChain } from 'viem';
+import { defineChain, fallback, http, type Transport } from 'viem';
 
 export const monadMainnet = defineChain({
   id: 143,
@@ -37,6 +37,26 @@ export const monadMainnet = defineChain({
 
 // Active chain — Monad Mainnet (Chain ID: 143)
 export const activeChain = monadMainnet;
+
+/**
+ * The Monad RPC transport for server-side reads: the default endpoint first, rpc2 when it refuses.
+ *
+ * `rpc.monad.xyz` answers HTTP 429 above roughly 28 req/s (measured 2026-10-04, and seen in
+ * production logs 2026-11-05). The catalogue reader swallowed those failures and returned an
+ * empty list with `success: true`, so the home page intermittently showed no NFTs at all.
+ * `rpc2.monad.xyz` did not rate-limit at 300 concurrent calls; it is second because it is
+ * ~170ms slower per call.
+ *
+ * The primary has `retryCount: 0` so a 429 moves to rpc2 at once instead of backing off three
+ * times first. viem's fallback still throws immediately on an execution revert, so a real
+ * contract error is not re-sent to the second endpoint.
+ */
+export function monadTransport(): Transport {
+  return fallback([
+    http(activeChain.rpcUrls.default.http[0], { retryCount: 0 }),
+    http('https://rpc2.monad.xyz'),
+  ]);
+}
 
 // Backwards compatibility alias (previously pointed to testnet, now mainnet)
 export const monadTestnet = monadMainnet;
