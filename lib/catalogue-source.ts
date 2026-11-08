@@ -108,7 +108,7 @@ export async function readCatalogueFromChain(opts: {
     opts.client ??
     (createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: http(undefined, { batch: { wait: 10 } }),
     }) as PublicClient);
 
   const nft = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address | undefined;
@@ -377,7 +377,7 @@ export async function getCatalogue(opts?: {
     opts?.client ??
     (createPublicClient({
       chain: activeChain,
-      transport: http(),
+      transport: http(undefined, { batch: { wait: 10 } }),
     }) as PublicClient);
 
   const rows = await readCatalogueFromChain({

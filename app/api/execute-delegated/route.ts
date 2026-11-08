@@ -45,7 +45,10 @@ import {
   type RightsDeclaration,
 } from "@/lib/rights-declaration";
 import { authorizeUserAddress } from "@/lib/quick-auth";
-import { getResolvedTrack } from "@/lib/catalogue-resolved";
+import {
+  getResolvedTrack,
+  invalidateCatalogue,
+} from "@/lib/catalogue-resolved";
 import { buildPassportTokenURI } from "@/lib/passport/token-uri";
 
 // Shared by ERC-20 and ERC-721: Transfer(address,address,uint256).
@@ -1209,6 +1212,8 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           }
         }
 
+        // Confirmed mint: the next catalogue read must show it, not wait out the cache TTL.
+        invalidateCatalogue();
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
           success: true,
@@ -1612,6 +1617,8 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           }
         }
 
+        // Confirmed mint: the next catalogue read must show it, not wait out the cache TTL.
+        invalidateCatalogue();
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
           success: true,
@@ -1661,7 +1668,9 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           // `nftArtistAddress` gates the self-purchase guard below — so a stale indexer left the
           // address null and silently switched that guard off. It has been stale since
           // 2026-08-01.
-          const track = await getResolvedTrack(String(tokenId));
+          const track = await getResolvedTrack(String(tokenId), {
+            fresh: true,
+          });
           if (track) {
             isPurchaseArtNFT = track.isArt === true;
             nftArtistAddress = track.artist?.toLowerCase() || null;
@@ -1706,7 +1715,9 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           // "free". `getResolvedCatalogue` goes through `readMasterPrice`, which knows which
           // generation is live.
           {
-            const priceTrack = await getResolvedTrack(String(tokenId));
+            const priceTrack = await getResolvedTrack(String(tokenId), {
+              fresh: true,
+            });
 
             if (priceTrack?.price) {
               const nftPrice = BigInt(priceTrack.price);
@@ -2179,7 +2190,9 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
               // Read from the contracts. This block builds the cast text for a purchase, so a
               // stale row here announces the wrong title or price to a public feed.
               {
-                const musicNFT = await getResolvedTrack(String(tokenId));
+                const musicNFT = await getResolvedTrack(String(tokenId), {
+                  fresh: true,
+                });
                 console.log("🎵 Found track:", musicNFT?.name);
 
                 if (musicNFT) {
