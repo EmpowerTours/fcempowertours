@@ -402,15 +402,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setClaimResult(null);
     try {
       const monthIds = claims.unclaimedMonths.map((m) => m.monthId);
-      const hasUnclaimedTours =
-        claims.toursEligible &&
-        claims.unclaimedMonths.some((m) => !m.toursClaimed);
-
       // Signed by the artist wallet, not the Safe — the contract pays
       // msg.sender and the Safe holds no plays. See lib/artist-claim.ts.
-      const { toursError } = await claimArtistPayoutsFromEOA({
+      await claimArtistPayoutsFromEOA({
         monthIds,
-        claimTours: hasUnclaimedTours,
         expectedAddress: walletAddress,
         subscriptionAddress: process.env
           .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as `0x${string}`,
@@ -418,9 +413,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
       setClaimResult({
         success: true,
-        message: toursError
-          ? `Payouts claimed! (TOURS not claimed: ${toursError})`
-          : "Payouts claimed!",
+        message: "Payouts claimed!",
       });
       // Refresh claims data
       const claimsRes = await fetch(
@@ -1254,7 +1247,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                               <p className="text-xs text-gray-400">
                                 {claims.unclaimedMonths.length} month
                                 {claims.unclaimedMonths.length !== 1 ? "s" : ""}
-                                {claims.toursEligible && " + TOURS rewards"}
                               </p>
                             </div>
                             <p className="text-lg font-bold text-good">

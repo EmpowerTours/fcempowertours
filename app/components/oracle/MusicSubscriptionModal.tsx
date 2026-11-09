@@ -165,22 +165,16 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
 
     try {
       const monthIds = artistClaims.unclaimedMonths.map((m) => m.monthId);
-      const hasUnclaimedTours =
-        artistClaims.toursEligible &&
-        artistClaims.unclaimedMonths.some((m) => !m.toursClaimed);
-
       // Signed by the artist wallet, not the Safe — the contract pays
       // msg.sender and the Safe holds no plays. See lib/artist-claim.ts.
-      const { toursError } = await claimArtistPayoutsFromEOA({
+      await claimArtistPayoutsFromEOA({
         monthIds,
-        claimTours: hasUnclaimedTours,
         expectedAddress: userAddress,
         subscriptionAddress: MUSIC_SUBSCRIPTION_ADDRESS as `0x${string}`,
       });
 
       setSuccess(
-        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!` +
-          (toursError ? ` (TOURS not claimed: ${toursError})` : ""),
+        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!`,
       );
       // Refresh claims data
       setArtistClaims((prev) =>
@@ -593,11 +587,6 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
               <div className="text-xl font-bold text-yellow-400">
                 {artistClaims!.totalUnclaimed} WMON
               </div>
-              {artistClaims!.toursEligible && (
-                <div className="text-[10px] text-good mt-1">
-                  + TOURS rewards eligible
-                </div>
-              )}
             </div>
 
             {/* Error/Success Messages */}
@@ -646,12 +635,6 @@ export const MusicSubscriptionModal: React.FC<MusicSubscriptionModalProps> = ({
             <div className="text-xs text-gray-500 text-center">
               No unclaimed payouts. Earnings are distributed monthly.
             </div>
-            {artistClaims.toursEligible && (
-              <div className="text-[10px] text-good/70 text-center mt-1">
-                TOURS eligible ({artistClaims.masterCount} masters,{" "}
-                {artistClaims.lifetimePlays} plays)
-              </div>
-            )}
           </div>
         )}
       </div>
