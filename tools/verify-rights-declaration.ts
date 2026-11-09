@@ -12,6 +12,7 @@
  *     as a validation failure would lock them out of publishing over a field they cannot answer.
  */
 
+import { readFileSync } from "node:fs";
 import {
   normalizeIsrc,
   isValidIsrc,
@@ -24,6 +25,7 @@ import {
   distributionDeclarationText,
   RIGHTS_AGREEMENT_VERSION,
   SUPPORTED_AGREEMENT_VERSIONS,
+  TOURS_REWARD_CLAUSE,
   type RightsDeclaration,
   type RightsStatus,
 } from "../lib/rights-declaration.ts";
@@ -98,12 +100,50 @@ check(
 // Versioning
 // =====================================================================
 
-check("current version is 1.1", RIGHTS_AGREEMENT_VERSION, "1.1");
+check("current version is 1.2", RIGHTS_AGREEMENT_VERSION, "1.2");
 check(
-  "both versions are supported",
+  "every published version is still supported",
   [...SUPPORTED_AGREEMENT_VERSIONS],
-  ["1.0", "1.1"],
+  ["1.0", "1.1", "1.2"],
 );
+
+// v1.2 exists to stop promising TOURS: artists are paid in WMON, and nothing pays them TOURS.
+// The signed v1.0/v1.1 texts must keep the clause verbatim — their hashes are over it.
+{
+  const v12 = agreementTextForVersion("1.2")!;
+  check("v1.2 text is available", v12 !== null, true);
+  check("v1.2 promises no TOURS", /\bTOURS\b/.test(v12), false);
+  check(
+    "v1.2 is v1.1 minus the TOURS clause and nothing else",
+    v12,
+    agreementTextForVersion("1.1")!.replace(TOURS_REWARD_CLAUSE, ""),
+  );
+  for (const old of ["1.0", "1.1"]) {
+    check(
+      `v${old} keeps the TOURS clause it was signed with`,
+      agreementTextForVersion(old)!.includes(TOURS_REWARD_CLAUSE),
+      true,
+    );
+  }
+  // The summary under "View Full Agreement" is what an artist actually reads before minting.
+  const modal = readFileSync(
+    new URL("../app/components/oracle/CreateNFTModal.tsx", import.meta.url),
+    "utf8",
+  );
+  const start = modal.indexOf("EMPOWERTOURS DIRECT ARTIST LICENSING AGREEMENT");
+  const summary = modal.slice(start, modal.indexOf("`}", start));
+  check("the agreement summary is found", start > 0, true);
+  check(
+    "the agreement summary promises no TOURS",
+    /\bTOURS\b/.test(summary),
+    false,
+  );
+  check(
+    "the agreement summary shows the live version, not a hardcoded one",
+    summary.includes("Version ${RIGHTS_AGREEMENT_VERSION}"),
+    true,
+  );
+}
 check(
   "v1.0 text is still available",
   agreementTextForVersion("1.0") !== null,

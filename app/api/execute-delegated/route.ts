@@ -17,7 +17,7 @@ import {
   hasPermission,
   incrementTransactionCount,
 } from "@/lib/delegation-system";
-import { sendSafeTransaction } from "@/lib/pimlico-safe-aa";
+import { sendSafeTransaction, publicClient } from "@/lib/pimlico-safe-aa";
 import { delegationProvesOwnership } from "@/lib/delegation-proof";
 import { castArtistLabel } from "@/lib/cast-artist-label";
 import {
@@ -67,6 +67,7 @@ async function executeTransaction(
   calls: Array<{ to: Address; value: bigint; data: Hex }>,
   userAddress: Address,
   requiredValue: bigint = 0n,
+  gasBuffer?: bigint,
 ): Promise<string> {
   if (USE_USER_SAFES) {
     // User-funded Safe mode - ensure registered on V2 contracts first
@@ -77,7 +78,11 @@ async function executeTransaction(
     console.log(`🏠 Using USER Safe: ${userSafeAddress}`);
 
     // Check if user Safe has sufficient balance
-    const balanceCheck = await checkUserSafeBalance(userAddress, requiredValue);
+    const balanceCheck = await checkUserSafeBalance(
+      userAddress,
+      requiredValue,
+      ...(gasBuffer === undefined ? [] : [gasBuffer]),
+    );
     if (!balanceCheck.hasSufficientBalance) {
       throw new Error(
         `Insufficient balance in your Safe wallet (${balanceCheck.currentBalance} MON). ` +
@@ -92,6 +97,79 @@ async function executeTransaction(
     // Platform-funded Safe mode (original behavior)
     console.log(`🏢 Using PLATFORM Safe: ${SAFE_ACCOUNT}`);
     return sendSafeTransaction(calls);
+  }
+}
+
+// Measured 2026-11-08: one music mint is ~655k gas, ~0.081 MON. The 0.05 default in
+// `checkUserSafeBalance` let an artist who funded exactly what the error asked for pass that check
+// and then fail on chain, so a mint paid from the artist's own Safe asks for 0.1.
+const MINT_GAS_BUFFER = parseEther("0.1");
+
+/**
+ * Send a mint, with the PLATFORM Safe paying the gas when `lib/mint-sponsorship.ts` allows it.
+ *
+ * The page promises "FREE Mint! We pay all gas fees". Sponsoring is safe on v3 only, where the
+ * calls are `mintMasterFor` carrying the artist's own signature, so the relayer cannot change who
+ * the artist is.
+ *
+ * Any failure of the sponsored send falls back to the artist's own Safe, which is exactly how
+ * every mint worked before this existed — a broken sponsor path can cost an artist the free mint,
+ * never the mint. A retry cannot double-mint: the signature's nonce is consumed on chain, so a
+ * relay that did land makes the second attempt revert in simulation.
+ */
+async function executeMint(
+  calls: Array<{ to: Address; value: bigint; data: Hex }>,
+  userAddress: Address,
+  requiredValue: bigint = 0n,
+): Promise<{ txHash: string; sponsored: boolean }> {
+  const { reserveMintSponsorship, fallbackNotice } = await import(
+    "@/lib/mint-sponsorship"
+  );
+  const { decision, release } = await reserveMintSponsorship({
+    wallet: userAddress,
+    isV3: isV3Contracts(),
+    requiredValue,
+    platformSafe: SAFE_ACCOUNT,
+    getBalance: (address) => publicClient.getBalance({ address }),
+  });
+
+  if (decision.sponsored) {
+    try {
+      console.log(`[MintSponsor] platform Safe pays gas for ${userAddress}`);
+      return { txHash: await sendSafeTransaction(calls), sponsored: true };
+    } catch (err) {
+      await release();
+      console.error(
+        "[MintSponsor] sponsored send failed, falling back to the artist's Safe:",
+        (err as Error)?.message,
+      );
+    }
+  } else {
+    console.log(
+      `[MintSponsor] not sponsored (${decision.reason}) for ${userAddress}`,
+    );
+  }
+
+  try {
+    const txHash = await executeTransaction(
+      calls,
+      userAddress,
+      requiredValue,
+      MINT_GAS_BUFFER,
+    );
+    return { txHash, sponsored: false };
+  } catch (err) {
+    const notice = decision.sponsored
+      ? "Free mints are paused right now."
+      : fallbackNotice(decision.reason);
+    if (
+      notice &&
+      err instanceof Error &&
+      err.message.startsWith("Insufficient balance")
+    ) {
+      throw new Error(`${notice} ${err.message}`);
+    }
+    throw err;
   }
 }
 
@@ -999,10 +1077,8 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         }
 
         console.log(`💳 Executing ${nftTypeName} NFT mint transaction...`);
-        const musicTxHash = await executeTransaction(
-          musicCalls,
-          userAddress as Address,
-        );
+        const { txHash: musicTxHash, sponsored: musicSponsored } =
+          await executeMint(musicCalls, userAddress as Address);
         console.log(`✅ ${nftTypeName} NFT mint successful, TX:`, musicTxHash);
 
         // ✅ EXTRACT TOKEN ID FROM TX RECEIPT
@@ -1213,6 +1289,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         return NextResponse.json({
           success: true,
           txHash: musicTxHash,
+          gasSponsored: musicSponsored,
           tokenId: extractedTokenId,
           action,
           userAddress,
@@ -1514,11 +1591,12 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         console.log(
           `💳 Executing collector NFT mint transaction${hasCreationFee ? " (with 5 WMON creation fee)" : " (no fee)"}...`,
         );
-        const collectorTxHash = await executeTransaction(
-          collectorCalls,
-          userAddress as Address,
-          requiredValue,
-        );
+        const { txHash: collectorTxHash, sponsored: collectorSponsored } =
+          await executeMint(
+            collectorCalls,
+            userAddress as Address,
+            requiredValue,
+          );
         console.log("✅ Collector NFT mint successful, TX:", collectorTxHash);
 
         // Extract token ID from receipt
@@ -1616,6 +1694,7 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         return NextResponse.json({
           success: true,
           txHash: collectorTxHash,
+          gasSponsored: collectorSponsored,
           tokenId: collectorTokenId,
           action,
           userAddress,

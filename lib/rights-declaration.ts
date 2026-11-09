@@ -10,10 +10,10 @@ import { Redis } from "@upstash/redis";
  * evidence. So the text of every published version is kept below and the check is versioned —
  * see {@link agreementTextForVersion} and {@link verifyAgreementHash}.
  */
-export const RIGHTS_AGREEMENT_VERSION = "1.1";
+export const RIGHTS_AGREEMENT_VERSION = "1.2";
 
 /** Versions this module can still rebuild and verify. */
-export const SUPPORTED_AGREEMENT_VERSIONS = ["1.0", "1.1"] as const;
+export const SUPPORTED_AGREEMENT_VERSIONS = ["1.0", "1.1", "1.2"] as const;
 export type AgreementVersion = (typeof SUPPORTED_AGREEMENT_VERSIONS)[number];
 
 const RIGHTS_AGREEMENT_TEXT_V1_0 = `EMPOWERTOURS DIRECT ARTIST LICENSING AGREEMENT
@@ -77,9 +77,23 @@ const RIGHTS_AGREEMENT_TEXT_V1_1 = RIGHTS_AGREEMENT_TEXT_V1_0.replace(
 7. EXTERNAL DISTRIBUTION: {{DISTRIBUTION_DECLARATION}}`,
 );
 
+/**
+ * v1.2 removes the TOURS reward clause and changes nothing else. Artists are not paid in TOURS:
+ * every compensation line that remains is WMON, which is what the contracts actually pay. v1.0
+ * and v1.1 keep the clause VERBATIM — they are what earlier artists signed, and their hashes are
+ * over that text.
+ */
+export const TOURS_REWARD_CLAUSE =
+  "- Eligible artists (10+ master NFTs, 100+ lifetime plays) may claim monthly TOURS rewards via the ToursRewardManager.\n";
+const RIGHTS_AGREEMENT_TEXT_V1_2 = RIGHTS_AGREEMENT_TEXT_V1_1.replace(
+  TOURS_REWARD_CLAUSE,
+  "",
+);
+
 const AGREEMENT_TEXTS: Record<string, string> = {
   "1.0": RIGHTS_AGREEMENT_TEXT_V1_0,
   "1.1": RIGHTS_AGREEMENT_TEXT_V1_1,
+  "1.2": RIGHTS_AGREEMENT_TEXT_V1_2,
 };
 
 /** The agreement text as published under `version`. Unknown versions return null. */
@@ -88,7 +102,7 @@ export function agreementTextForVersion(version: string): string | null {
 }
 
 /** Current text. Kept as a named export because callers used to import it directly. */
-export const RIGHTS_AGREEMENT_TEXT = RIGHTS_AGREEMENT_TEXT_V1_1;
+export const RIGHTS_AGREEMENT_TEXT = RIGHTS_AGREEMENT_TEXT_V1_2;
 
 // =============================================
 // ISRC
