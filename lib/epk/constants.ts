@@ -245,7 +245,6 @@ export const EARVIN_GALLARDO_EPK: EPKMetadata = {
       items: [
         "WMON deposit required for booking confirmation",
         "Crypto payments accepted (WMON on Monad)",
-        "TOURS rewards for organizers (coming once liquidity pool is live)",
         "Deposit released to artist upon event completion",
       ],
     },

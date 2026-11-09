@@ -8,8 +8,6 @@ const SUBSCRIPTION_ABI = parseAbi([
   'function getCurrentMonthStats() external view returns (uint256 monthId, uint256 totalRevenue, uint256 totalPlays, bool finalized)',
   'function getArtistMonthlyStats(address artist, uint256 monthId) external view returns (uint256 playCount, uint256 payout, bool claimed)',
   'function monthlyStats(uint256 monthId) external view returns (uint256 totalRevenue, uint256 totalPlays, uint256 distributedAmount, bool finalized)',
-  'function isArtistEligible(address artist) external view returns (bool eligible, uint256 masterCount, uint256 lifetimePlays)',
-  'function artistToursClaimedMonth(uint256 monthId, address artist) external view returns (bool)',
 ]);
 
 export async function GET(req: NextRequest) {
@@ -41,30 +39,12 @@ export async function GET(req: NextRequest) {
     });
     const currentMonthId = Number(currentMonthResult[0]);
 
-    // Check eligibility for TOURS
-    let toursEligible = false;
-    let masterCount = 0;
-    let lifetimePlays = 0;
-    try {
-      const eligibility = await client.readContract({
-        address: MUSIC_SUBSCRIPTION,
-        abi: SUBSCRIPTION_ABI,
-        functionName: 'isArtistEligible',
-        args: [artistAddress],
-      });
-      toursEligible = eligibility[0];
-      masterCount = Number(eligibility[1]);
-      lifetimePlays = Number(eligibility[2]);
-    } catch {
-      // Contract may not have this data yet
-    }
 
     // Check last 12 months for unclaimed payouts
     const unclaimedMonths: {
       monthId: number;
       playCount: number;
       estimatedPayout: string;
-      toursClaimed: boolean;
     }[] = [];
 
     const checkPromises = [];
@@ -101,23 +81,10 @@ export async function GET(req: NextRequest) {
                 ? (BigInt(playCount) * distributedAmount) / BigInt(totalPlays)
                 : 0n;
 
-              let toursClaimed = true;
-              try {
-                toursClaimed = await client.readContract({
-                  address: MUSIC_SUBSCRIPTION,
-                  abi: SUBSCRIPTION_ABI,
-                  functionName: 'artistToursClaimedMonth',
-                  args: [BigInt(monthId), artistAddress],
-                }) as boolean;
-              } catch {
-                // Might not exist
-              }
-
               unclaimedMonths.push({
                 monthId,
                 playCount,
                 estimatedPayout: formatEther(estimatedPayout),
-                toursClaimed,
               });
             }
           } catch {
@@ -140,9 +107,6 @@ export async function GET(req: NextRequest) {
       currentMonthId,
       unclaimedMonths,
       totalUnclaimed: totalUnclaimed.toFixed(6),
-      toursEligible,
-      masterCount,
-      lifetimePlays,
     });
   } catch (error: any) {
     console.error('[ArtistClaims] Error:', error);

@@ -89,8 +89,6 @@ interface SafeBalance {
   /** The WALLET's MON — not the Safe's. The gap between them is the thing people trip on. */
   walletMonBalance: string;
   wmonBalance: string;
-  toursBalance: string;
-  toursWalletBalance: string;
 }
 
 interface SearchedUser {
@@ -194,10 +192,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       monthId: number;
       playCount: number;
       estimatedPayout: string;
-      toursClaimed: boolean;
     }[];
     totalUnclaimed: string;
-    toursEligible: boolean;
   } | null>(null);
   const [earningsLoading, setEarningsLoading] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
@@ -230,8 +226,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           monBalance: data.balance || "0",
           walletMonBalance: data.walletMonBalance || "0",
           wmonBalance: data.wmonBalance || "0",
-          toursBalance: data.toursBalance || "0",
-          toursWalletBalance: data.toursWalletBalance || "0",
         });
       }
     } catch (error) {

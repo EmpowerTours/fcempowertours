@@ -10,12 +10,9 @@ export const DELEGATION_PERMISSIONS = [
   "mint_passport",
   "wrap_mon",
   "mint_music",
-  "swap_mon_for_tours",
-  // send_tours is NOT here on purpose. create-delegation classifies it
-  // HIGH_RISK and never grants it by default, so listing it made the client
-  // skip the wallet prompt for a permission the delegation does not hold --
-  // a 401 with nothing to click, which is the exact drift this file warns
-  // about. A transfer should cost a signature anyway.
+  // send_tours and swap_mon_for_tours were removed with the rest of TOURS on
+  // 2026-11-08: neither action exists any more, and a listed action with no
+  // handler is the same 401-with-nothing-to-click this file warns about.
   "buy_music",
   // Added 2026-09-03. Every radio action asked for a fresh wallet signature on
   // every press, because none was listed here -- so pressing Skip Random opened

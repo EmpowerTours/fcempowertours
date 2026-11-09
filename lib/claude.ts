@@ -238,7 +238,7 @@ ADDITIONAL REQUIREMENTS FOR VESTING CONTRACTS:
 - Support linear vesting after cliff (gradual release over duration)
 - Support multiple beneficiaries with individual schedules
 - Include revocable option for contract owner (unvested tokens returned)
-- Accept any ERC20 token address (configurable, default to TOURS token)
+- Accept any ERC20 token address (configurable, default to WMON)
 - Include admin functions: addBeneficiary, revokeBeneficiary, updateSchedule
 - Emit events for all vesting actions (TokensReleased, BeneficiaryAdded, VestingRevoked)
 - Include view functions: vestedAmount, releasableAmount, vestingSchedule per beneficiary

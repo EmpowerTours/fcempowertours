@@ -4,7 +4,6 @@ import { activeChain } from '@/app/chains';
 import { getPassportCount } from '@/lib/passport-lookup';
 import { readCatalogueFromChain } from '@/lib/catalogue-source';
 
-const TOURS_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
 const WMON_ADDRESS = process.env.NEXT_PUBLIC_WMON as Address;
 // The Platform Safe address used to be read here and reported as the
 // caller's Safe balance. Balances now come from the user's own Safe.
@@ -74,30 +73,6 @@ export async function POST(req: NextRequest) {
     const monFormattedSafe = parseFloat(formatEther(platformSafeBalance)).toFixed(4); // this user's Safe
     const monFormatted = monFormattedUser; // Show wallet balance in main field
     console.log(`✅ MON balance - User wallet: ${monFormattedUser}, Platform Safe: ${monFormattedSafe}`);
-
-    // =============================================
-    // STEP 2: Get TOURS balance (ERC-20 token)
-    // ✅ Only check user wallet (hiding old bot Safe for now)
-    // =============================================
-    console.log(`⏳ Fetching TOURS balance from token: ${TOURS_TOKEN_ADDRESS}`);
-    let toursBalanceUser = 0n;
-
-    try {
-      // User's TOURS balance
-      toursBalanceUser = await publicClient.readContract({
-        address: TOURS_TOKEN_ADDRESS,
-        abi: ERC20_ABI,
-        functionName: 'balanceOf',
-        args: [userAddress],
-      }) as bigint;
-      console.log(`✅ User TOURS balance (raw): ${toursBalanceUser.toString()}`);
-    } catch (error) {
-      console.error('❌ Error fetching TOURS balance:', error);
-    }
-
-    // Only show wallet balance (hiding old Safe)
-    const toursFormatted = parseFloat(formatEther(toursBalanceUser)).toFixed(2);
-    console.log(`✅ TOURS balance (user wallet): ${toursBalanceUser.toString()} wei = ${toursFormatted} TOURS`);
 
     // =============================================
     // STEP 2.5: Get WMON balance (ERC-20 wrapped MON)
@@ -189,7 +164,6 @@ export async function POST(req: NextRequest) {
       mon: monFormatted,
       monWallet: monFormattedUser,  // ✅ User's personal wallet MON
       monSafe: monFormattedSafe,     // ✅ Platform Safe (delegation account)
-      tours: toursFormatted,
       wmon: wmonFormatted,           // ✅ Wrapped MON balance
       wmonWallet: wmonFormattedUser, // ✅ User's WMON
       wmonSafe: wmonFormattedSafe,   // Hidden (old bot Safe)
@@ -200,11 +174,6 @@ export async function POST(req: NextRequest) {
           user: monFormattedUser,
           safe: monFormattedSafe, // Platform Safe for delegation
           total: monFormatted,
-        },
-        tours: {
-          user: parseFloat(formatEther(toursBalanceUser)).toFixed(2),
-          safe: '0.00', // Hidden
-          total: toursFormatted,
         },
         wmon: {
           user: wmonFormattedUser,
@@ -222,7 +191,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { 
         mon: '0.0000', 
-        tours: '0.00', 
         nfts: { musicNFTCount: 0, passportNFTCount: 0, totalNFTs: 0 },
         error: error.message 
       },

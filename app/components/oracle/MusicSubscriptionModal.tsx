@@ -41,16 +41,12 @@ interface UnclaimedMonth {
   monthId: number;
   playCount: number;
   estimatedPayout: string;
-  toursClaimed: boolean;
 }
 
 interface ArtistClaimsData {
   currentMonthId: number;
   unclaimedMonths: UnclaimedMonth[];
   totalUnclaimed: string;
-  toursEligible: boolean;
-  masterCount: number;
-  lifetimePlays: number;
 }
 
 interface ArtistEarningsData {

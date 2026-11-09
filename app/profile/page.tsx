@@ -113,11 +113,10 @@ export default function ProfilePage() {
     mon: string;
     monWallet?: string;
     monSafe?: string;
-    tours: string;
     wmon: string;
     wmonWallet?: string;
     wmonSafe?: string;
-  }>({ mon: "0", tours: "0", wmon: "0" });
+  }>({ mon: "0", wmon: "0" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [_musicPage, _setMusicPage] = useState(1);
@@ -193,12 +192,8 @@ export default function ProfilePage() {
       monthId: number;
       playCount: number;
       estimatedPayout: string;
-      toursClaimed: boolean;
     }[];
     totalUnclaimed: string;
-    toursEligible: boolean;
-    masterCount: number;
-    lifetimePlays: number;
   } | null>(null);
   const [claimingPayouts, setClaimingPayouts] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
@@ -413,10 +408,11 @@ export default function ProfilePage() {
             });
             if (safeResponse.ok) {
               const safeData = await safeResponse.json();
-              if (
-                parseFloat(safeData.tours || "0") >
-                parseFloat(data.tours || "0")
-              ) {
+              // Show whichever account actually holds the funds. This compared TOURS until
+              // 2026-11-08; nothing uses TOURS, so it now compares what the Safe spends.
+              const held = (b: { mon?: string; wmon?: string }) =>
+                parseFloat(b.mon || "0") + parseFloat(b.wmon || "0");
+              if (held(safeData) > held(data)) {
                 data = safeData;
               }
             }

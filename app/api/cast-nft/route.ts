@@ -125,7 +125,7 @@ View: https://monadscan.com/tx/${txHash}
       castText = `🎵 New Music Master NFT Minted!
 
 "${songTitle || "Untitled"}" - Token #${tokenId}
-💰 License Price: ${price || "1"} TOURS
+💰 License Price: ${price || "1"} WMON
 
 ⚡ Gasless minting powered by @empowertours
 🎶 Purchase license to stream full track

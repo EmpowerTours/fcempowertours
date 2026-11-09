@@ -18,7 +18,7 @@ import { authorizeUserAddress } from "@/lib/quick-auth";
  * - Requires wallet signature to prove ownership
  * - Uses nonce to prevent replay attacks
  * - Validates timestamp to prevent stale requests
- * - Restricted default permissions (no send_tours by default)
+ * - Restricted default permissions (high-risk actions need an explicit request)
  *
  * Flow:
  * 1. GET /api/create-delegation?address=0x... - Get nonce for signing
@@ -40,12 +40,8 @@ const DEFAULT_PERMISSIONS = [
   "radio_queue_song",
   "stake_music",
   "unstake_music",
-  "swap_mon_for_tours",
   "buy_itinerary",
-  // 'send_tours' - REMOVED: High-risk, requires explicit request
   "approve_yield_strategy",
-  "stake_tours",
-  "unstake_tours",
   "stake_music_yield",
   "unstake_music_yield",
   "create_tanda_group",
@@ -58,7 +54,7 @@ const DEFAULT_PERMISSIONS = [
 ];
 
 // High-risk permissions that require explicit request
-const HIGH_RISK_PERMISSIONS = ["send_tours", "admin_burn"];
+const HIGH_RISK_PERMISSIONS = ["admin_burn"];
 
 /**
  * GET - Request nonce for delegation creation

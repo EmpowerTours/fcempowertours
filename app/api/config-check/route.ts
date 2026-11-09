@@ -33,14 +33,7 @@ const SUBSCRIPTION_ABI = parseAbi([
   "function oracle() view returns (address)",
   "function treasury() view returns (address)",
 ]);
-const RADIO_ABI = parseAbi([
-  "function rewardManager() view returns (address)",
-  "function isLive() view returns (bool)",
-]);
-const RM_ABI = parseAbi([
-  "function toursToken() view returns (address)",
-  "function authorizedDistributors(address) view returns (bool)",
-]);
+const RADIO_ABI = parseAbi(["function isLive() view returns (bool)"]);
 
 interface Check {
   name: string;
@@ -74,10 +67,6 @@ export async function GET() {
     liveRadio: process.env.NEXT_PUBLIC_LIVE_RADIO as Address | undefined,
     playOracle: process.env.NEXT_PUBLIC_PLAY_ORACLE as Address | undefined,
     musicSubscription: process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION as
-      | Address
-      | undefined,
-    toursToken: process.env.NEXT_PUBLIC_TOURS_TOKEN as Address | undefined,
-    rewardManager: process.env.NEXT_PUBLIC_TOURS_REWARD_MANAGER as
       | Address
       | undefined,
     listenerRewardPool: process.env.NEXT_PUBLIC_LISTENER_REWARD_POOL as
@@ -190,68 +179,6 @@ export async function GET() {
             ? `no isLive() at ${env.liveRadio} — wrong address?`
             : `isLive = ${isLive}`,
       });
-
-      // Only V3-style radios delegate rewards; V2 hardcodes them, so a missing
-      // rewardManager() here is informational rather than a failure.
-      const radioRm = await client
-        .readContract({
-          address: env.liveRadio,
-          abi: RADIO_ABI,
-          functionName: "rewardManager",
-        })
-        .catch(() => null);
-
-      if (radioRm) {
-        const [rmToken, rmAuthorised] = await Promise.all([
-          client
-            .readContract({
-              address: radioRm,
-              abi: RM_ABI,
-              functionName: "toursToken",
-            })
-            .catch(() => null),
-          client
-            .readContract({
-              address: radioRm,
-              abi: RM_ABI,
-              functionName: "authorizedDistributors",
-              args: [env.liveRadio],
-            })
-            .catch(() => null),
-        ]);
-
-        checks.push({
-          name: "Radio reward manager pays the configured TOURS",
-          ok: eq(rmToken, env.toursToken),
-          detail: eq(rmToken, env.toursToken)
-            ? "reward manager pays the same TOURS the app uses"
-            : `reward manager pays ${rmToken}, but NEXT_PUBLIC_TOURS_TOKEN is ${env.toursToken} — listeners would earn the wrong token`,
-        });
-
-        checks.push({
-          name: "Radio authorised to distribute rewards",
-          ok: rmAuthorised === true,
-          detail:
-            rmAuthorised === true
-              ? "radio can distribute from the reward manager"
-              : "radio is NOT an authorised distributor — reward payouts will fail",
-        });
-
-        checks.push({
-          name: "Radio reward manager matches env",
-          ok: eq(radioRm, env.rewardManager),
-          detail: eq(radioRm, env.rewardManager)
-            ? "radio and NEXT_PUBLIC_TOURS_REWARD_MANAGER agree"
-            : `radio uses ${radioRm}, env says ${env.rewardManager} — two managers in play`,
-        });
-      } else {
-        checks.push({
-          name: "Radio reward manager",
-          ok: true,
-          detail:
-            "radio has no rewardManager() — hardcoded reward constants (V2-style)",
-        });
-      }
     }
 
     const failing = checks.filter((c) => !c.ok && !c.advisory);

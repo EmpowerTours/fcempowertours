@@ -366,7 +366,7 @@ export async function POST(req: NextRequest) {
       "dao_execute_proposal", // Execute after timelock delay
       "radio_voice_note", // Live radio voice shoutout/ad payment
       "radio_queue_song", // Live radio song queue on-chain
-      "radio_claim_rewards", // Live radio TOURS rewards claim
+      "radio_claim_rewards", // Refused: legacy radio balances are frozen; listening pays WMON
       "radio_mark_played", // Live radio mark song as played (scheduler)
       "radio_skip_random", // Live radio skip to random (Pyth Entropy) - user pays 1 MON
       "radio_start", // Start live radio (onlyOwnerOrDAO - platform Safe)
@@ -379,12 +379,10 @@ export async function POST(req: NextRequest) {
       "platform_send_mon", // Admin: send native MON from Platform Safe to any address
       "studio_pay", // EmpowerStudio AI feature payment
       "studio_mint_remix", // EmpowerStudio mint remix NFT
-      "claim_artist_payouts", // Claim subscription artist payouts (WMON + TOURS)
+      "claim_artist_payouts", // Claim subscription artist payouts (WMON)
       "claim_listener_wmon", // Claim listener WMON rewards from the 20% reserve pool
       "mint_collector", // Mint collector edition NFT
-      "send_tours", // Transfer TOURS tokens
       "send_mon", // Transfer native MON
-      "swap_mon_for_tours", // Swap MON for TOURS
       "wrap_mon", // Wrap MON to WMON
       "approve_wmon_for_passport", // Approve WMON for passport mint
       "burn_music", // Burn music NFT
@@ -460,10 +458,8 @@ export async function POST(req: NextRequest) {
       console.log("🌐 [PUBLIC ACTION] Bypassing delegation check for:", action);
     }
 
-    const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
     const EMPOWER_TOURS_NFT = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address; // EmpowerToursNFTv10
-    const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
     // Note: Passport minting uses 150 WMON (wrapped MON token)
 
     switch (action) {
@@ -481,13 +477,6 @@ export async function POST(req: NextRequest) {
           });
 
           console.log("🔍 Validating contract deployments...");
-
-          // Check TOURS token
-          const toursCode = await client.getCode({ address: TOURS_TOKEN });
-          if (!toursCode || toursCode === "0x") {
-            throw new Error(`TOURS token at ${TOURS_TOKEN} is not deployed!`);
-          }
-          console.log("✅ TOURS token is deployed");
 
           // Check Passport NFT
           const passportCode = await client.getCode({ address: PASSPORT_NFT });
@@ -2439,67 +2428,6 @@ ${enjoyText}
           message: `${buyingCollector ? "Collector edition" : "NFT"} purchased for ${userAddress}`,
         });
 
-        // ==================== SEND TOURS ====================
-      }
-      case "send_tours": {
-        console.log("💸 Action: send_tours");
-        if (!params?.recipient || !params?.amount) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Missing recipient or amount for send_tours",
-            },
-            { status: 400 },
-          );
-        }
-
-        if (!/^0x[a-fA-F0-9]{40}$/.test(params.recipient)) {
-          return NextResponse.json(
-            { success: false, error: "Invalid recipient address" },
-            { status: 400 },
-          );
-        }
-
-        const sendAmount = parseEther(params.amount.toString());
-        console.log(
-          "💸 Sending:",
-          sendAmount.toString(),
-          "TOURS to",
-          params.recipient,
-        );
-
-        const sendCalls = [
-          {
-            to: TOURS_TOKEN,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function transfer(address to, uint256 amount) external returns (bool)",
-              ]),
-              functionName: "transfer",
-              args: [params.recipient as Address, sendAmount],
-            }) as Hex,
-          },
-        ];
-
-        console.log("💳 Executing TOURS transfer transaction...");
-        const sendTxHash = await executeTransaction(
-          sendCalls,
-          userAddress as Address,
-        );
-        console.log("✅ TOURS sent successfully, TX:", sendTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: sendTxHash,
-          action,
-          userAddress,
-          recipient: params.recipient,
-          amount: params.amount,
-          message: `Sent ${params.amount} TOURS successfully`,
-        });
-
         // ==================== SEND MON ====================
       }
       case "send_mon": {
@@ -2601,129 +2529,6 @@ ${enjoyText}
           recipient: params.recipient,
           amount: params.amount,
           message: `Sent ${params.amount} MON successfully`,
-        });
-
-        // ==================== SWAP MON FOR TOURS ====================
-      }
-      case "swap_mon_for_tours": {
-        console.log("💱 Action: swap_mon_for_tours");
-        const monAmount = params?.amount
-          ? parseEther(params.amount)
-          : parseEther("0.1");
-        console.log("💱 Swapping:", monAmount.toString(), "wei MON");
-
-        // ✅ Check TOURS balance BEFORE swap
-        let toursBalanceBefore = 0n;
-        let toursBalanceAfter = 0n;
-        try {
-          const { createPublicClient, http } = await import("viem");
-          const { activeChain } = await import("@/app/chains");
-          const swapClient = createPublicClient({
-            chain: activeChain,
-            transport: http(),
-          });
-
-          const swapSafeToCheck = USE_USER_SAFES
-            ? await getUserSafeAddress(userAddress as Address)
-            : SAFE_ACCOUNT;
-
-          toursBalanceBefore = (await swapClient.readContract({
-            address: TOURS_TOKEN,
-            abi: parseAbi([
-              "function balanceOf(address) view returns (uint256)",
-            ]),
-            functionName: "balanceOf",
-            args: [swapSafeToCheck],
-          })) as bigint;
-
-          console.log(
-            "💰 TOURS balance BEFORE swap:",
-            (Number(toursBalanceBefore) / 1e18).toFixed(6),
-            "TOURS",
-            USE_USER_SAFES
-              ? `(User Safe: ${swapSafeToCheck})`
-              : "(Platform Safe)",
-          );
-        } catch (err: any) {
-          console.warn(
-            "⚠️ Could not check TOURS balance before swap:",
-            err.message,
-          );
-        }
-
-        const swapCalls = [
-          {
-            to: TOKEN_SWAP,
-            value: monAmount,
-            data: encodeFunctionData({
-              abi: parseAbi(["function swap() external payable"]),
-              functionName: "swap",
-              args: [],
-            }) as Hex,
-          },
-        ];
-
-        console.log("💳 Executing swap transaction...");
-        const swapTxHash = await executeTransaction(
-          swapCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Swap successful, TX:", swapTxHash);
-
-        // ✅ Check TOURS balance AFTER swap
-        try {
-          const { createPublicClient, http } = await import("viem");
-          const { activeChain } = await import("@/app/chains");
-          const swapClient = createPublicClient({
-            chain: activeChain,
-            transport: http(),
-          });
-
-          const swapSafeToCheck = USE_USER_SAFES
-            ? await getUserSafeAddress(userAddress as Address)
-            : SAFE_ACCOUNT;
-
-          toursBalanceAfter = (await swapClient.readContract({
-            address: TOURS_TOKEN,
-            abi: parseAbi([
-              "function balanceOf(address) view returns (uint256)",
-            ]),
-            functionName: "balanceOf",
-            args: [swapSafeToCheck],
-          })) as bigint;
-
-          const toursReceived = toursBalanceAfter - toursBalanceBefore;
-          console.log(
-            "💰 TOURS balance AFTER swap:",
-            (Number(toursBalanceAfter) / 1e18).toFixed(6),
-            "TOURS",
-            USE_USER_SAFES
-              ? `(User Safe: ${swapSafeToCheck})`
-              : "(Platform Safe)",
-          );
-          console.log(
-            "✅ TOURS received from swap:",
-            (Number(toursReceived) / 1e18).toFixed(6),
-            "TOURS",
-          );
-        } catch (err: any) {
-          console.warn(
-            "⚠️ Could not check TOURS balance after swap:",
-            err.message,
-          );
-        }
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: swapTxHash,
-          action,
-          userAddress,
-          monAmount: monAmount.toString(),
-          toursBalanceBefore: toursBalanceBefore.toString(),
-          toursBalanceAfter: toursBalanceAfter.toString(),
-          toursReceived: (toursBalanceAfter - toursBalanceBefore).toString(),
-          message: `Swapped ${params?.amount || "0.1"} MON for TOURS successfully`,
         });
 
         // ==================== WRAP MON TO WMON ====================
@@ -2879,9 +2684,7 @@ ${enjoyText}
         let withdrawTokenAddress: Address;
         const tokenParam = params.token.toLowerCase();
 
-        if (tokenParam === "tours") {
-          withdrawTokenAddress = TOURS_TOKEN;
-        } else if (tokenParam === "wmon") {
+        if (tokenParam === "wmon") {
           withdrawTokenAddress = process.env.NEXT_PUBLIC_WMON as Address;
         } else if (tokenParam === "mon") {
           // Native MON transfer (no ERC-20, just send value)
@@ -2921,7 +2724,7 @@ ${enjoyText}
           return NextResponse.json(
             {
               success: false,
-              error: `Unknown token: ${params.token}. Use 'tours', 'wmon', 'mon', or a token address.`,
+              error: `Unknown token: ${params.token}. Use 'wmon', 'mon', or a token address.`,
             },
             { status: 400 },
           );
@@ -5806,10 +5609,7 @@ ${enjoyText}
       userFriendlyError = error.message; // Already detailed
     }
     // Check for insufficient token balance
-    else if (
-      error.message?.includes("Insufficient token balance") ||
-      error.message?.includes("Insufficient TOURS")
-    ) {
+    else if (error.message?.includes("Insufficient token balance")) {
       statusCode = 400;
       userFriendlyError = error.message; // Already user-friendly
     }
