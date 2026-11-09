@@ -56,13 +56,28 @@ const USER_PROOF_ROUTES: [string, string][] = [
   ["app/api/epk/booking/[bookingId]/route.ts", "epk/booking/[id]"],
   ["app/api/epk/generate/route.ts", "epk/generate"],
   ["app/api/mint-passport/route.ts", "mint-passport"],
-  ["app/api/monad-sync/mint-mirror/route.ts", "mint-mirror"],
   ["app/api/oracle/chat/route.ts", "oracle/chat"],
   ["app/api/sponsorship/checkin/route.ts", "sponsorship/checkin"],
   ["app/api/cast-nft/route.ts", "cast-nft"],
   ["app/api/music/list-for-sale/route.ts", "list-for-sale"],
   ["app/api/rights/backfill-isrc/route.ts", "rights/backfill-isrc"],
 ];
+
+// Monad Mirror (mint-mirror) was removed on 2026-11-08. It is not in the list above because a
+// required route that is missing should fail loudly; instead, if it is ever re-added it must
+// come back gated.
+{
+  const rel = "app/api/monad-sync/mint-mirror/route.ts";
+  let src: string | null = null;
+  try {
+    src = strip(read(rel));
+  } catch {
+    src = null;
+  }
+  if (src !== null) {
+    ok(/requireUserProof\s*\(/.test(src), "mint-mirror does not call requireUserProof");
+  }
+}
 
 for (const [rel, label] of USER_PROOF_ROUTES) {
   const src = strip(read(rel));
@@ -169,7 +184,19 @@ ok(
     ? "lib/radio-payment-receipt.ts"
     : "lib/voice-note-receipt.ts";
   const receipt = strip(read(receiptRel));
-  ok(/\.getdel\b/.test(receipt), "voice note receipts must be consumed atomically (GETDEL)");
+  // Atomic means one Redis operation: GETDEL, or a single Lua script (redis.eval) that does the
+  // GET and the DEL together. lib/radio-payment-receipt.ts moved to the Lua form (compare-and-
+  // delete, so only a matching receipt is consumed) and this check kept looking for `.getdel`,
+  // failing on main while hidden behind an earlier crash. A separate get() then del() still fails.
+  const raw = read(receiptRel);
+  const luaCompareAndDelete =
+    /redis\.eval\b/.test(receipt) &&
+    /redis\.call\(\s*['"]GET['"]/.test(raw) &&
+    /redis\.call\(\s*['"]DEL['"]/.test(raw);
+  ok(
+    /\.getdel\b/.test(receipt) || luaCompareAndDelete,
+    "voice note receipts must be consumed atomically (GETDEL or one Lua compare-and-delete)",
+  );
 }
 
 // --- Oracle hops forward a proof the downstream route accepts ---
@@ -278,7 +305,6 @@ for (const ctx of [
   "epk-booking",
   "epk-generate",
   "mint-passport",
-  "mint-mirror",
   "oracle-chat",
   "sponsorship-checkin",
   "list-for-sale",
