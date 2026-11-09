@@ -59,15 +59,21 @@ ok(
 {
   const exec = read("app/api/execute-delegated/route.ts");
   const safe = members(exec, "const safeMutatingActions = new Set(");
-  ok(safe.size >= 10, "safeMutatingActions must list Safe-mutating publicActions");
+  // Was `>= 10` while the seven dao_* actions existed; they were removed on 2026-11-08 with the
+  // rest of TOURS. The real guarantee is the per-action membership loop below — this size check
+  // only makes sure the set was found and parsed.
+  const required = [
+    "wrap_mon",
+    "approve_wmon_for_passport",
+    "faucet_claim",
+    "claim_listener_wmon",
+    "venue_register",
+  ];
+  ok(
+    safe.size >= required.length,
+    "safeMutatingActions must list Safe-mutating publicActions",
+  );
   for (const a of [
-    "dao_wrap",
-    "dao_unwrap",
-    "dao_delegate",
-    "dao_vote_proposal",
-    "dao_queue_proposal",
-    "dao_execute_proposal",
-    "dao_create_burn_proposal",
     "wrap_mon",
     "approve_wmon_for_passport",
     "faucet_claim",
@@ -147,10 +153,19 @@ ok(
 }
 
 // --- deposit-tours ---
+// The route was removed on 2026-11-08 with the rest of TOURS. If it ever comes back, it must
+// come back gated: the check applies whenever the file exists.
 {
-  const dep = strip(read("app/api/deposit-tours-to-safe/route.ts"));
-  ok(/requireUserProof\(/.test(dep), "deposit-tours-to-safe must requireUserProof");
-  ok(/proof\.address/.test(dep), "deposit must use the proven address");
+  let dep: string | null = null;
+  try {
+    dep = strip(read("app/api/deposit-tours-to-safe/route.ts"));
+  } catch {
+    dep = null;
+  }
+  if (dep !== null) {
+    ok(/requireUserProof\(/.test(dep), "deposit-tours-to-safe must requireUserProof");
+    ok(/proof\.address/.test(dep), "deposit must use the proven address");
+  }
 }
 
 // --- list-for-sale DELETE already gated (regression) ---
@@ -214,10 +229,8 @@ for (const rel of [
   const covered = read("lib/delegation-covered.ts");
   for (const ctx of [
     "live-radio:queue_song",
-    "execute-delegated:dao_wrap",
     "execute-delegated:faucet_claim",
     "execute-delegated:venue_register",
-    "deposit-tours-to-safe",
   ]) {
     ok(covered.includes(`"${ctx}"`), `delegation-covered missing "${ctx}"`);
   }

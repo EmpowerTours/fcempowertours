@@ -10,12 +10,9 @@ export const DELEGATION_PERMISSIONS = [
   "mint_passport",
   "wrap_mon",
   "mint_music",
-  "swap_mon_for_tours",
-  // send_tours is NOT here on purpose. create-delegation classifies it
-  // HIGH_RISK and never grants it by default, so listing it made the client
-  // skip the wallet prompt for a permission the delegation does not hold --
-  // a 401 with nothing to click, which is the exact drift this file warns
-  // about. A transfer should cost a signature anyway.
+  // send_tours and swap_mon_for_tours were removed with the rest of TOURS on
+  // 2026-11-08: neither action exists any more, and a listed action with no
+  // handler is the same 401-with-nothing-to-click this file warns about.
   "buy_music",
   // Added 2026-09-03. Every radio action asked for a fresh wallet signature on
   // every press, because none was listed here -- so pressing Skip Random opened
@@ -64,21 +61,12 @@ const DELEGATION_COVERED_CONTEXTS = [
   "live-radio:skip_to_random",
   // Safe-mutating execute-delegated actions gated by ownership+session
   // without each being listed in DELEGATION_PERMISSIONS.
-  "execute-delegated:dao_wrap",
-  "execute-delegated:dao_unwrap",
-  "execute-delegated:dao_delegate",
-  "execute-delegated:dao_create_burn_proposal",
-  "execute-delegated:dao_vote_proposal",
-  "execute-delegated:dao_queue_proposal",
-  "execute-delegated:dao_execute_proposal",
   "execute-delegated:approve_wmon_for_passport",
   "execute-delegated:faucet_claim",
   "execute-delegated:claim_listener_wmon",
   "execute-delegated:venue_register",
-  "deposit-tours-to-safe",
   "epk-generate",
   "mint-passport",
-  "mint-mirror",
   "oracle-chat",
   "sponsorship-checkin",
   "list-for-sale",

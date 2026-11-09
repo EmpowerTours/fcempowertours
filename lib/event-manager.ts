@@ -19,7 +19,6 @@ const VOICE_NOTES_KEY = 'live-radio:voice-notes';
 // ── Contract Addresses ───────────────────────────────────────────────
 const LIVE_RADIO_ADDRESS = env.LIVE_RADIO as `0x${string}`;
 const MUSIC_SUBSCRIPTION_ADDRESS = env.MUSIC_SUBSCRIPTION as `0x${string}`;
-const TOURS_REWARD_MANAGER_ADDRESS = env.TOURS_REWARD_MANAGER as `0x${string}`;
 
 // ── Event ABIs (extracted from compiled Foundry artifacts) ───────────
 
@@ -121,18 +120,6 @@ const musicSubscriptionV5Abi = [
   },
 ] as const;
 
-const toursRewardManagerAbi = [
-  {
-    type: 'event',
-    name: 'RewardDistributed',
-    inputs: [
-      { name: 'recipient', type: 'address', indexed: true },
-      { name: 'rewardType', type: 'uint8', indexed: true },
-      { name: 'amount', type: 'uint256', indexed: false },
-    ],
-    anonymous: false,
-  },
-] as const;
 
 // ── Initialization State ─────────────────────────────────────────────
 
@@ -381,35 +368,9 @@ export async function initializeEventManager(): Promise<boolean> {
       }),
     );
 
-    // ── ToursRewardManager Events ──────────────────────────────────
-
-    unwatchers.push(
-      client.watchContractEvent({
-        address: TOURS_REWARD_MANAGER_ADDRESS,
-        abi: toursRewardManagerAbi,
-        eventName: 'RewardDistributed',
-        onLogs: async (logs) => {
-          for (const log of logs) {
-            const args = (log as any).args;
-            console.log('[EventManager] RewardDistributed:', args.recipient);
-
-            broadcast('live-radio', 'reward_distributed', {
-              type: 'reward_distributed',
-              event: {
-                recipient: args.recipient,
-                rewardType: args.rewardType,
-                amount: args.amount ? formatEther(args.amount) : '0',
-              },
-            });
-          }
-        },
-        onError: (error) => handleSubscriptionError('RewardDistributed', error),
-      }),
-    );
-
     initialized = true;
     initializing = false;
-    console.log(`[EventManager] Subscribed to ${unwatchers.length} event watchers across 3 contracts.`);
+    console.log(`[EventManager] Subscribed to ${unwatchers.length} event watchers across 2 contracts.`);
     return true;
   } catch (error) {
     console.error('[EventManager] Failed to initialize:', error);

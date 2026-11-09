@@ -17,7 +17,7 @@ import {
   hasPermission,
   incrementTransactionCount,
 } from "@/lib/delegation-system";
-import { sendSafeTransaction } from "@/lib/pimlico-safe-aa";
+import { sendSafeTransaction, publicClient } from "@/lib/pimlico-safe-aa";
 import { delegationProvesOwnership } from "@/lib/delegation-proof";
 import { castArtistLabel } from "@/lib/cast-artist-label";
 import {
@@ -45,7 +45,10 @@ import {
   type RightsDeclaration,
 } from "@/lib/rights-declaration";
 import { authorizeUserAddress } from "@/lib/quick-auth";
-import { getResolvedTrack } from "@/lib/catalogue-resolved";
+import {
+  getResolvedTrack,
+  invalidateCatalogue,
+} from "@/lib/catalogue-resolved";
 import { buildPassportTokenURI } from "@/lib/passport/token-uri";
 import { DELEGATION_SESSION_HEADER } from "@/lib/delegation-session";
 import {
@@ -72,6 +75,7 @@ async function executeTransaction(
   calls: Array<{ to: Address; value: bigint; data: Hex }>,
   userAddress: Address,
   requiredValue: bigint = 0n,
+  gasBuffer?: bigint,
 ): Promise<string> {
   if (USE_USER_SAFES) {
     // User-funded Safe mode - ensure registered on V2 contracts first
@@ -82,7 +86,11 @@ async function executeTransaction(
     console.log(`🏠 Using USER Safe: ${userSafeAddress}`);
 
     // Check if user Safe has sufficient balance
-    const balanceCheck = await checkUserSafeBalance(userAddress, requiredValue);
+    const balanceCheck = await checkUserSafeBalance(
+      userAddress,
+      requiredValue,
+      ...(gasBuffer === undefined ? [] : [gasBuffer]),
+    );
     if (!balanceCheck.hasSufficientBalance) {
       throw new Error(
         `Insufficient balance in your Safe wallet (${balanceCheck.currentBalance} MON). ` +
@@ -97,6 +105,79 @@ async function executeTransaction(
     // Platform-funded Safe mode (original behavior)
     console.log(`🏢 Using PLATFORM Safe: ${SAFE_ACCOUNT}`);
     return sendSafeTransaction(calls);
+  }
+}
+
+// Measured 2026-11-08: one music mint is ~655k gas, ~0.081 MON. The 0.05 default in
+// `checkUserSafeBalance` let an artist who funded exactly what the error asked for pass that check
+// and then fail on chain, so a mint paid from the artist's own Safe asks for 0.1.
+const MINT_GAS_BUFFER = parseEther("0.1");
+
+/**
+ * Send a mint, with the PLATFORM Safe paying the gas when `lib/mint-sponsorship.ts` allows it.
+ *
+ * The page promises "FREE Mint! We pay all gas fees". Sponsoring is safe on v3 only, where the
+ * calls are `mintMasterFor` carrying the artist's own signature, so the relayer cannot change who
+ * the artist is.
+ *
+ * Any failure of the sponsored send falls back to the artist's own Safe, which is exactly how
+ * every mint worked before this existed — a broken sponsor path can cost an artist the free mint,
+ * never the mint. A retry cannot double-mint: the signature's nonce is consumed on chain, so a
+ * relay that did land makes the second attempt revert in simulation.
+ */
+async function executeMint(
+  calls: Array<{ to: Address; value: bigint; data: Hex }>,
+  userAddress: Address,
+  requiredValue: bigint = 0n,
+): Promise<{ txHash: string; sponsored: boolean }> {
+  const { reserveMintSponsorship, fallbackNotice } = await import(
+    "@/lib/mint-sponsorship"
+  );
+  const { decision, release } = await reserveMintSponsorship({
+    wallet: userAddress,
+    isV3: isV3Contracts(),
+    requiredValue,
+    platformSafe: SAFE_ACCOUNT,
+    getBalance: (address) => publicClient.getBalance({ address }),
+  });
+
+  if (decision.sponsored) {
+    try {
+      console.log(`[MintSponsor] platform Safe pays gas for ${userAddress}`);
+      return { txHash: await sendSafeTransaction(calls), sponsored: true };
+    } catch (err) {
+      await release();
+      console.error(
+        "[MintSponsor] sponsored send failed, falling back to the artist's Safe:",
+        (err as Error)?.message,
+      );
+    }
+  } else {
+    console.log(
+      `[MintSponsor] not sponsored (${decision.reason}) for ${userAddress}`,
+    );
+  }
+
+  try {
+    const txHash = await executeTransaction(
+      calls,
+      userAddress,
+      requiredValue,
+      MINT_GAS_BUFFER,
+    );
+    return { txHash, sponsored: false };
+  } catch (err) {
+    const notice = decision.sponsored
+      ? "Free mints are paused right now."
+      : fallbackNotice(decision.reason);
+    if (
+      notice &&
+      err instanceof Error &&
+      err.message.startsWith("Insufficient balance")
+    ) {
+      throw new Error(`${notice} ${err.message}`);
+    }
+    throw err;
   }
 }
 
@@ -183,10 +264,7 @@ export async function POST(req: NextRequest) {
     const fundMovingActions = new Set([
       // --- moves value OUT to a caller-chosen destination -------------------
       "send_mon",
-      "send_tours",
       "withdraw_to_user",
-      "swap_mon_for_tours",
-      "dao_fund_safe",
       "buy_resale",
 
       // --- SPENDS the user's Safe, added 2026-08-25 -------------------------
@@ -219,7 +297,6 @@ export async function POST(req: NextRequest) {
       // Found by tools/verify-value-actions-gated.ts rather than by reading, which is the
       // point of that check — both were missed when this list was extended by hand.
       "mint_passport", // 150 WMON from the user's Safe
-      "dao_create_deployment_proposal", // 100 MON proposal fee, paid as msg.value
     ]);
 
     // Safe-mutating publicActions that do not enrich an attacker but still act
@@ -229,13 +306,6 @@ export async function POST(req: NextRequest) {
     // action in DELEGATION_PERMISSIONS — otherwise every DAO click would
     // demand a fresh wallet prompt.
     const safeMutatingActions = new Set([
-      "dao_wrap",
-      "dao_unwrap",
-      "dao_delegate",
-      "dao_create_burn_proposal",
-      "dao_vote_proposal",
-      "dao_queue_proposal",
-      "dao_execute_proposal",
       "wrap_mon",
       "approve_wmon_for_passport",
       "faucet_claim",
@@ -314,18 +384,9 @@ export async function POST(req: NextRequest) {
       "faucet_claim", // WMON faucet claim
       "mint_passport", // Daily gate requirement
       "buy_music", // Purchase music NFT license
-      "dao_wrap", // Wrap TOURS to vTOURS for DAO voting
-      "dao_unwrap", // Unwrap vTOURS back to TOURS
-      "dao_delegate", // Delegate voting power
-      "dao_fund_safe", // Fund user Safe with TOURS from platform
-      "dao_create_burn_proposal", // Create proposal to burn stolen/infringing NFT
-      "dao_create_deployment_proposal", // Create DAO deployment proposal (factory + governor)
-      "dao_vote_proposal", // Cast vote on Governor proposal
-      "dao_queue_proposal", // Queue passed proposal in Timelock
-      "dao_execute_proposal", // Execute after timelock delay
       "radio_voice_note", // Live radio voice shoutout/ad payment
       "radio_queue_song", // Live radio song queue on-chain
-      "radio_claim_rewards", // Live radio TOURS rewards claim
+      "radio_claim_rewards", // Refused: legacy radio balances are frozen; listening pays WMON
       "radio_mark_played", // Live radio mark song as played (scheduler)
       "radio_skip_random", // Live radio skip to random (Pyth Entropy) - user pays 1 MON
       "radio_start", // Start live radio (onlyOwnerOrDAO - platform Safe)
@@ -338,12 +399,10 @@ export async function POST(req: NextRequest) {
       "platform_send_mon", // Admin: send native MON from Platform Safe to any address
       "studio_pay", // EmpowerStudio AI feature payment
       "studio_mint_remix", // EmpowerStudio mint remix NFT
-      "claim_artist_payouts", // Claim subscription artist payouts (WMON + TOURS)
+      "claim_artist_payouts", // Claim subscription artist payouts (WMON)
       "claim_listener_wmon", // Claim listener WMON rewards from the 20% reserve pool
       "mint_collector", // Mint collector edition NFT
-      "send_tours", // Transfer TOURS tokens
       "send_mon", // Transfer native MON
-      "swap_mon_for_tours", // Swap MON for TOURS
       "wrap_mon", // Wrap MON to WMON
       "approve_wmon_for_passport", // Approve WMON for passport mint
       "burn_music", // Burn music NFT
@@ -419,10 +478,8 @@ export async function POST(req: NextRequest) {
       console.log("🌐 [PUBLIC ACTION] Bypassing delegation check for:", action);
     }
 
-    const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const PASSPORT_NFT = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
     const EMPOWER_TOURS_NFT = process.env.NEXT_PUBLIC_NFT_CONTRACT as Address; // EmpowerToursNFTv10
-    const TOKEN_SWAP = process.env.TOKEN_SWAP_ADDRESS as Address;
     // Note: Passport minting uses 150 WMON (wrapped MON token)
 
     switch (action) {
@@ -440,13 +497,6 @@ export async function POST(req: NextRequest) {
           });
 
           console.log("🔍 Validating contract deployments...");
-
-          // Check TOURS token
-          const toursCode = await client.getCode({ address: TOURS_TOKEN });
-          if (!toursCode || toursCode === "0x") {
-            throw new Error(`TOURS token at ${TOURS_TOKEN} is not deployed!`);
-          }
-          console.log("✅ TOURS token is deployed");
 
           // Check Passport NFT
           const passportCode = await client.getCode({ address: PASSPORT_NFT });
@@ -1034,10 +1084,8 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         }
 
         console.log(`💳 Executing ${nftTypeName} NFT mint transaction...`);
-        const musicTxHash = await executeTransaction(
-          musicCalls,
-          userAddress as Address,
-        );
+        const { txHash: musicTxHash, sponsored: musicSponsored } =
+          await executeMint(musicCalls, userAddress as Address);
         console.log(`✅ ${nftTypeName} NFT mint successful, TX:`, musicTxHash);
 
         // ✅ EXTRACT TOKEN ID FROM TX RECEIPT
@@ -1244,10 +1292,13 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           }
         }
 
+        // Confirmed mint: the next catalogue read must show it, not wait out the cache TTL.
+        invalidateCatalogue();
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
           success: true,
           txHash: musicTxHash,
+          gasSponsored: musicSponsored,
           tokenId: extractedTokenId,
           action,
           userAddress,
@@ -1549,11 +1600,12 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
         console.log(
           `💳 Executing collector NFT mint transaction${hasCreationFee ? " (with 5 WMON creation fee)" : " (no fee)"}...`,
         );
-        const collectorTxHash = await executeTransaction(
-          collectorCalls,
-          userAddress as Address,
-          requiredValue,
-        );
+        const { txHash: collectorTxHash, sponsored: collectorSponsored } =
+          await executeMint(
+            collectorCalls,
+            userAddress as Address,
+            requiredValue,
+          );
         console.log("✅ Collector NFT mint successful, TX:", collectorTxHash);
 
         // Extract token ID from receipt
@@ -1647,10 +1699,13 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           }
         }
 
+        // Confirmed mint: the next catalogue read must show it, not wait out the cache TTL.
+        invalidateCatalogue();
         await incrementTransactionCount(userAddress);
         return NextResponse.json({
           success: true,
           txHash: collectorTxHash,
+          gasSponsored: collectorSponsored,
           tokenId: collectorTokenId,
           action,
           userAddress,
@@ -1696,7 +1751,9 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           // `nftArtistAddress` gates the self-purchase guard below — so a stale indexer left the
           // address null and silently switched that guard off. It has been stale since
           // 2026-08-01.
-          const track = await getResolvedTrack(String(tokenId));
+          const track = await getResolvedTrack(String(tokenId), {
+            fresh: true,
+          });
           if (track) {
             isPurchaseArtNFT = track.isArt === true;
             nftArtistAddress = track.artist?.toLowerCase() || null;
@@ -1741,7 +1798,9 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
           // "free". `getResolvedCatalogue` goes through `readMasterPrice`, which knows which
           // generation is live.
           {
-            const priceTrack = await getResolvedTrack(String(tokenId));
+            const priceTrack = await getResolvedTrack(String(tokenId), {
+              fresh: true,
+            });
 
             if (priceTrack?.price) {
               const nftPrice = BigInt(priceTrack.price);
@@ -2214,7 +2273,9 @@ ${params.countryCode || "US"} ${params.countryName || "United States"}
               // Read from the contracts. This block builds the cast text for a purchase, so a
               // stale row here announces the wrong title or price to a public feed.
               {
-                const musicNFT = await getResolvedTrack(String(tokenId));
+                const musicNFT = await getResolvedTrack(String(tokenId), {
+                  fresh: true,
+                });
                 console.log("🎵 Found track:", musicNFT?.name);
 
                 if (musicNFT) {
@@ -2395,67 +2456,6 @@ ${enjoyText}
           message: `${buyingCollector ? "Collector edition" : "NFT"} purchased for ${userAddress}`,
         });
 
-        // ==================== SEND TOURS ====================
-      }
-      case "send_tours": {
-        console.log("💸 Action: send_tours");
-        if (!params?.recipient || !params?.amount) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Missing recipient or amount for send_tours",
-            },
-            { status: 400 },
-          );
-        }
-
-        if (!/^0x[a-fA-F0-9]{40}$/.test(params.recipient)) {
-          return NextResponse.json(
-            { success: false, error: "Invalid recipient address" },
-            { status: 400 },
-          );
-        }
-
-        const sendAmount = parseEther(params.amount.toString());
-        console.log(
-          "💸 Sending:",
-          sendAmount.toString(),
-          "TOURS to",
-          params.recipient,
-        );
-
-        const sendCalls = [
-          {
-            to: TOURS_TOKEN,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function transfer(address to, uint256 amount) external returns (bool)",
-              ]),
-              functionName: "transfer",
-              args: [params.recipient as Address, sendAmount],
-            }) as Hex,
-          },
-        ];
-
-        console.log("💳 Executing TOURS transfer transaction...");
-        const sendTxHash = await executeTransaction(
-          sendCalls,
-          userAddress as Address,
-        );
-        console.log("✅ TOURS sent successfully, TX:", sendTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: sendTxHash,
-          action,
-          userAddress,
-          recipient: params.recipient,
-          amount: params.amount,
-          message: `Sent ${params.amount} TOURS successfully`,
-        });
-
         // ==================== SEND MON ====================
       }
       case "send_mon": {
@@ -2557,129 +2557,6 @@ ${enjoyText}
           recipient: params.recipient,
           amount: params.amount,
           message: `Sent ${params.amount} MON successfully`,
-        });
-
-        // ==================== SWAP MON FOR TOURS ====================
-      }
-      case "swap_mon_for_tours": {
-        console.log("💱 Action: swap_mon_for_tours");
-        const monAmount = params?.amount
-          ? parseEther(params.amount)
-          : parseEther("0.1");
-        console.log("💱 Swapping:", monAmount.toString(), "wei MON");
-
-        // ✅ Check TOURS balance BEFORE swap
-        let toursBalanceBefore = 0n;
-        let toursBalanceAfter = 0n;
-        try {
-          const { createPublicClient } = await import("viem");
-          const { activeChain } = await import("@/app/chains");
-          const swapClient = createPublicClient({
-            chain: activeChain,
-            transport: monadTransport(),
-          });
-
-          const swapSafeToCheck = USE_USER_SAFES
-            ? await getUserSafeAddress(userAddress as Address)
-            : SAFE_ACCOUNT;
-
-          toursBalanceBefore = (await swapClient.readContract({
-            address: TOURS_TOKEN,
-            abi: parseAbi([
-              "function balanceOf(address) view returns (uint256)",
-            ]),
-            functionName: "balanceOf",
-            args: [swapSafeToCheck],
-          })) as bigint;
-
-          console.log(
-            "💰 TOURS balance BEFORE swap:",
-            (Number(toursBalanceBefore) / 1e18).toFixed(6),
-            "TOURS",
-            USE_USER_SAFES
-              ? `(User Safe: ${swapSafeToCheck})`
-              : "(Platform Safe)",
-          );
-        } catch (err: any) {
-          console.warn(
-            "⚠️ Could not check TOURS balance before swap:",
-            err.message,
-          );
-        }
-
-        const swapCalls = [
-          {
-            to: TOKEN_SWAP,
-            value: monAmount,
-            data: encodeFunctionData({
-              abi: parseAbi(["function swap() external payable"]),
-              functionName: "swap",
-              args: [],
-            }) as Hex,
-          },
-        ];
-
-        console.log("💳 Executing swap transaction...");
-        const swapTxHash = await executeTransaction(
-          swapCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Swap successful, TX:", swapTxHash);
-
-        // ✅ Check TOURS balance AFTER swap
-        try {
-          const { createPublicClient } = await import("viem");
-          const { activeChain } = await import("@/app/chains");
-          const swapClient = createPublicClient({
-            chain: activeChain,
-            transport: monadTransport(),
-          });
-
-          const swapSafeToCheck = USE_USER_SAFES
-            ? await getUserSafeAddress(userAddress as Address)
-            : SAFE_ACCOUNT;
-
-          toursBalanceAfter = (await swapClient.readContract({
-            address: TOURS_TOKEN,
-            abi: parseAbi([
-              "function balanceOf(address) view returns (uint256)",
-            ]),
-            functionName: "balanceOf",
-            args: [swapSafeToCheck],
-          })) as bigint;
-
-          const toursReceived = toursBalanceAfter - toursBalanceBefore;
-          console.log(
-            "💰 TOURS balance AFTER swap:",
-            (Number(toursBalanceAfter) / 1e18).toFixed(6),
-            "TOURS",
-            USE_USER_SAFES
-              ? `(User Safe: ${swapSafeToCheck})`
-              : "(Platform Safe)",
-          );
-          console.log(
-            "✅ TOURS received from swap:",
-            (Number(toursReceived) / 1e18).toFixed(6),
-            "TOURS",
-          );
-        } catch (err: any) {
-          console.warn(
-            "⚠️ Could not check TOURS balance after swap:",
-            err.message,
-          );
-        }
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: swapTxHash,
-          action,
-          userAddress,
-          monAmount: monAmount.toString(),
-          toursBalanceBefore: toursBalanceBefore.toString(),
-          toursBalanceAfter: toursBalanceAfter.toString(),
-          toursReceived: (toursBalanceAfter - toursBalanceBefore).toString(),
-          message: `Swapped ${params?.amount || "0.1"} MON for TOURS successfully`,
         });
 
         // ==================== WRAP MON TO WMON ====================
@@ -2835,9 +2712,7 @@ ${enjoyText}
         let withdrawTokenAddress: Address;
         const tokenParam = params.token.toLowerCase();
 
-        if (tokenParam === "tours") {
-          withdrawTokenAddress = TOURS_TOKEN;
-        } else if (tokenParam === "wmon") {
+        if (tokenParam === "wmon") {
           withdrawTokenAddress = process.env.NEXT_PUBLIC_WMON as Address;
         } else if (tokenParam === "mon") {
           // Native MON transfer (no ERC-20, just send value)
@@ -2877,7 +2752,7 @@ ${enjoyText}
           return NextResponse.json(
             {
               success: false,
-              error: `Unknown token: ${params.token}. Use 'tours', 'wmon', 'mon', or a token address.`,
+              error: `Unknown token: ${params.token}. Use 'wmon', 'mon', or a token address.`,
             },
             { status: 400 },
           );
@@ -3673,80 +3548,7 @@ ${enjoyText}
           licenseId: resaleLicenseId,
           message: `Successfully purchased license #${resaleLicenseId} for ${resalePrice} WMON!`,
         });
-
-        // ==================== DAO: WRAP TOURS TO vTOURS ====================
-        // ==================== DAO: FUND USER SAFE ====================
       }
-      case "dao_fund_safe": {
-        console.log("🗳️ Action: dao_fund_safe");
-        const { amount } = params || {};
-        if (!amount) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Missing amount for dao_fund_safe",
-            },
-            { status: 400 },
-          );
-        }
-
-        // Limit funding to 10 TOURS max per request
-        const requestedAmount = parseFloat(amount);
-        if (!(requestedAmount > 0) || requestedAmount > 10) {
-          return NextResponse.json(
-            { success: false, error: "Amount must be between 0 and 10 TOURS" },
-            { status: 400 },
-          );
-        }
-
-        // SECURITY: fund the CALLER's own Safe, derived from the authenticated
-        // userAddress — never a client-supplied destination. Previously this
-        // transferred platform TOURS to an arbitrary params.safeAddress, so an
-        // authenticated user could mint 10 TOURS to any address they named.
-        const safeAddress = await getUserSafeAddress(userAddress as Address);
-
-        const TOURS_TOKEN = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
-        const fundAmountWei = parseEther(amount.toString());
-
-        console.log("🗳️ Funding user Safe with TOURS:", {
-          amount,
-          safeAddress,
-          userAddress,
-          TOURS_TOKEN,
-        });
-
-        // Transfer TOURS from platform Safe to user's Safe
-        const fundCalls: Call[] = [
-          {
-            to: TOURS_TOKEN,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function transfer(address to, uint256 amount) external returns (bool)",
-              ]),
-              functionName: "transfer",
-              args: [safeAddress as Address, fundAmountWei],
-            }) as Hex,
-          },
-        ];
-
-        // Use platform Safe (not user Safe) to send the TOURS
-        const fundTxHash = await sendSafeTransaction(fundCalls);
-        console.log("✅ Safe funded with TOURS, TX:", fundTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: fundTxHash,
-          action,
-          userAddress,
-          safeAddress,
-          amount,
-          message: `Funded Safe with ${amount} TOURS!`,
-        });
-      }
-
-      // ==================== PLATFORM: SEND NATIVE MON TO ADDRESS ====================
       case "platform_send_mon": {
         // Spends the PLATFORM Safe, not a user's. This was previously
         // "admin-only" by comment alone while sitting in publicActions, so
@@ -3807,253 +3609,6 @@ ${enjoyText}
         });
       }
 
-      // ==================== DAO: WRAP TOURS TO vTOURS ====================
-      case "dao_wrap": {
-        console.log("🗳️ Action: dao_wrap");
-        const { amount } = params || {};
-        if (!amount) {
-          return NextResponse.json(
-            { success: false, error: "Missing amount for dao_wrap" },
-            { status: 400 },
-          );
-        }
-
-        const TOURS_DAO = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
-        const VTOURS_DAO = process.env.NEXT_PUBLIC_VOTING_TOURS as Address;
-        const wrapAmountWei = parseEther(amount.toString());
-
-        console.log("🗳️ Wrapping TOURS to vTOURS:", {
-          amount,
-          TOURS_DAO,
-          VTOURS_DAO,
-        });
-
-        // First approve TOURS spending, then wrap and delegate to self
-        const daoWrapCalls: Call[] = [
-          {
-            to: TOURS_DAO,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function approve(address spender, uint256 amount) external returns (bool)",
-              ]),
-              functionName: "approve",
-              args: [VTOURS_DAO, wrapAmountWei],
-            }) as Hex,
-          },
-          {
-            to: VTOURS_DAO,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function wrapAndDelegate(uint256 amount, address delegatee) external",
-              ]),
-              functionName: "wrapAndDelegate",
-              args: [wrapAmountWei, userAddress as Address],
-            }) as Hex,
-          },
-        ];
-
-        const daoWrapTxHash = await executeTransaction(
-          daoWrapCalls,
-          userAddress as Address,
-        );
-        console.log("✅ TOURS wrapped to vTOURS, TX:", daoWrapTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: daoWrapTxHash,
-          action,
-          userAddress,
-          amount,
-          message: `Wrapped ${amount} TOURS to vTOURS and delegated to yourself!`,
-        });
-      }
-
-      // ==================== DAO: UNWRAP vTOURS TO TOURS ====================
-      case "dao_unwrap": {
-        console.log("🗳️ Action: dao_unwrap");
-        const { amount: unwrapAmount } = params || {};
-        if (!unwrapAmount) {
-          return NextResponse.json(
-            { success: false, error: "Missing amount for dao_unwrap" },
-            { status: 400 },
-          );
-        }
-
-        const VTOURS_UNWRAP = process.env.NEXT_PUBLIC_VOTING_TOURS as Address;
-        const unwrapAmountWei = parseEther(unwrapAmount.toString());
-
-        console.log("🗳️ Unwrapping vTOURS to TOURS:", {
-          amount: unwrapAmount,
-          VTOURS_UNWRAP,
-        });
-
-        const daoUnwrapCalls: Call[] = [
-          {
-            to: VTOURS_UNWRAP,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(["function unwrap(uint256 amount) external"]),
-              functionName: "unwrap",
-              args: [unwrapAmountWei],
-            }) as Hex,
-          },
-        ];
-
-        const daoUnwrapTxHash = await executeTransaction(
-          daoUnwrapCalls,
-          userAddress as Address,
-        );
-        console.log("✅ vTOURS unwrapped to TOURS, TX:", daoUnwrapTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: daoUnwrapTxHash,
-          action,
-          userAddress,
-          amount: unwrapAmount,
-          message: `Unwrapped ${unwrapAmount} vTOURS back to TOURS!`,
-        });
-      }
-
-      // ==================== DAO: DELEGATE VOTING POWER ====================
-      case "dao_delegate": {
-        console.log("🗳️ Action: dao_delegate");
-        const { delegatee } = params || {};
-        if (!delegatee) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Missing delegatee address for dao_delegate",
-            },
-            { status: 400 },
-          );
-        }
-
-        const VTOURS_DELEGATE = process.env.NEXT_PUBLIC_VOTING_TOURS as Address;
-
-        console.log("🗳️ Delegating voting power to:", {
-          delegatee,
-          VTOURS_DELEGATE,
-        });
-
-        const daoDelegateCalls: Call[] = [
-          {
-            to: VTOURS_DELEGATE,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi(["function delegate(address delegatee) external"]),
-              functionName: "delegate",
-              args: [delegatee as Address],
-            }) as Hex,
-          },
-        ];
-
-        const daoDelegateTxHash = await executeTransaction(
-          daoDelegateCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Voting power delegated, TX:", daoDelegateTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: daoDelegateTxHash,
-          action,
-          userAddress,
-          delegatee,
-          message: `Delegated voting power to ${delegatee.slice(0, 6)}...${delegatee.slice(-4)}!`,
-        });
-      }
-
-      // ==================== DAO: CREATE BURN PROPOSAL ====================
-      case "dao_create_burn_proposal": {
-        console.log("🔥 Action: dao_create_burn_proposal");
-        const { tokenId, reason, nftContract } = params || {};
-        if (!tokenId || !reason) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Missing tokenId or reason for burn proposal",
-            },
-            { status: 400 },
-          );
-        }
-
-        const DAO_CONTRACT = process.env.NEXT_PUBLIC_DAO as Address;
-        const NFT_CONTRACT = (nftContract ||
-          process.env.NEXT_PUBLIC_NFT_CONTRACT ||
-          process.env.NEXT_PUBLIC_NFT_CONTRACT) as Address;
-
-        if (!DAO_CONTRACT) {
-          return NextResponse.json(
-            { success: false, error: "DAO contract not configured" },
-            { status: 500 },
-          );
-        }
-
-        console.log("🔥 Creating burn proposal:", {
-          tokenId,
-          reason,
-          DAO_CONTRACT,
-          NFT_CONTRACT,
-        });
-
-        // Encode the burnStolenContent call that will be executed if proposal passes
-        const burnCalldata = encodeFunctionData({
-          abi: parseAbi([
-            "function burnStolenContent(uint256 tokenId, string memory reason) external",
-          ]),
-          functionName: "burnStolenContent",
-          args: [BigInt(tokenId), reason],
-        });
-
-        // Create proposal description
-        const proposalDescription = `Burn Stolen/Infringing NFT #${tokenId}\n\nReason: ${reason}\n\nThis proposal will burn token #${tokenId} from the EmpowerTours NFT contract if it passes the governance vote.`;
-
-        // Create the propose call
-        // Governor.propose(targets[], values[], calldatas[], description)
-        const proposeCalls: Call[] = [
-          {
-            to: DAO_CONTRACT,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function propose(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, string memory description) external returns (uint256)",
-              ]),
-              functionName: "propose",
-              args: [
-                [NFT_CONTRACT], // targets
-                [0n], // values (no ETH)
-                [burnCalldata], // calldatas
-                proposalDescription,
-              ],
-            }) as Hex,
-          },
-        ];
-
-        const proposeTxHash = await executeTransaction(
-          proposeCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Burn proposal created, TX:", proposeTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: proposeTxHash,
-          action,
-          userAddress,
-          tokenId,
-          reason,
-          message: `Burn proposal created for token #${tokenId}! The DAO will vote on this proposal.`,
-        });
-      }
-
-      // ==================== LIVE RADIO: VOICE NOTE PAYMENT ====================
       case "radio_voice_note": {
         console.log("📻 Action: radio_voice_note");
         const { noteType } = params || {};
@@ -4881,301 +4436,6 @@ ${enjoyText}
         });
       }
 
-      // ==================== DAO: CREATE DEPLOYMENT PROPOSAL ====================
-      case "dao_create_deployment_proposal": {
-        console.log("🏗️ Action: dao_create_deployment_proposal");
-        const { prompt, treasuryAllocation, contractType } = params || {};
-        if (!prompt || prompt.trim().length < 10) {
-          return NextResponse.json(
-            { success: false, error: "Prompt must be at least 10 characters" },
-            { status: 400 },
-          );
-        }
-
-        const allocationBps = Math.min(
-          Math.max(Number(treasuryAllocation) || 0, 0),
-          500,
-        );
-
-        const DAO_FACTORY = process.env
-          .NEXT_PUBLIC_DAO_CONTRACT_FACTORY as Address;
-        const DAO_GOVERNOR = process.env.NEXT_PUBLIC_DAO as Address;
-
-        if (!DAO_FACTORY || !DAO_GOVERNOR) {
-          return NextResponse.json(
-            { success: false, error: "DAO Factory or Governor not configured" },
-            { status: 500 },
-          );
-        }
-
-        console.log("🏗️ Creating deployment proposal:", {
-          prompt: prompt.substring(0, 50),
-          allocationBps,
-          contractType,
-        });
-
-        // Step 1: Register proposal in the factory (100 MON fee, payable)
-        const proposalFeeMON = parseEther("100"); // 100 MON
-        const registerCalls: Call[] = [
-          {
-            to: DAO_FACTORY,
-            value: proposalFeeMON,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function registerProposal(string prompt, uint256 treasuryAllocation) external payable returns (uint256)",
-              ]),
-              functionName: "registerProposal",
-              args: [prompt, BigInt(allocationBps)],
-            }) as Hex,
-          },
-        ];
-
-        // Step 2: Create Governor proposal to executeApprovedDeployment + allocateTreasury
-        const executeCalldata = encodeFunctionData({
-          abi: parseAbi([
-            "function executeApprovedDeployment(uint256 id) external",
-          ]),
-          functionName: "executeApprovedDeployment",
-          args: [0n], // Will be updated by backend after factory registration
-        });
-
-        const proposalDescription = `Deploy Contract Proposal\n\nType: ${contractType || "Custom"}\nTreasury: ${(allocationBps / 100).toFixed(1)}%\nFee: 100 MON (50 treasury + 50 platform)\n\n${prompt}`;
-
-        const governorProposeCalls: Call[] = [
-          {
-            to: DAO_GOVERNOR,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function propose(address[] targets, uint256[] values, bytes[] calldatas, string description) external returns (uint256)",
-              ]),
-              functionName: "propose",
-              args: [
-                [DAO_FACTORY],
-                [0n],
-                [executeCalldata],
-                proposalDescription,
-              ],
-            }) as Hex,
-          },
-        ];
-
-        // Execute both calls
-        const factoryTxHash = await executeTransaction(
-          registerCalls,
-          userAddress as Address,
-          proposalFeeMON,
-        );
-        console.log(
-          "✅ Factory proposal registered (100 MON paid), TX:",
-          factoryTxHash,
-        );
-
-        const governorTxHash = await executeTransaction(
-          governorProposeCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Governor proposal created, TX:", governorTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: governorTxHash,
-          factoryTxHash,
-          action,
-          userAddress,
-          prompt: prompt.substring(0, 100),
-          treasuryAllocation: allocationBps,
-          feePaid: "100 MON",
-          message: `Deployment proposal created! 100 MON fee paid (50 treasury + 50 platform). TOURS reward pending. Community voting begins soon.`,
-        });
-      }
-
-      // ==================== DAO: VOTE ON PROPOSAL ====================
-      case "dao_vote_proposal": {
-        console.log("🗳️ Action: dao_vote_proposal");
-        const { proposalId: voteProposalId, support } = params || {};
-        if (!voteProposalId) {
-          return NextResponse.json(
-            { success: false, error: "Missing proposalId for vote" },
-            { status: 400 },
-          );
-        }
-
-        // support: 0 = Against, 1 = For, 2 = Abstain
-        const voteSupport = Number(support ?? 1);
-        if (![0, 1, 2].includes(voteSupport)) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Support must be 0 (Against), 1 (For), or 2 (Abstain)",
-            },
-            { status: 400 },
-          );
-        }
-
-        const DAO_VOTE = process.env.NEXT_PUBLIC_DAO as Address;
-        if (!DAO_VOTE) {
-          return NextResponse.json(
-            { success: false, error: "DAO Governor not configured" },
-            { status: 500 },
-          );
-        }
-
-        const voteCalls: Call[] = [
-          {
-            to: DAO_VOTE,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function castVote(uint256 proposalId, uint8 support) external returns (uint256)",
-              ]),
-              functionName: "castVote",
-              args: [BigInt(voteProposalId), voteSupport],
-            }) as Hex,
-          },
-        ];
-
-        const voteTxHash = await executeTransaction(
-          voteCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Vote cast, TX:", voteTxHash);
-
-        const supportLabels = ["Against", "For", "Abstain"];
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: voteTxHash,
-          action,
-          userAddress,
-          proposalId: voteProposalId,
-          support: supportLabels[voteSupport],
-          message: `Voted "${supportLabels[voteSupport]}" on proposal!`,
-        });
-      }
-
-      // ==================== DAO: QUEUE PROPOSAL IN TIMELOCK ====================
-      case "dao_queue_proposal": {
-        console.log("🗳️ Action: dao_queue_proposal");
-        const { targets, values, calldatas, descriptionHash } = params || {};
-        if (!targets || !calldatas || !descriptionHash) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Missing targets, calldatas, or descriptionHash for queue",
-            },
-            { status: 400 },
-          );
-        }
-
-        const DAO_QUEUE = process.env.NEXT_PUBLIC_DAO as Address;
-        if (!DAO_QUEUE) {
-          return NextResponse.json(
-            { success: false, error: "DAO Governor not configured" },
-            { status: 500 },
-          );
-        }
-
-        const queueCalls: Call[] = [
-          {
-            to: DAO_QUEUE,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function queue(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) external returns (uint256)",
-              ]),
-              functionName: "queue",
-              args: [
-                targets.map((t: string) => t as Address),
-                values.map((v: string) => BigInt(v)),
-                calldatas.map((c: string) => c as Hex),
-                descriptionHash as Hex,
-              ],
-            }) as Hex,
-          },
-        ];
-
-        const queueTxHash = await executeTransaction(
-          queueCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Proposal queued in Timelock, TX:", queueTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: queueTxHash,
-          action,
-          userAddress,
-          message: `Proposal queued in Timelock! Execution available after 2-day delay.`,
-        });
-      }
-
-      // ==================== DAO: EXECUTE PROPOSAL AFTER TIMELOCK ====================
-      case "dao_execute_proposal": {
-        console.log("🗳️ Action: dao_execute_proposal");
-        const {
-          targets: execTargets,
-          values: execValues,
-          calldatas: execCalldatas,
-          descriptionHash: execDescHash,
-        } = params || {};
-        if (!execTargets || !execCalldatas || !execDescHash) {
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                "Missing targets, calldatas, or descriptionHash for execute",
-            },
-            { status: 400 },
-          );
-        }
-
-        const DAO_EXEC = process.env.NEXT_PUBLIC_DAO as Address;
-        if (!DAO_EXEC) {
-          return NextResponse.json(
-            { success: false, error: "DAO Governor not configured" },
-            { status: 500 },
-          );
-        }
-
-        const execCalls: Call[] = [
-          {
-            to: DAO_EXEC,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: parseAbi([
-                "function execute(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) external payable returns (uint256)",
-              ]),
-              functionName: "execute",
-              args: [
-                execTargets.map((t: string) => t as Address),
-                execValues.map((v: string) => BigInt(v)),
-                execCalldatas.map((c: string) => c as Hex),
-                execDescHash as Hex,
-              ],
-            }) as Hex,
-          },
-        ];
-
-        const execTxHash = await executeTransaction(
-          execCalls,
-          userAddress as Address,
-        );
-        console.log("✅ Proposal executed, TX:", execTxHash);
-
-        await incrementTransactionCount(userAddress);
-        return NextResponse.json({
-          success: true,
-          txHash: execTxHash,
-          action,
-          userAddress,
-          message: `Proposal executed! Contract deployed via DAO governance.`,
-        });
-      }
-
-      // ==================== EMPOWERSTUDIO AI ACTION PAYMENT ====================
       case "studio_pay": {
         const STUDIO_PAYMENTS = process.env
           .NEXT_PUBLIC_STUDIO_PAYMENTS as Address;
@@ -5726,10 +4986,7 @@ ${enjoyText}
       userFriendlyError = error.message; // Already detailed
     }
     // Check for insufficient token balance
-    else if (
-      error.message?.includes("Insufficient token balance") ||
-      error.message?.includes("Insufficient TOURS")
-    ) {
+    else if (error.message?.includes("Insufficient token balance")) {
       statusCode = 400;
       userFriendlyError = error.message; // Already user-friendly
     }

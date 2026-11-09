@@ -288,7 +288,7 @@ export default function DashboardPage() {
                           )}
                           {item.price && (
                             <p className="text-xs text-orange-600 font-semibold">
-                              💰 {(Number(item.price) / 1e18).toFixed(2)} TOURS
+                              💰 {(Number(item.price) / 1e18).toFixed(2)} WMON
                             </p>
                           )}
                           <p className="text-xs text-gray-500 mt-1">
@@ -353,7 +353,7 @@ export default function DashboardPage() {
                           )}
                           {item.price && (
                             <p className="text-xs text-orange-600 font-semibold">
-                              💰 {(Number(item.price) / 1e18).toFixed(2)} TOURS
+                              💰 {(Number(item.price) / 1e18).toFixed(2)} WMON
                             </p>
                           )}
                           <p className="text-xs text-gray-500 mt-1">

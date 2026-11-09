@@ -77,8 +77,6 @@ export const VENUE_KEYS = {
   session: (venueId: string) => `venue:session:${venueId}`,
   playBatch: (venueId: string) => `venue:playbatch:${venueId}`,
   lastBatchSubmit: (venueId: string) => `venue:lastBatchSubmit:${venueId}`,
-  mining: (venueId: string) => `venue:mining:${venueId}`,
-  miningLeaderboard: 'venue:mining:leaderboard',
 } as const;
 
 // ============================================================================
@@ -493,82 +491,4 @@ export async function flushPlayBatch(
   await redis.del(VENUE_KEYS.playBatch(venueId));
 
   return raw.map((item: any) => typeof item === 'string' ? JSON.parse(item) : item);
-}
-
-// ============================================================================
-// MINING STATS
-// ============================================================================
-
-export interface MiningStats {
-  blocksMined: number;
-  hashrate: number;      // plays per hour
-  combo: number;         // consecutive hours multiplier
-  lastBlockAt: number;
-  totalToursMined: number;
-}
-
-const BASE_REWARD = 1; // Base TOURS per song block
-
-export function getComboMultiplier(consecutiveHours: number): number {
-  if (consecutiveHours >= 8) return 3;
-  if (consecutiveHours >= 4) return 2;
-  if (consecutiveHours >= 2) return 1.5;
-  return 1;
-}
-
-export async function getMiningStats(
-  redis: Redis,
-  venueId: string
-): Promise<MiningStats> {
-  const data = await redis.get<string>(VENUE_KEYS.mining(venueId));
-  if (!data) {
-    return { blocksMined: 0, hashrate: 0, combo: 0, lastBlockAt: 0, totalToursMined: 0 };
-  }
-  return typeof data === 'string' ? JSON.parse(data) : data as unknown as MiningStats;
-}
-
-export async function updateMiningStats(
-  redis: Redis,
-  venueId: string,
-  stats: MiningStats
-): Promise<void> {
-  await redis.set(VENUE_KEYS.mining(venueId), JSON.stringify(stats));
-  // Update leaderboard (sorted set by total blocks mined)
-  await redis.zadd(VENUE_KEYS.miningLeaderboard, { score: stats.blocksMined, member: venueId });
-}
-
-/**
- * Record a mined block (song played to completion).
- * Returns TOURS earned for this block.
- */
-export async function recordMinedBlock(
-  redis: Redis,
-  venueId: string
-): Promise<{ toursEarned: number; stats: MiningStats }> {
-  const stats = await getMiningStats(redis, venueId);
-  const now = Date.now();
-
-  // Check combo: reset if gap > 10 minutes
-  const gapMs = now - stats.lastBlockAt;
-  if (gapMs > 10 * 60 * 1000 && stats.lastBlockAt > 0) {
-    stats.combo = 0;
-  }
-
-  // Increment combo hours (approximate)
-  const hoursSinceReset = stats.combo === 0 ? 0 : gapMs / (60 * 60 * 1000);
-  stats.combo = stats.combo + (hoursSinceReset > 0 ? hoursSinceReset : 0);
-
-  const multiplier = getComboMultiplier(stats.combo);
-  const toursEarned = BASE_REWARD * multiplier;
-
-  stats.blocksMined++;
-  stats.lastBlockAt = now;
-  stats.totalToursMined += toursEarned;
-
-  // Calculate hashrate (plays in last hour)
-  stats.hashrate = Math.round(stats.blocksMined / Math.max(1, (now - stats.lastBlockAt) / (60 * 60 * 1000)));
-
-  await updateMiningStats(redis, venueId, stats);
-
-  return { toursEarned, stats };
 }

@@ -168,10 +168,9 @@ export async function POST(req: NextRequest) {
 - Listen anywhere: https://api.empowertours.xyz
 
 🎫 **Music NFTs (Gasless):**
-- "tip artist <address> <amount>" - Support an artist
 - "buy music <tokenId>" - Buy a music NFT
 - "mint passport" - Mint your passport NFT
-- "check balance" - Check your MON/TOURS
+- "check balance" - Check your MON balance and NFTs
 
 💰 **Wallet:**
 - "link wallet" - Link your wallet (required first)
@@ -273,86 +272,14 @@ Try: "go to profile"`,
 - Agent World with 15+ on-chain actions
 - Travel passport NFTs (195 countries!)
 - Music NFTs with artist royalties
-- Community radio with TOURS rewards
-- DAO governance with vTOURS voting
+- Community radio with WMON listener rewards
 
 💎 Tokens:
-- TOURS: Ecosystem rewards & governance
 - EMPTOURS: Community token on nad.fun
 
 Built on Monad Mainnet | Gasless transactions
 Try "help" to see all commands!`,
       });
-    }
-
-    // ==================== TIP ARTIST COMMAND ====================
-    if (
-      lowerCommand.startsWith("tip artist") ||
-      lowerCommand.startsWith("tip ")
-    ) {
-      if (!userAddress) {
-        return NextResponse.json({
-          success: false,
-          message:
-            "Wallet not connected. Visit the app to connect your wallet first.",
-        });
-      }
-
-      // Parse: "tip artist 0x... 10" or "tip 0x... 5"
-      const tipMatch = originalCommand.match(
-        /tip\s+(?:artist\s+)?(0x[a-fA-F0-9]{40})\s+([\d.]+)/i,
-      );
-      if (!tipMatch) {
-        return NextResponse.json({
-          success: false,
-          message:
-            'Invalid format. Use: "tip artist 0xArtistAddress 10" (amount in TOURS)',
-        });
-      }
-
-      const artistAddress = tipMatch[1];
-      const tipAmount = tipMatch[2];
-
-      try {
-        const tipRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: "POST",
-          headers: internalHeaders,
-          body: JSON.stringify({
-            userAddress,
-            action: "tip-artist",
-            params: {
-              artistAddress,
-              amount: tipAmount,
-            },
-          }),
-        });
-
-        const tipData = await tipRes.json();
-
-        if (!tipData.success) {
-          return NextResponse.json({
-            success: false,
-            message: `Tip failed: ${tipData.error}`,
-          });
-        }
-
-        return NextResponse.json({
-          success: true,
-          action: "transaction",
-          message: `🎵 **Artist Tipped!**
-
-Sent ${tipAmount} TOURS to ${artistAddress.slice(0, 6)}...${artistAddress.slice(-4)}
-TX: ${tipData.txHash?.slice(0, 14)}...
-
-Thanks for supporting artists! 💎`,
-          txHash: tipData.txHash,
-        });
-      } catch (err: any) {
-        return NextResponse.json({
-          success: false,
-          message: `Tip failed: ${err.message}`,
-        });
-      }
     }
 
     // ==================== QUEUE SONG COMMAND ====================
@@ -443,7 +370,6 @@ TX: ${queueData.txHash?.slice(0, 14)}...
           action: "info",
           message: `Your Balances
 MON: ${data.mon || "0.0000"} MON
-TOURS: ${data.tours || "0"} TOURS
 NFTs: ${data.nfts?.totalNFTs || 0} total
 Address: ${userAddress.slice(0, 10)}...`,
         });
@@ -564,7 +490,6 @@ Address: ${userAddress.slice(0, 10)}...`,
               maxTransactions: 100,
               permissions: [
                 "buy_music",
-                "send_tours",
                 "mint_passport",
                 "wrap_mon",
                 "mint_music",
@@ -613,158 +538,6 @@ View: https://monadscan.com/tx/${buyData.txHash}`,
         return NextResponse.json({
           success: false,
           message: `Purchase failed: ${error.message}`,
-        });
-      }
-    }
-
-    // ==================== SEND TOURS COMMAND ====================
-    if (lowerCommand.includes("send") && lowerCommand.includes("tours")) {
-      if (!userAddress) {
-        return NextResponse.json({
-          success: false,
-          message: 'Wallet not connected. Try: "go to profile"',
-        });
-      }
-      try {
-        const amountMatch = lowerCommand.match(/send\s+([\d.]+)\s+tours/);
-        const recipientMatch = lowerCommand.match(
-          /to\s+(@[\w]+|0x[a-fA-F0-9]{40})/,
-        );
-        if (!amountMatch || !recipientMatch) {
-          return NextResponse.json({
-            success: false,
-            message:
-              'Invalid format. Use: "send 10 tours to @username" or "send 10 tours to 0x..."',
-          });
-        }
-        const amount = parseFloat(amountMatch[1]);
-        let recipient = recipientMatch[1];
-        if (amount <= 0 || amount > 10000) {
-          return NextResponse.json({
-            success: false,
-            message: "Invalid amount. Please use 0.01 - 10000 TOURS",
-          });
-        }
-        if (recipient.startsWith("@")) {
-          console.log("Resolving Farcaster username:", recipient);
-          try {
-            const username = recipient.slice(1);
-            const neynarRes = await fetch(
-              `https://api.neynar.com/v2/farcaster/user/by_username?username=${username}`,
-              {
-                headers: {
-                  api_key:
-                    process.env.NEYNAR_API_KEY ||
-                    process.env.NEXT_PUBLIC_NEYNAR_API_KEY ||
-                    "",
-                },
-              },
-            );
-            if (!neynarRes.ok) {
-              throw new Error(
-                `User @${username} not found on Farcaster (HTTP ${neynarRes.status})`,
-              );
-            }
-            const neynarData = await neynarRes.json();
-            const userData =
-              neynarData.result?.user || neynarData.user || neynarData;
-            let ethAddresses = null;
-            if (userData.verified_addresses?.eth_addresses) {
-              ethAddresses = userData.verified_addresses.eth_addresses;
-            } else if (userData.verifiedAddresses?.eth_addresses) {
-              ethAddresses = userData.verifiedAddresses.eth_addresses;
-            } else if (userData.verifiedAddresses?.ethAddresses) {
-              ethAddresses = userData.verifiedAddresses.ethAddresses;
-            } else if (userData.custody_address) {
-              ethAddresses = [userData.custody_address];
-            } else if (userData.custodyAddress) {
-              ethAddresses = [userData.custodyAddress];
-            }
-            if (ethAddresses && ethAddresses.length > 0) {
-              recipient = ethAddresses[0];
-              console.log("Resolved @" + username + " to:", recipient);
-            } else {
-              throw new Error(`No verified address for @${username}`);
-            }
-          } catch (resolveErr: any) {
-            return NextResponse.json({
-              success: false,
-              message: `Failed to find user ${recipient}: ${resolveErr.message}`,
-            });
-          }
-        }
-        if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
-          return NextResponse.json({
-            success: false,
-            message: "Invalid recipient address format",
-          });
-        }
-        console.log(`Sending ${amount} TOURS to ${recipient}`);
-        const delegationRes = await fetch(
-          `${APP_URL}/api/delegation-status?address=${userAddress}`,
-        );
-        const delegationData = await delegationRes.json();
-        const hasValidDelegation =
-          delegationData.success &&
-          delegationData.delegation &&
-          Array.isArray(delegationData.delegation.permissions) &&
-          delegationData.delegation.permissions.includes("send_tours");
-        if (!hasValidDelegation) {
-          const createRes = await fetch(`${APP_URL}/api/create-delegation`, {
-            method: "POST",
-            headers: internalHeaders,
-            body: JSON.stringify({
-              userAddress,
-              authMethod: "farcaster",
-              fid,
-              durationHours: 24,
-              maxTransactions: 100,
-              permissions: [
-                "send_tours",
-                "mint_passport",
-                "wrap_mon",
-                "mint_music",
-                "buy_music",
-              ],
-            }),
-          });
-          const createData = await createRes.json();
-          if (!createData.success) {
-            throw new Error("Failed to create delegation: " + createData.error);
-          }
-        }
-        const sendRes = await fetch(`${APP_URL}/api/execute-delegated`, {
-          method: "POST",
-          headers: internalHeaders,
-          body: JSON.stringify({
-            userAddress,
-            action: "send_tours",
-            params: {
-              recipient,
-              amount: amount.toString(),
-            },
-          }),
-        });
-        const sendData = await sendRes.json();
-        if (!sendData.success) {
-          throw new Error(sendData.error || "Send failed");
-        }
-        console.log("TOURS sent:", sendData.txHash);
-        return NextResponse.json({
-          success: true,
-          txHash: sendData.txHash,
-          action: "transaction",
-          message: `Sent ${amount} TOURS! (FREE)
-To: ${recipient.slice(0, 6)}...${recipient.slice(-4)}
-TX: ${sendData.txHash?.slice(0, 10)}...
-Gasless - we paid the fees!
-View: https://monadscan.com/tx/${sendData.txHash}`,
-        });
-      } catch (error: any) {
-        console.error("Send TOURS failed:", error);
-        return NextResponse.json({
-          success: false,
-          message: `Send failed: ${error.message}`,
         });
       }
     }
@@ -946,7 +719,6 @@ Try "mint passport" from a different location or "help" for other commands.`,
                 "mint_passport",
                 "wrap_mon",
                 "mint_music",
-                "send_tours",
                 "buy_music",
               ],
             }),
@@ -1112,7 +884,6 @@ Or go to the Music page to upload files.`,
                 "mint_music",
                 "mint_passport",
                 "wrap_mon",
-                "send_tours",
                 "buy_music",
               ],
             }),
@@ -1265,7 +1036,6 @@ To mint a collector edition, use the NFT creation page with the collector toggle
                 "mint_collector",
                 "mint_passport",
                 "wrap_mon",
-                "send_tours",
                 "buy_music",
               ],
             }),

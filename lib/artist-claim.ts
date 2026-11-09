@@ -30,7 +30,6 @@ const MONAD_CHAIN_ID_HEX = "0x8f";
 const SUBSCRIPTION_ABI = parseAbi([
   "function claimArtistPayout(uint256 monthId) external",
   "function batchClaimArtistPayouts(uint256[] calldata monthIds) external",
-  "function batchClaimToursRewards(uint256[] calldata monthIds) external",
 ]);
 
 /** Minimal EIP-1193 surface — all we need is request(). */
@@ -41,8 +40,6 @@ interface Eip1193Provider {
 export interface ClaimArtistPayoutsArgs {
   /** Finalized, unclaimed months from /api/artist-claims. */
   monthIds: number[];
-  /** Also claim the TOURS reward for those months. */
-  claimTours: boolean;
   /** The artist wallet the payouts belong to; the signer must match it. */
   expectedAddress: string;
   subscriptionAddress: Address;
@@ -51,13 +48,6 @@ export interface ClaimArtistPayoutsArgs {
 export interface ClaimArtistPayoutsResult {
   /** Hash of the WMON payout claim. Always present on success. */
   payoutTxHash: string;
-  /** Hash of the TOURS claim, when one was requested and succeeded. */
-  toursTxHash: string | null;
-  /**
-   * Set when the WMON claim succeeded but the TOURS claim did not. The WMON is
-   * already settled at that point, so this is a warning, never a failure.
-   */
-  toursError: string | null;
 }
 
 /**
@@ -77,7 +67,6 @@ export interface ClaimArtistPayoutsResult {
  */
 export async function claimArtistPayoutsFromEOA({
   monthIds,
-  claimTours,
   expectedAddress,
   subscriptionAddress,
 }: ClaimArtistPayoutsArgs): Promise<ClaimArtistPayoutsResult> {
@@ -145,30 +134,11 @@ export async function claimArtistPayoutsFromEOA({
     throw new Error(explainClaimError(e));
   }
 
-  // TOURS is a separate contract call and cannot be batched with the WMON claim
-  // now that there is no Safe to bundle them. Its failure must not be reported
-  // as a failed claim: the WMON payout is confirmed mined by this point, so the
-  // caller surfaces this as a warning alongside a successful claim.
-  let toursTxHash: string | null = null;
-  let toursError: string | null = null;
-  if (claimTours) {
-    try {
-      toursTxHash = await sendAndConfirm(
-        provider,
-        from as Address,
-        subscriptionAddress,
-        encodeFunctionData({
-          abi: SUBSCRIPTION_ABI,
-          functionName: "batchClaimToursRewards",
-          args: [monthIdsBigInt],
-        }) as Hex,
-      );
-    } catch (e: unknown) {
-      toursError = explainClaimError(e);
-    }
-  }
-
-  return { payoutTxHash, toursTxHash, toursError };
+  // There used to be a second transaction here, `batchClaimToursRewards`, sent whenever the
+  // artist looked TOURS-eligible. Removed 2026-11-08: no TOURS has moved on chain in 64 days and
+  // the reward manager has never distributed any, so it cost the artist a second wallet prompt
+  // and gas, then failed and showed "TOURS not claimed" beside a successful WMON claim.
+  return { payoutTxHash };
 }
 
 /**
@@ -235,12 +205,6 @@ function explainClaimError(e: unknown): string {
   }
   if (/Month not finalized/i.test(msg)) {
     return "That month has not been finalized yet — payouts open once it is.";
-  }
-  if (/Not eligible for TOURS reward/i.test(msg)) {
-    return "This wallet does not meet the TOURS eligibility requirements yet.";
-  }
-  if (/No TOURS rewards distributed/i.test(msg)) {
-    return "No TOURS rewards were available for those months.";
   }
   if (/user rejected|User denied|rejected the request/i.test(msg)) {
     return "Claim cancelled in wallet.";

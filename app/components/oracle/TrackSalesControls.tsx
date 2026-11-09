@@ -13,6 +13,29 @@ import { activeChain } from "@/app/chains";
 import { useWalletContext } from "@/app/hooks/useWalletContext";
 
 /**
+ * Tell the server its cached catalogue is out of date after a change this wallet just made.
+ *
+ * Price, pause and burn go from the artist's wallet straight to the contract, so the server's
+ * 15s catalogue cache never hears about them; without this the profile reload right after a
+ * price change shows the OLD price. The server verifies the hash on chain before acting
+ * (`/api/catalogue/refresh`). Never throws: on any failure the cache expires by itself.
+ */
+async function refreshCatalogue(sent: unknown): Promise<void> {
+  const r = sent as { transactionHash?: string; hash?: string } | string | null;
+  const txHash = typeof r === "string" ? r : (r?.transactionHash ?? r?.hash);
+  if (!txHash) return;
+  try {
+    await fetch("/api/catalogue/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ txHash }),
+    });
+  } catch {
+    // Not worth surfacing: the change is on chain either way, and the cache expires in 15s.
+  }
+}
+
+/**
  * An artist's controls for their own master: price, and whether it is for sale.
  *
  * Both live on SalesController and are gated on `getMaster(id).artist ==
@@ -143,13 +166,14 @@ export function TrackSalesControls({
       // chainId, always. Without it the Farcaster wallet prompts on whatever
       // chain it is already on — Base by default — and confirming does nothing.
       await switchChain({ chainId: activeChain.id });
-      await sendTransaction({
+      const sent = await sendTransaction({
         to: sales,
         data,
         value: "0x0",
         chainId: activeChain.id,
       });
       setStatus("Price updated.");
+      await refreshCatalogue(sent);
       await load();
       onChanged?.();
     } catch (e) {
@@ -182,7 +206,7 @@ export function TrackSalesControls({
         args: [BigInt(tokenId)],
       });
       await switchChain({ chainId: activeChain.id });
-      await sendTransaction({
+      const sent = await sendTransaction({
         to: registry,
         data,
         value: "0x0",
@@ -191,6 +215,7 @@ export function TrackSalesControls({
       setStatus("Burned. The track is gone and the id cannot be reused.");
       setConfirmingBurn(false);
       setBurnConfirmText("");
+      await refreshCatalogue(sent);
       onChanged?.();
     } catch (e) {
       setError((e as Error)?.message ?? "Could not burn the track.");
@@ -211,7 +236,7 @@ export function TrackSalesControls({
         args: [BigInt(tokenId), next],
       });
       await switchChain({ chainId: activeChain.id });
-      await sendTransaction({
+      const sent = await sendTransaction({
         to: sales,
         data,
         value: "0x0",
@@ -222,6 +247,7 @@ export function TrackSalesControls({
           ? "Taken off sale. Licences already sold keep working."
           : "Back on sale.",
       );
+      await refreshCatalogue(sent);
       await load();
       onChanged?.();
     } catch (e) {

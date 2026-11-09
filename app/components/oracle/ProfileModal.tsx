@@ -89,8 +89,6 @@ interface SafeBalance {
   /** The WALLET's MON — not the Safe's. The gap between them is the thing people trip on. */
   walletMonBalance: string;
   wmonBalance: string;
-  toursBalance: string;
-  toursWalletBalance: string;
 }
 
 interface SearchedUser {
@@ -194,10 +192,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       monthId: number;
       playCount: number;
       estimatedPayout: string;
-      toursClaimed: boolean;
     }[];
     totalUnclaimed: string;
-    toursEligible: boolean;
   } | null>(null);
   const [earningsLoading, setEarningsLoading] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
@@ -230,8 +226,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           monBalance: data.balance || "0",
           walletMonBalance: data.walletMonBalance || "0",
           wmonBalance: data.wmonBalance || "0",
-          toursBalance: data.toursBalance || "0",
-          toursWalletBalance: data.toursWalletBalance || "0",
         });
       }
     } catch (error) {
@@ -402,15 +396,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setClaimResult(null);
     try {
       const monthIds = claims.unclaimedMonths.map((m) => m.monthId);
-      const hasUnclaimedTours =
-        claims.toursEligible &&
-        claims.unclaimedMonths.some((m) => !m.toursClaimed);
-
       // Signed by the artist wallet, not the Safe — the contract pays
       // msg.sender and the Safe holds no plays. See lib/artist-claim.ts.
-      const { toursError } = await claimArtistPayoutsFromEOA({
+      await claimArtistPayoutsFromEOA({
         monthIds,
-        claimTours: hasUnclaimedTours,
         expectedAddress: walletAddress,
         subscriptionAddress: process.env
           .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as `0x${string}`,
@@ -418,9 +407,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
       setClaimResult({
         success: true,
-        message: toursError
-          ? `Payouts claimed! (TOURS not claimed: ${toursError})`
-          : "Payouts claimed!",
+        message: "Payouts claimed!",
       });
       // Refresh claims data
       const claimsRes = await fetch(
@@ -1254,7 +1241,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                               <p className="text-xs text-gray-400">
                                 {claims.unclaimedMonths.length} month
                                 {claims.unclaimedMonths.length !== 1 ? "s" : ""}
-                                {claims.toursEligible && " + TOURS rewards"}
                               </p>
                             </div>
                             <p className="text-lg font-bold text-good">

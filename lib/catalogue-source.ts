@@ -389,6 +389,14 @@ export function _resetCatalogueCache(): void {
   catalogueCache.clear();
 }
 
+/**
+ * Drop every cached raw read after a CONFIRMED on-chain change (mint, price, pause, burn), so the
+ * next read reflects it. Called from `invalidateCatalogue()` in catalogue-resolved.ts.
+ */
+export function invalidateCatalogueSource(): void {
+  catalogueCache.clear();
+}
+
 export async function getCatalogue(opts?: {
   limit?: number;
   client?: PublicClient;

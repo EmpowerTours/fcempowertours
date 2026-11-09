@@ -108,8 +108,6 @@ const NOT_A_SPEND = new Map<string, string>([
   ["claim_listener_wmon", "moves value TOWARD the user"],
   ["radio_claim_rewards", "moves value TOWARD the user"],
   ["faucet_claim", "moves value TOWARD the user"],
-  ["dao_wrap", "TOURS -> vTOURS, same owner"],
-  ["dao_unwrap", "vTOURS -> TOURS, same owner"],
   [
     "platform_send_mon",
     "spends the PLATFORM Safe; gated by authenticateAdminAction instead",
@@ -142,7 +140,7 @@ for (let i = 0; i < marks.length; i++) {
 }
 
 // The categories that started this: proven ownership, never the rollout flag.
-for (const critical of ["send_mon", "send_tours", "withdraw_to_user"]) {
+for (const critical of ["send_mon", "withdraw_to_user"]) {
   checks++;
   if (!gated.has(critical)) {
     failures.push(
@@ -170,7 +168,6 @@ if (safeMutating.size === 0) {
   failures.push("could not read safeMutatingActions");
 }
 for (const must of [
-  "dao_wrap",
   "wrap_mon",
   "faucet_claim",
   "claim_listener_wmon",

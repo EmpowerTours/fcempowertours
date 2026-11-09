@@ -332,7 +332,7 @@ export default function ListenerRewardsClaim({
     <div style={styles.card}>
       <h3 style={styles.title}>Listener WMON Rewards</h3>
       <p style={styles.subtitle}>
-        Earn WMON from the 20% DAO reserve by listening to Live Radio
+        Earn WMON from the 20% listener reserve by listening to Live Radio
       </p>
 
       {/* Accruing state for the OPEN month.
@@ -394,7 +394,7 @@ export default function ListenerRewardsClaim({
           {/* While a month is open the on-chain reserve reads 0, so show the
               pool this month is on track to fund instead of a misleading zero. */}
           <span style={styles.statLabel}>
-            {data?.pending?.accruing ? "Pool (est.)" : "DAO Reserve"}
+            {data?.pending?.accruing ? "Pool (est.)" : "Listener Reserve"}
           </span>
           <span style={styles.statValue}>
             {parseFloat(

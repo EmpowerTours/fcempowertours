@@ -115,11 +115,10 @@ export default function ProfilePage() {
     mon: string;
     monWallet?: string;
     monSafe?: string;
-    tours: string;
     wmon: string;
     wmonWallet?: string;
     wmonSafe?: string;
-  }>({ mon: "0", tours: "0", wmon: "0" });
+  }>({ mon: "0", wmon: "0" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [_musicPage, _setMusicPage] = useState(1);
@@ -195,12 +194,8 @@ export default function ProfilePage() {
       monthId: number;
       playCount: number;
       estimatedPayout: string;
-      toursClaimed: boolean;
     }[];
     totalUnclaimed: string;
-    toursEligible: boolean;
-    masterCount: number;
-    lifetimePlays: number;
   } | null>(null);
   const [claimingPayouts, setClaimingPayouts] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
@@ -415,10 +410,11 @@ export default function ProfilePage() {
             });
             if (safeResponse.ok) {
               const safeData = await safeResponse.json();
-              if (
-                parseFloat(safeData.tours || "0") >
-                parseFloat(data.tours || "0")
-              ) {
+              // Show whichever account actually holds the funds. This compared TOURS until
+              // 2026-11-08; nothing uses TOURS, so it now compares what the Safe spends.
+              const held = (b: { mon?: string; wmon?: string }) =>
+                parseFloat(b.mon || "0") + parseFloat(b.wmon || "0");
+              if (held(safeData) > held(data)) {
                 data = safeData;
               }
             }
@@ -466,23 +462,17 @@ export default function ProfilePage() {
 
     try {
       const monthIds = artistClaims.unclaimedMonths.map((m) => m.monthId);
-      const hasUnclaimedTours =
-        artistClaims.toursEligible &&
-        artistClaims.unclaimedMonths.some((m) => !m.toursClaimed);
-
       // Signed by the artist wallet, not the Safe — the contract pays
       // msg.sender and the Safe holds no plays. See lib/artist-claim.ts.
-      const { toursError } = await claimArtistPayoutsFromEOA({
+      await claimArtistPayoutsFromEOA({
         monthIds,
-        claimTours: hasUnclaimedTours,
         expectedAddress: walletAddress,
         subscriptionAddress: process.env
           .NEXT_PUBLIC_MUSIC_SUBSCRIPTION as `0x${string}`,
       });
 
       setClaimSuccess(
-        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!` +
-          (toursError ? ` (TOURS not claimed: ${toursError})` : ""),
+        `Claimed ${artistClaims.totalUnclaimed} WMON from ${monthIds.length} month(s)!`,
       );
       setArtistClaims((prev) =>
         prev
@@ -1223,13 +1213,6 @@ export default function ProfilePage() {
                         <p className="text-xl font-bold text-yellow-800">
                           {artistClaims.totalUnclaimed} WMON
                         </p>
-                        {artistClaims.toursEligible && (
-                          <p className="text-xs text-green-600 mt-1">
-                            + TOURS rewards eligible ({artistClaims.masterCount}{" "}
-                            masters, {artistClaims.lifetimePlays} lifetime
-                            plays)
-                          </p>
-                        )}
                       </div>
 
                       {claimError && (
@@ -1390,7 +1373,7 @@ export default function ProfilePage() {
                             </p>
                             {nft.price && (
                               <p className="text-xs text-green-600 font-bold mt-1">
-                                {nft.price} TOURS
+                                {nft.price} WMON
                               </p>
                             )}
                           </div>
@@ -1593,7 +1576,7 @@ export default function ProfilePage() {
                             </p>
                             {nft.price && (
                               <p className="text-xs text-green-600 font-bold mt-1">
-                                {nft.price} TOURS
+                                {nft.price} WMON
                               </p>
                             )}
                           </div>
@@ -1954,7 +1937,7 @@ export default function ProfilePage() {
                             </p>
                             {nft.price && (
                               <p className="text-xs text-green-600 font-bold mt-1">
-                                {nft.price} TOURS
+                                {nft.price} WMON
                               </p>
                             )}
                           </div>
