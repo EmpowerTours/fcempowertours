@@ -395,7 +395,7 @@ export function DisplayNameSetting({
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Earvin Gallardo"
+            placeholder="Add your preferred artist name here"
             disabled={saving || !isConnected}
             className={`w-full px-3 py-2 rounded-lg text-sm border ${
               isDarkMode
