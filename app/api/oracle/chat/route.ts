@@ -738,8 +738,6 @@ async function mintPassportForUser(
             "mint_passport",
             "wrap_mon",
             "mint_music",
-            "swap_mon_for_tours",
-            "send_tours",
             "buy_music",
           ],
         }),

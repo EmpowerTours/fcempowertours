@@ -959,49 +959,62 @@ export function CreateNFTModal({
             </div>
           )}
 
-          {/* Success */}
+          {/* Success — a centred dialog, not an inline banner. The banner sat at the top of the
+              form while the artist was scrolled down at the Mint button, so a mint that worked
+              looked like nothing happened until they scrolled up. The root is `fixed` with no
+              transform, so this `fixed` layer is positioned against the viewport. */}
           {success && (
-            <div className="mb-6 p-6 bg-ink-raised border border-rule rounded-none">
-              <p className="text-good font-bold text-xl mb-3">
-                NFT Minted Successfully!
-              </p>
-              <div className="space-y-2 text-sm">
-                {success.tokenId !== null && (
-                  <p className="text-green-300">
-                    <strong className="text-good">Token ID:</strong> #
-                    {success.tokenId}
-                  </p>
-                )}
-                <p className="text-green-300">
-                  <strong className="text-good">Title:</strong>{" "}
-                  {success.title || "Untitled"}
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mint-success-title"
+              className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/70"
+            >
+              <div className="w-full max-w-md max-h-[90vh] overflow-y-auto p-6 bg-ink-raised border border-rule rounded-none shadow-2xl">
+                <p
+                  id="mint-success-title"
+                  className="text-good font-bold text-xl mb-3"
+                >
+                  NFT Minted Successfully!
                 </p>
-                <p className="text-green-300">
-                  <strong className="text-good">Price:</strong> {success.price}{" "}
-                  WMON per license
-                </p>
-                <div className="flex flex-col gap-3 mt-4">
-                  {success.txHash && (
-                    <a
-                      href={`https://monadscan.com/tx/${success.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block px-4 py-3 bg-foil hover:bg-foil-bright text-ink rounded-lg font-medium transition-all text-center"
-                    >
-                      View on Monadscan
-                    </a>
+                <div className="space-y-2 text-sm">
+                  {success.tokenId !== null && (
+                    <p className="text-green-300">
+                      <strong className="text-good">Token ID:</strong> #
+                      {success.tokenId}
+                    </p>
                   )}
-                  <button
-                    onClick={onClose}
-                    className="w-full px-4 py-3 bg-ink-raised text-white rounded-lg font-medium transition-all text-center"
-                  >
-                    Done
-                  </button>
+                  <p className="text-green-300">
+                    <strong className="text-good">Title:</strong>{" "}
+                    {success.title || "Untitled"}
+                  </p>
+                  <p className="text-green-300">
+                    <strong className="text-good">Price:</strong>{" "}
+                    {success.price} WMON per license
+                  </p>
+                  <div className="flex flex-col gap-3 mt-4">
+                    {success.txHash && (
+                      <a
+                        href={`https://monadscan.com/tx/${success.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block px-4 py-3 bg-foil hover:bg-foil-bright text-ink rounded-lg font-medium transition-all text-center"
+                      >
+                        View on Monadscan
+                      </a>
+                    )}
+                    <button
+                      onClick={onClose}
+                      className="w-full px-4 py-3 bg-ink-raised text-white rounded-lg font-medium transition-all text-center"
+                    >
+                      Done
+                    </button>
+                  </div>
+                  <p className="text-yellow-400/80 text-xs mt-3 flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                    Your NFT may take up to 1 minute to appear in your profile
+                  </p>
                 </div>
-                <p className="text-yellow-400/80 text-xs mt-3 flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
-                  Your NFT may take up to 1 minute to appear in your profile
-                </p>
               </div>
             </div>
           )}
@@ -1999,11 +2012,11 @@ export function CreateNFTModal({
                       className={`p-4 border-t text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto ${isDarkMode ? "border-rule text-gray-400 bg-ink-raised" : "border-gray-200 text-gray-600 bg-gray-50"}`}
                     >
                       {`EMPOWERTOURS DIRECT ARTIST LICENSING AGREEMENT
-Version 1.0
+Version ${RIGHTS_AGREEMENT_VERSION}
 
 The Artist declares they are not affiliated with any PRO, own 100% of both the composition and master recording, and grant EmpowerTours non-exclusive licenses for streaming performance, mechanical reproduction, and master use.
 
-The Artist retains 90% of license sales, 100% of tips, and earns TOURS rewards on Live Radio plays. This license can be revoked at any time with 48-hour notice.
+The Artist retains 90% of license sales, a share of the monthly WMON streaming pool based on Live Radio plays, and 100% of tips. This license can be revoked at any time with 48-hour notice.
 
 Full agreement text is stored on IPFS and referenced in the NFT metadata as a cryptographic hash (keccak256).`}
                     </div>

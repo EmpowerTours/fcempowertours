@@ -234,16 +234,6 @@ export function useRadioStream(): RadioStreamResult {
       }
     });
 
-    // Reward distributed
-    es.addEventListener('reward_distributed', (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setLastEvent({ type: 'reward_distributed', data });
-      } catch (error) {
-        console.error('[useRadioStream] Failed to parse reward_distributed:', error);
-      }
-    });
-
     // Connection opened
     es.onopen = () => {
       console.log('[useRadioStream] SSE connection opened');

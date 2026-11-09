@@ -177,13 +177,12 @@ export async function GET() {
       }),
     );
 
-    const allNFTs = [...processedMusicNFTs];
-
-    // Simple shuffle
-    for (let i = allNFTs.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [allNFTs[i], allNFTs[j]] = [allNFTs[j], allNFTs[i]];
-    }
+    // Newest first, music and art together. The home page shows this under the globe as
+    // "Recent NFTs" and the globe orbits the same list, so a freshly minted song OR drawing
+    // must lead it. This used to be shuffled, which put a new mint in a random slot.
+    const allNFTs = [...processedMusicNFTs].sort(
+      (a, b) => Number(b.tokenId) - Number(a.tokenId),
+    );
 
     return NextResponse.json(
       {

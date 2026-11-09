@@ -33,10 +33,8 @@ export const env = {
 
   // Tokens
   WMON: process.env.NEXT_PUBLIC_WMON || "",
-  TOURS_TOKEN: process.env.NEXT_PUBLIC_TOURS_TOKEN || "",
 
   // Core Contracts
-  TOURS_REWARD_MANAGER: process.env.NEXT_PUBLIC_TOURS_REWARD_MANAGER || "",
   LIVE_RADIO: process.env.NEXT_PUBLIC_LIVE_RADIO || "",
   MUSIC_SUBSCRIPTION: process.env.NEXT_PUBLIC_MUSIC_SUBSCRIPTION || "",
   CLIMBING_LOCATIONS: process.env.NEXT_PUBLIC_CLIMBING_LOCATIONS || "",

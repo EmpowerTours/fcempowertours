@@ -35,13 +35,9 @@ export async function GET(req: NextRequest) {
       timeoutPromise,
     ]);
 
-    // Also get WMON and TOURS balances of Safe + wallet TOURS balance
+    // Also get the Safe's WMON balance
     let wmonBalance = "0";
     let wmonBalanceWei = "0";
-    let toursBalance = "0";
-    let toursBalanceWei = "0";
-    let toursWalletBalance = "0";
-    let toursWalletBalanceWei = "0";
 
     // Is the Safe already an authorised minter on the passport? The client needs
     // this to decide whether calling /api/register-user-safe is worth a wallet
@@ -51,7 +47,6 @@ export async function GET(req: NextRequest) {
     let isRegisteredAsMinter = false;
     const PASSPORT_ADDRESS = process.env.NEXT_PUBLIC_PASSPORT_NFT as Address;
 
-    const TOURS_ADDRESS = process.env.NEXT_PUBLIC_TOURS_TOKEN as Address;
     const erc20BalanceAbi = parseAbi([
       "function balanceOf(address) view returns (uint256)",
     ]);
@@ -119,44 +114,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    if (TOURS_ADDRESS) {
-      // Safe TOURS balance
-      balancePromises.push(
-        publicClient
-          .readContract({
-            address: TOURS_ADDRESS,
-            abi: erc20BalanceAbi,
-            functionName: "balanceOf",
-            args: [safeInfo.safeAddress],
-          })
-          .then((balance) => {
-            toursBalance = (Number(balance as bigint) / 1e18).toFixed(4);
-            toursBalanceWei = (balance as bigint).toString();
-          })
-          .catch((e) => {
-            console.error("Failed to get Safe TOURS balance:", e);
-          }),
-      );
-
-      // Wallet TOURS balance (radio rewards are sent here)
-      balancePromises.push(
-        publicClient
-          .readContract({
-            address: TOURS_ADDRESS,
-            abi: erc20BalanceAbi,
-            functionName: "balanceOf",
-            args: [address as Address],
-          })
-          .then((balance) => {
-            toursWalletBalance = (Number(balance as bigint) / 1e18).toFixed(4);
-            toursWalletBalanceWei = (balance as bigint).toString();
-          })
-          .catch((e) => {
-            console.error("Failed to get wallet TOURS balance:", e);
-          }),
-      );
-    }
-
     await Promise.all(balancePromises);
 
     const isAdequatelyFunded =
@@ -173,10 +130,6 @@ export async function GET(req: NextRequest) {
       balanceWei: safeInfo.balanceWei.toString(),
       wmonBalance,
       wmonBalanceWei,
-      toursBalance,
-      toursBalanceWei,
-      toursWalletBalance,
-      toursWalletBalanceWei,
       walletMonBalance,
       isFunded: safeInfo.isFunded,
       isAdequatelyFunded,
