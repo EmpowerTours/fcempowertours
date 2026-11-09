@@ -3,6 +3,7 @@ import { createWalletClient, http, parseAbi, Address, verifyMessage } from 'viem
 import { privateKeyToAccount } from 'viem/accounts';
 import { activeChain } from '@/app/chains';
 import { publicClient } from '@/lib/pimlico-safe-aa';
+import { invalidateCatalogue } from '@/lib/catalogue-resolved';
 
 /**
  * POST /api/admin/burn-stolen
@@ -201,6 +202,8 @@ export async function POST(req: NextRequest) {
     // Wait for confirmation
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     console.log(`[AdminBurn] Confirmed in block: ${receipt.blockNumber}`);
+    // A burned master must leave the catalogue now, not when the cache TTL runs out.
+    invalidateCatalogue();
 
     return NextResponse.json({
       success: true,
