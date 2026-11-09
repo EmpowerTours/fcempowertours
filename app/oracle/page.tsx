@@ -879,7 +879,7 @@ export default function OraclePage() {
           {/* NFT List - Easy access to all NFTs */}
           {!loadingNFTs && nftList.length > 0 && (
             <div className="w-full max-w-4xl px-6 mt-8 mb-16">
-              <h3 className="doc-label mb-4">Available NFTs</h3>
+              <h3 className="doc-label mb-4">Recent NFTs</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {nftList.map((nft) => {
                   const isPlaying = playingTokenId === nft.tokenId;
