@@ -15,10 +15,6 @@ import {
   getVenueSession,
   bufferPlay,
   flushPlayBatch,
-  recordMinedBlock,
-  getMiningStats,
-  getComboMultiplier,
-  updateMiningStats,
   VENUE_KEYS,
   type VenueSession,
 } from '@/lib/venue';
@@ -117,18 +113,13 @@ async function processVenue(venueId: string, now: number): Promise<string> {
         return `playing (${remaining}s remaining)`;
       }
 
-      // Song ended — buffer play and record mining block
+      // Song ended — buffer play
       console.log(`[VenueScheduler] Song ended for ${venueId}: ${state.currentSong.name}`);
 
       const playDuration = Math.floor((now - state.currentSong.startedAt) / 1000);
 
       // Buffer play for batch submission
       await bufferPlay(redis, venueId, state.currentSong.tokenId, playDuration);
-
-      // Record mining block
-      recordMinedBlock(redis, venueId).catch(err =>
-        console.error(`[VenueScheduler] mining error for ${venueId}:`, err.message)
-      );
 
       // Add to history
       await addToVenueHistory(redis, venueId, {
@@ -269,8 +260,8 @@ async function commitSeedOnChain(venueId: string, _sessionId: number, _seedHash:
 
 /**
  * Flush buffered plays and submit as batch to VenueRegistry on-chain.
- * VenueRegistry automatically distributes TOURS to the venue owner (VENUE_OPERATOR reward)
- * with the combo multiplier set on-chain.
+ * The plays count toward artist payouts. The registry's TOURS venue reward is no longer used:
+ * the app stopped setting its combo multiplier and tracking "mining" on 2026-11-08.
  */
 async function submitBatchPlaysOnChain(
   venueId: string,
@@ -297,7 +288,6 @@ async function submitBatchPlaysOnChain(
     const registryAbi = [
       'function getVenueIdByOwner(address owner) external view returns (uint256)',
       'function submitBatchPlays(uint256 venueId, uint256 sessionId, uint256[] calldata tokenIds, uint256[] calldata durations) external',
-      'function setVenueComboMultiplier(uint256 venueId, uint256 multiplierBps) external',
     ];
     const registry = new Contract(VENUE_REGISTRY_ADDRESS, registryAbi, wallet);
 
@@ -308,19 +298,7 @@ async function submitBatchPlaysOnChain(
       return;
     }
 
-    // Update combo multiplier on-chain before submitting plays
-    const miningStats = await getMiningStats(redis, venueId);
-    const comboMultiplier = getComboMultiplier(miningStats.combo);
-    const comboBps = Math.round(comboMultiplier * 10000); // 1x=10000, 1.5x=15000, 2x=20000, 3x=30000
-    try {
-      const comboTx = await registry.setVenueComboMultiplier(onChainVenueId, comboBps);
-      await comboTx.wait();
-      console.log(`[VenueScheduler] Set combo ${comboMultiplier}x (${comboBps} bps) for ${venueId}`);
-    } catch (err: any) {
-      console.error(`[VenueScheduler] setCombo error:`, err.message?.slice(0, 80));
-    }
-
-    // Submit in batches of 50 — VenueRegistry auto-distributes TOURS to venue owner
+    // Submit in batches of 50 — these plays count toward artist payouts
     for (let i = 0; i < plays.length; i += 50) {
       const batch = plays.slice(i, i + 50);
       const tokenIds = batch.map(p => BigInt(p.tokenId));
@@ -332,21 +310,7 @@ async function submitBatchPlaysOnChain(
         tokenIds,
         durations
       );
-      const receipt = await tx.wait();
-
-      // Parse VenueToursEarned event to update off-chain mining stats
-      const _toursEarnedTopic = '0x'; // Will match by event name instead
-      for (const log of receipt.logs || []) {
-        try {
-          const parsed = registry.interface.parseLog({ topics: log.topics, data: log.data });
-          if (parsed?.name === 'VenueToursEarned') {
-            const toursAmount = Number(parsed.args[2]) / 1e18; // Convert from wei
-            miningStats.totalToursMined += toursAmount;
-            await updateMiningStats(redis, venueId, miningStats);
-            console.log(`[VenueScheduler] Venue ${venueId} earned ${toursAmount} TOURS for ${batch.length} plays`);
-          }
-        } catch {}
-      }
+      await tx.wait();
 
       console.log(`[VenueScheduler] Batch submitted for ${venueId}: ${batch.length} plays`);
     }

@@ -9,16 +9,13 @@ import {
   pickRandomClearedSong,
   addToVenueHistory,
   bufferPlay,
-  getMiningStats,
-  recordMinedBlock,
-  VENUE_KEYS,
 } from '@/lib/venue';
 import { broadcast } from '@/lib/sse-broadcaster';
 
 /**
  * Device API — REST endpoints for embedded hardware (ESP32, Raspberry Pi, etc.)
  *
- * GET  /api/venue/[venueId]/device?key=X          — Current state + mining stats
+ * GET  /api/venue/[venueId]/device?key=X          — Current state
  * GET  /api/venue/[venueId]/device/next?key=X     — Next song URL + metadata
  * POST /api/venue/[venueId]/device?key=X          — Actions: play, pause, skip, song_ended
  *
@@ -53,31 +50,8 @@ export async function GET(
     return handleGetNext(venueId);
   }
 
-  // Default: return current state + mining stats
+  // Default: return current state
   const state = await getVenuePlaybackState(redis, venueId);
-  const mining = await getMiningStats(redis, venueId);
-
-  // Get leaderboard rank
-  const rank = await redis.zrevrank(VENUE_KEYS.miningLeaderboard, venueId);
-
-  // Try to read on-chain TOURS earned from VenueRegistry
-  let onChainTours: number | null = null;
-  const VENUE_REGISTRY = process.env.NEXT_PUBLIC_VENUE_REGISTRY;
-  if (VENUE_REGISTRY && venue.ownerAddress) {
-    try {
-      const { JsonRpcProvider, Contract } = await import('ethers');
-      const provider = new JsonRpcProvider(process.env.NEXT_PUBLIC_MONAD_RPC || 'https://rpc.monad.xyz');
-      const registry = new Contract(VENUE_REGISTRY, [
-        'function getVenueIdByOwner(address) view returns (uint256)',
-        'function venues(uint256) view returns (address,string,uint256,uint256,bool,uint256,uint256,uint256)',
-      ], provider);
-      const onChainId = await registry.getVenueIdByOwner(venue.ownerAddress);
-      if (onChainId > 0n) {
-        const v = await registry.venues(onChainId);
-        onChainTours = Number(v[7]) / 1e18; // totalToursEarned (index 7)
-      }
-    } catch {}
-  }
 
   return json({
     venue: venue.name,
@@ -93,14 +67,6 @@ export async function GET(
     playing: state.isPlaying,
     today: state.songsPlayedToday,
     total: state.totalSongsPlayed,
-    mining: {
-      blocks: mining.blocksMined,
-      hashrate: mining.hashrate,
-      combo: Math.round(mining.combo * 10) / 10,
-      tours: onChainTours ?? Math.round(mining.totalToursMined * 100) / 100,
-      toursOnChain: onChainTours !== null,
-      rank: rank !== null ? rank + 1 : null,
-    },
   });
 }
 
@@ -170,9 +136,6 @@ export async function POST(
       // Buffer play for batch on-chain submission
       await bufferPlay(redis, venueId, state.currentSong.tokenId, duration);
 
-      // Record mining block
-      const { toursEarned, stats: miningStats } = await recordMinedBlock(redis, venueId);
-
       // Add to history
       await addToVenueHistory(redis, venueId, {
         tokenId: state.currentSong.tokenId,
@@ -190,13 +153,7 @@ export async function POST(
 
       broadcast(`venue:${venueId}`, 'state_update', { type: 'song_ended', state });
 
-      return json({
-        ok: true,
-        mined: true,
-        block: miningStats.blocksMined,
-        tours: toursEarned,
-        combo: Math.round(miningStats.combo * 10) / 10,
-      });
+      return json({ ok: true });
     }
 
     default:

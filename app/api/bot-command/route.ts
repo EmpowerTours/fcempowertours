@@ -273,7 +273,6 @@ Try: "go to profile"`,
 - Travel passport NFTs (195 countries!)
 - Music NFTs with artist royalties
 - Community radio with WMON listener rewards
-- DAO governance with vTOURS voting
 
 💎 Tokens:
 - EMPTOURS: Community token on nad.fun
