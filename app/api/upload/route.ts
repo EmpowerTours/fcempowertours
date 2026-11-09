@@ -48,11 +48,14 @@ export async function POST(request: NextRequest) {
     const previewFile = formData.get("previewAudio");
     const fullFile = formData.get("fullAudio");
     const coverFile = formData.get("cover");
-    const description = formData.get("description") as string;
+    // Trimmed here too, so no client can put a padded title into the metadata.
+    const description = ((formData.get("description") as string) || "").trim();
     const fid = formData.get("fid") as string;
     const address = formData.get("address") as string;
     const isCollectorEdition = formData.get("isCollectorEdition") === "true";
-    const collectorTitle = formData.get("collectorTitle") as string;
+    const collectorTitle = (
+      (formData.get("collectorTitle") as string) || ""
+    ).trim();
     const rightsDeclarationRaw = formData.get("rightsDeclaration") as
       | string
       | null;
