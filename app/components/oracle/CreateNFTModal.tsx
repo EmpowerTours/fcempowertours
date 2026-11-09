@@ -44,7 +44,7 @@ export function CreateNFTModal({
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [fullFile, setFullFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
+  const [titleInput, setTitle] = useState("");
   // Deliberately empty, not "1". A price that defaults to something is a price
   // nobody has to look at: Ganado went on sale at 1 WMON — its collector
   // edition was 500 — because the field sat at its default through several
@@ -427,6 +427,9 @@ export function CreateNFTModal({
   };
 
   const uploadAndMint = async () => {
+    // Stray spaces typed around the title end up in the immutable IPFS metadata ("Unstable ", token 15),
+    // so everything below uses the trimmed title.
+    const title = titleInput.trim();
     if (previewFile && previewFile.size > 600 * 1024) {
       rejectAt(
         2,
@@ -1416,7 +1419,7 @@ export function CreateNFTModal({
                   </label>
                   <input
                     type="text"
-                    value={title}
+                    value={titleInput}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder={
                       nftType === "music"
@@ -1434,7 +1437,7 @@ export function CreateNFTModal({
                   <p
                     className={`text-sm mt-2 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
                   >
-                    {title.length}/200 characters
+                    {titleInput.length}/200 characters
                   </p>
                 </div>
 
@@ -1640,7 +1643,7 @@ export function CreateNFTModal({
 
                 <button
                   onClick={() => setCurrentStep(nftType === "music" ? 4 : 5)}
-                  disabled={!title || !price}
+                  disabled={!titleInput.trim() || !price}
                   className="w-full px-8 py-4 bg-foil hover:bg-foil-bright text-ink rounded-sm font-bold text-lg disabled:opacity-50 disabled:scale-100 transition-all"
                 >
                   {nftType === "music"
@@ -2058,7 +2061,7 @@ Full agreement text is stored on IPFS and referenced in the NFT metadata as a cr
                             : "ART NFT"}
                       </div>
                       <h3 className="text-3xl font-bold text-white mb-4">
-                        {success?.title || title || "Untitled"}
+                        {success?.title || titleInput.trim() || "Untitled"}
                       </h3>
                       <div className="space-y-2 text-gray-300">
                         <p>
