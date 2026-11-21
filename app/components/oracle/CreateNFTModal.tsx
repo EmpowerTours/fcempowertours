@@ -13,6 +13,7 @@ import {
   type RightsDeclaration,
 } from "@/lib/rights-declaration";
 import { signMintRequest } from "@/lib/sign-mint-request";
+import { storedReferrer } from "@/lib/referral-link";
 import { useBotCommand } from "@/app/hooks/useBotCommand";
 
 interface CreateNFTModalProps {
@@ -655,6 +656,10 @@ export function CreateNFTModal({
             collectorPrice,
             maxCollectorEditions: parseInt(maxEditions, 10),
             nftType: nftType === "art" ? 1 : 0,
+            // Who introduced this artist, from the ?ref= link they arrived on. It is signed
+            // into the MintRequest and stored on the master once, permanently, so it must
+            // be passed at mint: a master minted without it can never be attributed later.
+            referrer: (storedReferrer(walletAddress) ?? undefined) as `0x${string}` | undefined,
             signTypedData,
           });
           setProgressStage("Sending to blockchain...");
@@ -705,6 +710,10 @@ export function CreateNFTModal({
             uri: tokenURI,
             price,
             nftType: nftType === "art" ? 1 : 0,
+            // Who introduced this artist, from the ?ref= link they arrived on. It is signed
+            // into the MintRequest and stored on the master once, permanently, so it must
+            // be passed at mint: a master minted without it can never be attributed later.
+            referrer: (storedReferrer(walletAddress) ?? undefined) as `0x${string}` | undefined,
             signTypedData,
           });
           setProgressStage("Sending to blockchain...");
